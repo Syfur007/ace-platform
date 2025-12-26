@@ -1,0 +1,25 @@
+# Node
+**/node_modules/
+**/dist/
+**/.vite/
+
+# Env
+.env
+.env.*
+
+# Logs
+*.log
+
+# Go build artifacts
+*.exe
+*.exe~
+*.dll
+*.so
+*.dylib
+*.test
+*.out
+bin/
+
+# OS
+.DS_Store
+Thumbs.db
