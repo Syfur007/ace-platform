@@ -42,6 +42,18 @@ export function PackageDetailsPage() {
             </div>
           </div>
 
+          <div className="mt-5">
+            <div className="text-xs text-slate-500">Module Sections</div>
+            <div className="mt-2 grid gap-3 sm:grid-cols-2">
+              {pkg.moduleSections.map((m) => (
+                <div key={m.id} className="rounded border border-slate-200 p-3">
+                  <div className="font-medium">{m.name}</div>
+                  <div className="mt-1 text-sm text-slate-600">{m.description}</div>
+                </div>
+              ))}
+            </div>
+          </div>
+
           <div className="mt-4">
             <div className="text-xs text-slate-500">Highlights</div>
             <ul className="mt-2 list-disc space-y-1 pl-5 text-sm text-slate-700">
