@@ -1,0 +1,75 @@
+openapi: 3.0.3
+info:
+  title: ACE API
+  version: 0.1.0
+servers:
+  - url: http://localhost:8080
+paths:
+  /healthz:
+    get:
+      operationId: healthz
+      responses:
+        '200':
+          description: Health status
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HealthzResponse'
+
+  /exam-sessions/{sessionId}/heartbeat:
+    post:
+      operationId: heartbeat
+      parameters:
+        - in: path
+          name: sessionId
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/HeartbeatRequest'
+      responses:
+        '200':
+          description: Heartbeat accepted
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HeartbeatResponse'
+
+components:
+  schemas:
+    HealthzResponse:
+      type: object
+      required: [status, ts]
+      properties:
+        status:
+          type: string
+        ts:
+          type: string
+          description: RFC3339 timestamp
+
+    HeartbeatRequest:
+      type: object
+      required: [sessionId, ts, snapshot]
+      properties:
+        sessionId:
+          type: string
+        ts:
+          type: string
+          description: RFC3339 timestamp
+        snapshot:
+          description: Latest client-side snapshot for recovery
+          nullable: true
+
+    HeartbeatResponse:
+      type: object
+      required: [ok, serverTs]
+      properties:
+        ok:
+          type: boolean
+        serverTs:
+          type: string
+          description: RFC3339 timestamp
