@@ -2,6 +2,30 @@ import type { paths } from '@/api/__generated__/schema'
 
 import { apiFetchJson } from '@/api/http'
 
+export type RegisterRequest =
+  paths['/auth/register']['post']['requestBody']['content']['application/json']
+
+export type LoginRequest =
+  paths['/auth/login']['post']['requestBody']['content']['application/json']
+
+export type AuthResponse =
+  paths['/auth/login']['post']['responses'][200]['content']['application/json']
+
+export type MeResponse =
+  paths['/auth/me']['get']['responses'][200]['content']['application/json']
+
+export async function register(body: RegisterRequest): Promise<AuthResponse> {
+  return apiFetchJson<AuthResponse>('/auth/register', { method: 'POST', body })
+}
+
+export async function login(body: LoginRequest): Promise<AuthResponse> {
+  return apiFetchJson<AuthResponse>('/auth/login', { method: 'POST', body })
+}
+
+export async function getMe(): Promise<MeResponse> {
+  return apiFetchJson<MeResponse>('/auth/me', { method: 'GET' })
+}
+
 export type HealthzResponse =
   paths['/healthz']['get']['responses'][200]['content']['application/json']
 

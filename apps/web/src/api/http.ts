@@ -1,4 +1,5 @@
 import { getApiBaseUrl } from '@/api/config'
+import { getAccessToken } from '@/auth/token'
 
 export type ApiError = {
   status: number
@@ -24,6 +25,9 @@ export async function apiFetchJson<TResponse>(
 
   const headers = new Headers(init.headers)
   headers.set('accept', 'application/json')
+
+  const token = getAccessToken()
+  if (token) headers.set('authorization', `Bearer ${token}`)
 
   const hasBody = init.body !== undefined
   if (hasBody) headers.set('content-type', 'application/json')

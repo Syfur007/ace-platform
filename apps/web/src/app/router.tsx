@@ -1,6 +1,7 @@
 import { createBrowserRouter, Link, Outlet, RouterProvider } from 'react-router-dom'
 
 import { AdminPanelPage } from '@/pages/AdminPanelPage'
+import { AuthPage } from '@/pages/AuthPage'
 import { ExamSimulationPage } from '@/pages/ExamSimulationPage'
 import { InstructorDashboardPage } from '@/pages/InstructorDashboardPage'
 import { PackageDetailsPage } from '@/pages/PackageDetailsPage'
@@ -22,6 +23,9 @@ function AppShell() {
             ACE
           </Link>
           <nav className="flex gap-4 text-sm">
+            <Link to="/auth" className="hover:underline">
+              Auth
+            </Link>
             <Link to="/student" className="hover:underline">
               Student
             </Link>
@@ -77,6 +81,7 @@ const router = createBrowserRouter([
     element: <AppShell />,
     children: [
       { index: true, element: <Home /> },
+      { path: 'auth', element: <AuthPage /> },
       {
         path: 'student',
         element: <StudentLayout />,

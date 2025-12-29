@@ -64,7 +64,9 @@ export function StudentPracticeSessionPage() {
           {sessionQuery.isLoading ? (
             <div className="text-sm text-slate-600">Loading session…</div>
           ) : sessionQuery.isError ? (
-            <div className="text-sm text-rose-700">Failed to load session.</div>
+            <div className="text-sm text-rose-700">
+              Failed to load session. <Link to="/auth" className="underline">Sign in</Link>
+            </div>
           ) : sessionQuery.data?.status === 'finished' ? (
             <div className="space-y-4">
               <div className="text-sm font-medium">Session complete</div>
@@ -149,7 +151,9 @@ export function StudentPracticeSessionPage() {
                 </div>
 
                 {submitMutation.isError ? (
-                  <div className="text-sm text-rose-700">Failed to submit answer.</div>
+                  <div className="text-sm text-rose-700">
+                    Failed to submit answer. <Link to="/auth" className="underline">Sign in</Link>
+                  </div>
                 ) : null}
 
                 {lastFeedback ? (

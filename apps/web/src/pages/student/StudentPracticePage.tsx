@@ -29,8 +29,13 @@ export function StudentPracticePage() {
 
       navigate(`/student/practice/session/${encodeURIComponent(session.sessionId)}`)
     } catch (e) {
-      const message = typeof e === 'object' && e && 'message' in e ? String((e as any).message) : 'Failed to start session'
-      setStartError(message)
+      const status = typeof e === 'object' && e && 'status' in e ? Number((e as any).status) : null
+      if (status === 401) {
+        setStartError('You are not signed in. Open the Auth page and login/register first.')
+      } else {
+        const message = typeof e === 'object' && e && 'message' in e ? String((e as any).message) : 'Failed to start session'
+        setStartError(message)
+      }
     } finally {
       setIsStarting(false)
     }
@@ -112,7 +117,11 @@ export function StudentPracticePage() {
               </Link>
             </div>
 
-            {startError ? <div className="text-sm text-rose-700">{startError}</div> : null}
+            {startError ? (
+              <div className="text-sm text-rose-700">
+                {startError} <Link to="/auth" className="underline">Go to Auth</Link>
+              </div>
+            ) : null}
 
             <div className="rounded border border-slate-200 p-3 text-xs text-slate-600">
               Next steps: wire to API (create session → fetch questions → submit answers) and add a review mode for incorrect/flagged.

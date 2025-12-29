@@ -16,9 +16,58 @@ paths:
               schema:
                 $ref: '#/components/schemas/HealthzResponse'
 
+  /auth/register:
+    post:
+      operationId: register
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/RegisterRequest'
+      responses:
+        '200':
+          description: Registered
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AuthResponse'
+
+  /auth/login:
+    post:
+      operationId: login
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/LoginRequest'
+      responses:
+        '200':
+          description: Logged in
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AuthResponse'
+
+  /auth/me:
+    get:
+      operationId: me
+      security:
+        - bearerAuth: []
+      responses:
+        '200':
+          description: Current user
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/User'
+
   /practice-sessions:
     post:
       operationId: createPracticeSession
+      security:
+        - bearerAuth: []
       requestBody:
         required: true
         content:
@@ -59,6 +108,8 @@ paths:
   /practice-sessions/{sessionId}:
     get:
       operationId: getPracticeSession
+      security:
+        - bearerAuth: []
       parameters:
         - in: path
           name: sessionId
@@ -76,6 +127,8 @@ paths:
   /practice-sessions/{sessionId}/answers:
     post:
       operationId: submitPracticeAnswer
+      security:
+        - bearerAuth: []
       parameters:
         - in: path
           name: sessionId
@@ -99,6 +152,8 @@ paths:
   /practice-sessions/{sessionId}/summary:
     get:
       operationId: getPracticeSessionSummary
+      security:
+        - bearerAuth: []
       parameters:
         - in: path
           name: sessionId
@@ -114,6 +169,11 @@ paths:
                 $ref: '#/components/schemas/PracticeSessionSummaryResponse'
 
 components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
   schemas:
     HealthzResponse:
       type: object
@@ -250,3 +310,43 @@ components:
         accuracy:
           type: number
           format: float
+
+    RegisterRequest:
+      type: object
+      required: [email, password]
+      properties:
+        email:
+          type: string
+        password:
+          type: string
+          description: Plaintext password (sent over HTTPS in production)
+
+    LoginRequest:
+      type: object
+      required: [email, password]
+      properties:
+        email:
+          type: string
+        password:
+          type: string
+
+    User:
+      type: object
+      required: [id, email, createdAt]
+      properties:
+        id:
+          type: string
+        email:
+          type: string
+        createdAt:
+          type: string
+          description: RFC3339 timestamp
+
+    AuthResponse:
+      type: object
+      required: [accessToken, user]
+      properties:
+        accessToken:
+          type: string
+        user:
+          $ref: '#/components/schemas/User'
