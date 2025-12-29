@@ -135,7 +135,7 @@ export function StudentPracticePage() {
             <Link to="/student/courses" className="block rounded border border-slate-200 px-3 py-2 text-sm hover:bg-slate-50">
               Browse courses
             </Link>
-            <Link to="/student/tests" className="block rounded border border-slate-200 px-3 py-2 text-sm hover:bg-slate-50">
+            <Link to="/student/test" className="block rounded border border-slate-200 px-3 py-2 text-sm hover:bg-slate-50">
               Take a mock test
             </Link>
           </div>

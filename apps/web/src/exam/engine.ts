@@ -6,6 +6,7 @@ export type ExamAction =
   | { type: 'submitDraftAnswer' }
   | { type: 'advance' }
   | { type: 'markHeartbeatAttempt' }
+  | { type: 'hydrateFromSnapshot'; snapshot: ExamSessionSnapshot }
 
 const STORAGE_PREFIX = 'ace.exam.session.'
 
@@ -138,6 +139,10 @@ export function getCurrentItem(state: ExamSessionSnapshot): ExamItem | null {
 
 export function examReducer(state: ExamSessionSnapshot, action: ExamAction): ExamSessionSnapshot {
   switch (action.type) {
+    case 'hydrateFromSnapshot':
+      // Trust server snapshot as canonical. Keep local persistence timestamp fresh.
+      return { ...action.snapshot, lastLocalPersistedAt: Date.now() }
+
     case 'setDraftAnswer':
       return { ...state, draftAnswer: action.value }
 

@@ -40,15 +40,18 @@ export function StudentDashboardPage() {
           </div>
 
           <div className="flex flex-wrap gap-2">
-            <Link
-              className="rounded border border-slate-200 px-3 py-2 text-sm hover:bg-slate-50"
-              to="/student/courses"
-            >
+            <Link className="rounded border border-slate-200 px-3 py-2 text-sm hover:bg-slate-50" to="/student/courses">
               Browse courses
             </Link>
             <Link
               className="rounded border border-slate-200 px-3 py-2 text-sm hover:bg-slate-50"
-              to="/exam/demo-session"
+              to="/student/practice"
+            >
+              Practice now
+            </Link>
+            <Link
+              className="rounded border border-slate-200 px-3 py-2 text-sm hover:bg-slate-50"
+              to="/student/test/demo-session"
             >
               Take a mock test
             </Link>
@@ -167,7 +170,10 @@ export function StudentDashboardPage() {
             <div className="font-medium">Exam simulation engine</div>
             <div className="mt-1 text-sm text-slate-600">Full-screen test runner UI will be layered on this engine.</div>
           </div>
-          <Link className="rounded border border-slate-200 px-3 py-2 text-sm hover:bg-slate-50" to="/exam/demo-session">
+          <Link
+            className="rounded border border-slate-200 px-3 py-2 text-sm hover:bg-slate-50"
+            to="/student/test/demo-session"
+          >
             Start demo test
           </Link>
         </div>

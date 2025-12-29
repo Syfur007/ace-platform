@@ -5,8 +5,8 @@ import { useExamEngine } from '@/exam/useExamEngine'
 import { useHeartbeatSync } from '@/exam/useHeartbeatSync'
 
 export function ExamSimulationPage() {
-  const { sessionId } = useParams()
-  const engine = useExamEngine({ sessionId: sessionId ?? 'unknown-session' })
+  const { testId } = useParams()
+  const engine = useExamEngine({ sessionId: testId ?? 'unknown-session' })
 
   const activeSection = engine.state.sections[engine.state.activeSectionIndex]
   const theta = activeSection ? (engine.state.thetaBySectionId[activeSection.id] ?? 0) : 0

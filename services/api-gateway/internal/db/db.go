@@ -80,6 +80,16 @@ func Migrate(ctx context.Context, pool *pgxpool.Pool) error {
 			explanation text not null,
 			ts timestamptz not null default now()
 		);`,
+		`create table if not exists exam_sessions (
+			user_id text not null references users(id) on delete cascade,
+			id text not null,
+			status text not null default 'active',
+			snapshot jsonb not null default '{}'::jsonb,
+			created_at timestamptz not null default now(),
+			updated_at timestamptz not null default now(),
+			last_heartbeat_at timestamptz not null default now(),
+			primary key (user_id, id)
+		);`,
 	}
 
 	for _, stmt := range statements {

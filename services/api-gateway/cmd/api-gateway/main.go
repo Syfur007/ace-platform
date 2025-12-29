@@ -2,11 +2,9 @@ package main
 
 import (
 	"context"
-	"encoding/json"
 	"log"
 	"net/http"
 	"os"
-	"sync"
 	"time"
 
 	"github.com/gin-gonic/gin"
@@ -14,32 +12,6 @@ import (
 	"github.com/ace-platform/api-gateway/internal/db"
 	"github.com/ace-platform/api-gateway/internal/handlers"
 )
-
-type HeartbeatRequest struct {
-	SessionID string          `json:"sessionId"`
-	TS        string          `json:"ts"`
-	Snapshot  json.RawMessage `json:"snapshot"`
-}
-
-type HeartbeatResponse struct {
-	Ok       bool   `json:"ok"`
-	ServerTS string `json:"serverTs"`
-}
-
-type HeartbeatStore struct {
-	mu   sync.Mutex
-	data map[string]HeartbeatRequest
-}
-
-func NewHeartbeatStore() *HeartbeatStore {
-	return &HeartbeatStore{data: make(map[string]HeartbeatRequest)}
-}
-
-func (s *HeartbeatStore) Put(sessionID string, hb HeartbeatRequest) {
-	s.mu.Lock()
-	defer s.mu.Unlock()
-	s.data[sessionID] = hb
-}
 
 func main() {
 	port := os.Getenv("PORT")
@@ -74,8 +46,6 @@ func main() {
 		c.Next()
 	})
 
-	store := NewHeartbeatStore()
-
 	r.GET("/healthz", func(c *gin.Context) {
 		c.JSON(http.StatusOK, gin.H{
 			"status": "ok",
@@ -83,32 +53,9 @@ func main() {
 		})
 	})
 
-	r.POST("/exam-sessions/:sessionId/heartbeat", func(c *gin.Context) {
-		sessionID := c.Param("sessionId")
-		var req HeartbeatRequest
-		if err := c.ShouldBindJSON(&req); err != nil {
-			c.JSON(http.StatusBadRequest, gin.H{
-				"message": "invalid json body",
-				"error":   err.Error(),
-			})
-			return
-		}
-
-		// Trust the path param as the canonical session id.
-		if req.SessionID == "" {
-			req.SessionID = sessionID
-		}
-
-		store.Put(sessionID, req)
-
-		c.JSON(http.StatusOK, HeartbeatResponse{
-			Ok:       true,
-			ServerTS: time.Now().UTC().Format(time.RFC3339),
-		})
-	})
-
 	handlers.RegisterAuthRoutes(r, pool)
 	handlers.RegisterPracticeRoutes(r, pool)
+	handlers.RegisterExamRoutes(r, pool)
 
 	if err := r.Run(":" + port); err != nil {
 		log.Fatal(err)

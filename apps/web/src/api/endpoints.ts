@@ -62,6 +62,13 @@ export async function postHeartbeat(sessionId: string, body: HeartbeatRequest): 
   })
 }
 
+export type GetExamSessionResponse =
+  paths['/exam-sessions/{sessionId}']['get']['responses'][200]['content']['application/json']
+
+export async function getExamSession(sessionId: string): Promise<GetExamSessionResponse> {
+  return apiFetchJson<GetExamSessionResponse>(`/exam-sessions/${encodeURIComponent(sessionId)}`, { method: 'GET' })
+}
+
 export type CreatePracticeSessionRequest =
   paths['/practice-sessions']['post']['requestBody']['content']['application/json']
 

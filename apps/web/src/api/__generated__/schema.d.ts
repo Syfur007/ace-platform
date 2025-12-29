@@ -215,6 +215,22 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/exam-sessions/{sessionId}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["getExamSession"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/practice-sessions/{sessionId}": {
         parameters: {
             query?: never;
@@ -277,12 +293,28 @@ export interface components {
             /** @description RFC3339 timestamp */
             ts: string;
             /** @description Latest client-side snapshot for recovery */
-            snapshot: unknown;
+            snapshot: {
+                [key: string]: unknown;
+            } | null;
         };
         HeartbeatResponse: {
             ok: boolean;
             /** @description RFC3339 timestamp */
             serverTs: string;
+        };
+        ExamSessionResponse: {
+            sessionId: string;
+            /** @enum {string} */
+            status: "active" | "finished";
+            /** @description RFC3339 timestamp */
+            createdAt: string;
+            /** @description RFC3339 timestamp */
+            updatedAt: string;
+            /** @description RFC3339 timestamp */
+            lastHeartbeatAt: string;
+            snapshot: {
+                [key: string]: unknown;
+            };
         };
         CreatePracticeSessionRequest: {
             packageId?: string | null;
@@ -650,6 +682,28 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["HeartbeatResponse"];
+                };
+            };
+        };
+    };
+    getExamSession: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                sessionId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Exam session state */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ExamSessionResponse"];
                 };
             };
         };

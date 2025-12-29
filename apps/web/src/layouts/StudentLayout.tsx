@@ -4,7 +4,7 @@ const NAV_ITEMS = [
   { to: '/student/dashboard', label: 'Dashboard' },
   { to: '/student/courses', label: 'Courses' },
   { to: '/student/practice', label: 'Practice' },
-  { to: '/student/tests', label: 'Tests' },
+  { to: '/student/test', label: 'Tests' },
   { to: '/student/study-plan', label: 'Study Plan' },
   { to: '/student/profile', label: 'Profile' },
 ] as const

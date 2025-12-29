@@ -70,7 +70,10 @@ function Home() {
         <Link className="rounded border border-slate-200 px-3 py-2 text-sm hover:bg-slate-50" to="/admin">
           Open Admin Panel
         </Link>
-        <Link className="rounded border border-slate-200 px-3 py-2 text-sm hover:bg-slate-50" to="/exam/demo-session">
+        <Link
+          className="rounded border border-slate-200 px-3 py-2 text-sm hover:bg-slate-50"
+          to="/student/test/demo-session"
+        >
           Open Exam Simulation
         </Link>
       </div>
@@ -98,7 +101,8 @@ const router = createBrowserRouter([
           { path: 'courses', element: <StudentCoursesPage /> },
           { path: 'practice', element: <StudentPracticePage /> },
           { path: 'practice/session/:sessionId', element: <StudentPracticeSessionPage /> },
-          { path: 'tests', element: <StudentTestsPage /> },
+          { path: 'test', element: <StudentTestsPage /> },
+          { path: 'test/:testId', element: <ExamSimulationPage /> },
           { path: 'study-plan', element: <StudentStudyPlanPage /> },
           { path: 'profile', element: <StudentProfilePage /> },
         ],
@@ -123,11 +127,10 @@ const router = createBrowserRouter([
           </RequirePortalAuth>
         ),
       },
-      { path: 'exam/:sessionId', element: <ExamSimulationPage /> },
     ],
   },
 ])
 
 export function AppRouterProvider() {
   return <RouterProvider router={router} />
-}
+} 

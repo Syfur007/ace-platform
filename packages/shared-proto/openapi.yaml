@@ -195,6 +195,8 @@ paths:
   /exam-sessions/{sessionId}/heartbeat:
     post:
       operationId: heartbeat
+      security:
+        - bearerAuth: []
       parameters:
         - in: path
           name: sessionId
@@ -214,6 +216,25 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/HeartbeatResponse'
+
+  /exam-sessions/{sessionId}:
+    get:
+      operationId: getExamSession
+      security:
+        - bearerAuth: []
+      parameters:
+        - in: path
+          name: sessionId
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Exam session state
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ExamSessionResponse'
 
   /practice-sessions/{sessionId}:
     get:
@@ -306,6 +327,8 @@ components:
           description: RFC3339 timestamp
         snapshot:
           description: Latest client-side snapshot for recovery
+          type: object
+          additionalProperties: true
           nullable: true
 
     HeartbeatResponse:
@@ -317,6 +340,28 @@ components:
         serverTs:
           type: string
           description: RFC3339 timestamp
+
+    ExamSessionResponse:
+      type: object
+      required: [sessionId, status, createdAt, updatedAt, lastHeartbeatAt, snapshot]
+      properties:
+        sessionId:
+          type: string
+        status:
+          type: string
+          enum: [active, finished]
+        createdAt:
+          type: string
+          description: RFC3339 timestamp
+        updatedAt:
+          type: string
+          description: RFC3339 timestamp
+        lastHeartbeatAt:
+          type: string
+          description: RFC3339 timestamp
+        snapshot:
+          type: object
+          additionalProperties: true
 
     CreatePracticeSessionRequest:
       type: object
