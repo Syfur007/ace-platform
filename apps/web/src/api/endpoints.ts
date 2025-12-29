@@ -21,3 +21,45 @@ export async function postHeartbeat(sessionId: string, body: HeartbeatRequest): 
     body,
   })
 }
+
+export type CreatePracticeSessionRequest =
+  paths['/practice-sessions']['post']['requestBody']['content']['application/json']
+
+export type PracticeSessionResponse =
+  paths['/practice-sessions']['post']['responses'][200]['content']['application/json']
+
+export async function createPracticeSession(body: CreatePracticeSessionRequest): Promise<PracticeSessionResponse> {
+  return apiFetchJson<PracticeSessionResponse>('/practice-sessions', { method: 'POST', body })
+}
+
+export type GetPracticeSessionResponse =
+  paths['/practice-sessions/{sessionId}']['get']['responses'][200]['content']['application/json']
+
+export async function getPracticeSession(sessionId: string): Promise<GetPracticeSessionResponse> {
+  return apiFetchJson<GetPracticeSessionResponse>(`/practice-sessions/${encodeURIComponent(sessionId)}`, { method: 'GET' })
+}
+
+export type SubmitPracticeAnswerRequest =
+  paths['/practice-sessions/{sessionId}/answers']['post']['requestBody']['content']['application/json']
+
+export type SubmitPracticeAnswerResponse =
+  paths['/practice-sessions/{sessionId}/answers']['post']['responses'][200]['content']['application/json']
+
+export async function submitPracticeAnswer(
+  sessionId: string,
+  body: SubmitPracticeAnswerRequest,
+): Promise<SubmitPracticeAnswerResponse> {
+  return apiFetchJson<SubmitPracticeAnswerResponse>(`/practice-sessions/${encodeURIComponent(sessionId)}/answers`, {
+    method: 'POST',
+    body,
+  })
+}
+
+export type PracticeSessionSummaryResponse =
+  paths['/practice-sessions/{sessionId}/summary']['get']['responses'][200]['content']['application/json']
+
+export async function getPracticeSessionSummary(sessionId: string): Promise<PracticeSessionSummaryResponse> {
+  return apiFetchJson<PracticeSessionSummaryResponse>(`/practice-sessions/${encodeURIComponent(sessionId)}/summary`, {
+    method: 'GET',
+  })
+}

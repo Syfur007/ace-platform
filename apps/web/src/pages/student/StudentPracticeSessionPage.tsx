@@ -1,107 +1,43 @@
 import { useMemo, useState } from 'react'
-import { Link, useParams, useSearchParams } from 'react-router-dom'
+import { Link, useParams } from 'react-router-dom'
 
-import { getExamPackageById } from '@/packages/catalog'
+import { useMutation, useQuery } from '@tanstack/react-query'
 
-type DemoQuestion = {
-  id: string
-  prompt: string
-  choices: Array<{ id: string; text: string }>
-  correctChoiceId: string
-  explanation: string
-}
-
-function parseBooleanSearchParam(value: string | null) {
-  if (!value) return false
-  return value === '1' || value.toLowerCase() === 'true'
-}
-
-function parseIntegerSearchParam(value: string | null, fallback: number) {
-  if (!value) return fallback
-  const n = Number.parseInt(value, 10)
-  return Number.isFinite(n) ? n : fallback
-}
+import { getPracticeSession, getPracticeSessionSummary, submitPracticeAnswer } from '@/api/endpoints'
 
 export function StudentPracticeSessionPage() {
   const { sessionId } = useParams()
-  const [searchParams] = useSearchParams()
 
-  const packageId = searchParams.get('packageId')
-  const isTimed = parseBooleanSearchParam(searchParams.get('timed'))
-  const targetCount = parseIntegerSearchParam(searchParams.get('count'), 10)
+  const sessionQuery = useQuery({
+    queryKey: ['practice-session', sessionId],
+    enabled: Boolean(sessionId),
+    queryFn: () => getPracticeSession(String(sessionId)),
+    refetchOnWindowFocus: false,
+  })
 
-  const selectedPackage = packageId ? getExamPackageById(packageId) : null
+  const summaryQuery = useQuery({
+    queryKey: ['practice-summary', sessionId],
+    enabled: Boolean(sessionId) && sessionQuery.data?.status === 'finished',
+    queryFn: () => getPracticeSessionSummary(String(sessionId)),
+    refetchOnWindowFocus: false,
+  })
 
-  const questions = useMemo<DemoQuestion[]>(
-    () => [
-      {
-        id: 'q1',
-        prompt: 'Demo: If x = 3, what is 2x + 1?',
-        choices: [
-          { id: 'a', text: '5' },
-          { id: 'b', text: '7' },
-          { id: 'c', text: '9' },
-          { id: 'd', text: '11' },
-        ],
-        correctChoiceId: 'b',
-        explanation: 'Substitute x = 3: 2(3) + 1 = 6 + 1 = 7.',
-      },
-      {
-        id: 'q2',
-        prompt: 'Demo: Which is the synonym of “rapid”?',
-        choices: [
-          { id: 'a', text: 'Slow' },
-          { id: 'b', text: 'Careful' },
-          { id: 'c', text: 'Quick' },
-          { id: 'd', text: 'Weak' },
-        ],
-        correctChoiceId: 'c',
-        explanation: '“Rapid” means fast/quick.',
-      },
-      {
-        id: 'q3',
-        prompt: 'Demo: Choose the correct option: “She ___ to the store yesterday.”',
-        choices: [
-          { id: 'a', text: 'go' },
-          { id: 'b', text: 'goes' },
-          { id: 'c', text: 'went' },
-          { id: 'd', text: 'going' },
-        ],
-        correctChoiceId: 'c',
-        explanation: 'Yesterday indicates past tense: “went”.',
-      },
-    ],
-    [],
-  )
+  const submitMutation = useMutation({
+    mutationFn: ({ questionId, choiceId }: { questionId: string; choiceId: string }) =>
+      submitPracticeAnswer(String(sessionId), { questionId, choiceId, ts: new Date().toISOString() }),
+    onSuccess: () => {
+      void sessionQuery.refetch()
+    },
+  })
 
-  const effectiveTotal = Math.min(targetCount, questions.length)
+  const question = sessionQuery.data?.question ?? null
 
-  const [index, setIndex] = useState(0)
   const [selectedChoiceId, setSelectedChoiceId] = useState<string | null>(null)
-  const [submitted, setSubmitted] = useState(false)
-  const [correctCount, setCorrectCount] = useState(0)
+  const [lastFeedback, setLastFeedback] = useState<{ correct: boolean; explanation: string } | null>(null)
 
-  const question = questions[index]
+  const canSubmit = Boolean(question) && selectedChoiceId != null && !submitMutation.isPending
 
-  const isCorrect = submitted && selectedChoiceId != null && selectedChoiceId === question.correctChoiceId
-
-  const canSubmit = selectedChoiceId != null && !submitted
-
-  function submitAnswer() {
-    if (!canSubmit) return
-    setSubmitted(true)
-    if (selectedChoiceId === question.correctChoiceId) {
-      setCorrectCount((prev) => prev + 1)
-    }
-  }
-
-  function nextQuestion() {
-    setSubmitted(false)
-    setSelectedChoiceId(null)
-    setIndex((prev) => Math.min(prev + 1, effectiveTotal - 1))
-  }
-
-  const isLast = index >= effectiveTotal - 1
+  const canStartOver = useMemo(() => sessionQuery.data?.status === 'finished', [sessionQuery.data?.status])
 
   return (
     <div className="space-y-6">
@@ -114,87 +50,117 @@ export function StudentPracticeSessionPage() {
         </div>
         <div className="flex flex-wrap gap-2 text-xs text-slate-600">
           <div className="rounded border border-slate-200 px-2 py-1">Session: {sessionId ?? 'unknown'}</div>
-          <div className="rounded border border-slate-200 px-2 py-1">Mode: {isTimed ? 'Timed' : 'Untimed'}</div>
-          <div className="rounded border border-slate-200 px-2 py-1">Questions: {effectiveTotal}</div>
-          <div className="rounded border border-slate-200 px-2 py-1">
-            Package: {selectedPackage ? selectedPackage.name : 'Any'}
-          </div>
+          {sessionQuery.data ? (
+            <>
+              <div className="rounded border border-slate-200 px-2 py-1">Mode: {sessionQuery.data.isTimed ? 'Timed' : 'Untimed'}</div>
+              <div className="rounded border border-slate-200 px-2 py-1">Questions: {sessionQuery.data.total}</div>
+            </>
+          ) : null}
         </div>
       </header>
 
       <div className="grid gap-4 md:grid-cols-3">
         <section className="rounded border border-slate-200 p-4 md:col-span-2">
-          <div className="flex items-center justify-between gap-3">
-            <div className="text-sm text-slate-600">
-              Question {index + 1} / {effectiveTotal}
-            </div>
-            <div className="text-sm text-slate-600">Correct: {correctCount}</div>
-          </div>
+          {sessionQuery.isLoading ? (
+            <div className="text-sm text-slate-600">Loading session…</div>
+          ) : sessionQuery.isError ? (
+            <div className="text-sm text-rose-700">Failed to load session.</div>
+          ) : sessionQuery.data?.status === 'finished' ? (
+            <div className="space-y-4">
+              <div className="text-sm font-medium">Session complete</div>
+              {summaryQuery.data ? (
+                <div className="rounded border border-slate-200 p-3">
+                  <div className="text-sm">Correct: {summaryQuery.data.correctCount} / {summaryQuery.data.total}</div>
+                  <div className="text-sm text-slate-600">Accuracy: {Math.round(summaryQuery.data.accuracy * 100)}%</div>
+                </div>
+              ) : (
+                <div className="text-sm text-slate-600">Loading summary…</div>
+              )}
 
-          <div className="mt-4 space-y-4">
-            <div className="text-sm font-medium">{question.prompt}</div>
-
-            <div className="space-y-2">
-              {question.choices.map((choice) => {
-                const isSelected = selectedChoiceId === choice.id
-                return (
-                  <button
-                    key={choice.id}
-                    type="button"
-                    onClick={() => setSelectedChoiceId(choice.id)}
-                    className={[
-                      'w-full rounded border px-3 py-2 text-left text-sm',
-                      'border-slate-200 hover:bg-slate-50',
-                      isSelected ? 'bg-slate-100' : 'bg-white',
-                    ].join(' ')}
-                    aria-pressed={isSelected}
-                    disabled={submitted}
-                  >
-                    {choice.text}
-                  </button>
-                )
-              })}
-            </div>
-
-            <div className="flex flex-wrap gap-2">
-              <button
-                type="button"
-                onClick={submitAnswer}
-                disabled={!canSubmit}
-                className={[
-                  'rounded border px-3 py-2 text-sm',
-                  canSubmit ? 'border-slate-200 hover:bg-slate-50' : 'border-slate-100 text-slate-400',
-                ].join(' ')}
-              >
-                Submit
-              </button>
-
-              <button
-                type="button"
-                onClick={nextQuestion}
-                disabled={!submitted || isLast}
-                className={[
-                  'rounded border px-3 py-2 text-sm',
-                  submitted && !isLast ? 'border-slate-200 hover:bg-slate-50' : 'border-slate-100 text-slate-400',
-                ].join(' ')}
-              >
-                Next
-              </button>
-
-              {submitted && isLast ? (
+              <div className="flex flex-wrap gap-2">
                 <Link to="/student/practice" className="rounded border border-slate-200 px-3 py-2 text-sm hover:bg-slate-50">
                   Back to Practice
                 </Link>
-              ) : null}
-            </div>
-
-            {submitted ? (
-              <div className="rounded border border-slate-200 p-3">
-                <div className="text-sm font-medium">{isCorrect ? 'Correct' : 'Not quite'}</div>
-                <div className="mt-1 text-sm text-slate-600">{question.explanation}</div>
+                {canStartOver ? (
+                  <Link to="/student/practice" className="rounded border border-slate-200 px-3 py-2 text-sm hover:bg-slate-50">
+                    Start another session
+                  </Link>
+                ) : null}
               </div>
-            ) : null}
-          </div>
+            </div>
+          ) : (
+            <>
+              <div className="flex items-center justify-between gap-3">
+                <div className="text-sm text-slate-600">
+                  Question {(sessionQuery.data?.currentIndex ?? 0) + 1} / {sessionQuery.data?.total ?? 0}
+                </div>
+                <div className="text-sm text-slate-600">Correct: {sessionQuery.data?.correctCount ?? 0}</div>
+              </div>
+
+              <div className="mt-4 space-y-4">
+                {question ? <div className="text-sm font-medium">{question.prompt}</div> : null}
+
+                {question ? (
+                  <div className="space-y-2">
+                    {question.choices.map((choice) => {
+                      const isSelected = selectedChoiceId === choice.id
+                      return (
+                        <button
+                          key={choice.id}
+                          type="button"
+                          onClick={() => {
+                            setSelectedChoiceId(choice.id)
+                            setLastFeedback(null)
+                          }}
+                          className={[
+                            'w-full rounded border px-3 py-2 text-left text-sm',
+                            'border-slate-200 hover:bg-slate-50',
+                            isSelected ? 'bg-slate-100' : 'bg-white',
+                          ].join(' ')}
+                          aria-pressed={isSelected}
+                          disabled={submitMutation.isPending}
+                        >
+                          {choice.text}
+                        </button>
+                      )
+                    })}
+                  </div>
+                ) : (
+                  <div className="text-sm text-slate-600">No question available.</div>
+                )}
+
+                <div className="flex flex-wrap gap-2">
+                  <button
+                    type="button"
+                    onClick={async () => {
+                      if (!question || !selectedChoiceId) return
+                      const res = await submitMutation.mutateAsync({ questionId: question.id, choiceId: selectedChoiceId })
+                      setLastFeedback({ correct: res.correct, explanation: res.explanation })
+                      setSelectedChoiceId(null)
+                    }}
+                    disabled={!canSubmit}
+                    className={[
+                      'rounded border px-3 py-2 text-sm',
+                      canSubmit ? 'border-slate-200 hover:bg-slate-50' : 'border-slate-100 text-slate-400',
+                    ].join(' ')}
+                  >
+                    {submitMutation.isPending ? 'Submitting…' : 'Submit'}
+                  </button>
+                </div>
+
+                {submitMutation.isError ? (
+                  <div className="text-sm text-rose-700">Failed to submit answer.</div>
+                ) : null}
+
+                {lastFeedback ? (
+                  <div className="rounded border border-slate-200 p-3">
+                    <div className="text-sm font-medium">{lastFeedback.correct ? 'Correct' : 'Not quite'}</div>
+                    <div className="mt-1 text-sm text-slate-600">{lastFeedback.explanation}</div>
+                  </div>
+                ) : null}
+              </div>
+            </>
+          )}
         </section>
 
         <aside className="rounded border border-slate-200 p-4">
@@ -207,7 +173,7 @@ export function StudentPracticeSessionPage() {
               Explain more (planned)
             </button>
             <div className="rounded border border-slate-200 p-3 text-xs text-slate-600">
-              This is a demo runner skeleton. Next steps: fetch questions from API, persist answers, and build review mode.
+              This runner is now API-backed (in-memory). Next steps: persist sessions, add review mode, and integrate a real question bank.
             </div>
           </div>
         </aside>

@@ -20,6 +20,22 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/practice-sessions": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: operations["createPracticeSession"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/exam-sessions/{sessionId}/heartbeat": {
         parameters: {
             query?: never;
@@ -30,6 +46,54 @@ export interface paths {
         get?: never;
         put?: never;
         post: operations["heartbeat"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/practice-sessions/{sessionId}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["getPracticeSession"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/practice-sessions/{sessionId}/answers": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: operations["submitPracticeAnswer"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/practice-sessions/{sessionId}/summary": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["getPracticeSessionSummary"];
+        put?: never;
+        post?: never;
         delete?: never;
         options?: never;
         head?: never;
@@ -56,6 +120,52 @@ export interface components {
             ok: boolean;
             /** @description RFC3339 timestamp */
             serverTs: string;
+        };
+        CreatePracticeSessionRequest: {
+            packageId?: string | null;
+            timed: boolean;
+            count: number;
+        };
+        PracticeQuestionChoice: {
+            id: string;
+            text: string;
+        };
+        PracticeQuestion: {
+            id: string;
+            prompt: string;
+            choices: components["schemas"]["PracticeQuestionChoice"][];
+        };
+        PracticeSessionResponse: {
+            sessionId: string;
+            /** @enum {string} */
+            status: "active" | "finished";
+            /** @description RFC3339 timestamp */
+            createdAt: string;
+            packageId?: string | null;
+            isTimed: boolean;
+            targetCount: number;
+            currentIndex: number;
+            total: number;
+            correctCount: number;
+            question?: components["schemas"]["PracticeQuestion"];
+        };
+        SubmitPracticeAnswerRequest: {
+            questionId: string;
+            choiceId: string;
+            /** @description RFC3339 timestamp */
+            ts?: string | null;
+        };
+        SubmitPracticeAnswerResponse: {
+            correct: boolean;
+            explanation: string;
+            done: boolean;
+        };
+        PracticeSessionSummaryResponse: {
+            sessionId: string;
+            total: number;
+            correctCount: number;
+            /** Format: float */
+            accuracy: number;
         };
     };
     responses: never;
@@ -86,6 +196,30 @@ export interface operations {
             };
         };
     };
+    createPracticeSession: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["CreatePracticeSessionRequest"];
+            };
+        };
+        responses: {
+            /** @description Practice session created */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PracticeSessionResponse"];
+                };
+            };
+        };
+    };
     heartbeat: {
         parameters: {
             query?: never;
@@ -108,6 +242,76 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["HeartbeatResponse"];
+                };
+            };
+        };
+    };
+    getPracticeSession: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                sessionId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Practice session state */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PracticeSessionResponse"];
+                };
+            };
+        };
+    };
+    submitPracticeAnswer: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                sessionId: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["SubmitPracticeAnswerRequest"];
+            };
+        };
+        responses: {
+            /** @description Answer accepted */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SubmitPracticeAnswerResponse"];
+                };
+            };
+        };
+    };
+    getPracticeSessionSummary: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                sessionId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Practice summary */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PracticeSessionSummaryResponse"];
                 };
             };
         };

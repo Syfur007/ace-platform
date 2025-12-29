@@ -1,15 +1,8 @@
 import { useMemo, useState } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
 
+import { createPracticeSession } from '@/api/endpoints'
 import { EXAM_PACKAGES } from '@/packages/catalog'
-
-function createSessionId() {
-  try {
-    return crypto.randomUUID()
-  } catch {
-    return `demo-${Date.now()}-${Math.random().toString(16).slice(2)}`
-  }
-}
 
 export function StudentPracticePage() {
   const navigate = useNavigate()
@@ -19,14 +12,28 @@ export function StudentPracticePage() {
   const [packageId, setPackageId] = useState<string>('')
   const [isTimed, setIsTimed] = useState(true)
   const [questionCount, setQuestionCount] = useState(10)
+  const [isStarting, setIsStarting] = useState(false)
+  const [startError, setStartError] = useState<string | null>(null)
 
-  function startSession() {
-    const sessionId = createSessionId()
-    const params = new URLSearchParams()
-    if (packageId) params.set('packageId', packageId)
-    params.set('timed', isTimed ? '1' : '0')
-    params.set('count', String(questionCount))
-    navigate(`/student/practice/session/${encodeURIComponent(sessionId)}?${params.toString()}`)
+  async function startSession() {
+    if (isStarting) return
+
+    setStartError(null)
+    setIsStarting(true)
+    try {
+      const session = await createPracticeSession({
+        packageId: packageId || null,
+        timed: isTimed,
+        count: questionCount,
+      })
+
+      navigate(`/student/practice/session/${encodeURIComponent(session.sessionId)}`)
+    } catch (e) {
+      const message = typeof e === 'object' && e && 'message' in e ? String((e as any).message) : 'Failed to start session'
+      setStartError(message)
+    } finally {
+      setIsStarting(false)
+    }
   }
 
   return (
@@ -88,9 +95,13 @@ export function StudentPracticePage() {
               <button
                 type="button"
                 onClick={startSession}
-                className="rounded border border-slate-200 px-3 py-2 text-sm hover:bg-slate-50"
+                disabled={isStarting}
+                className={[
+                  'rounded border px-3 py-2 text-sm',
+                  isStarting ? 'border-slate-100 text-slate-400' : 'border-slate-200 hover:bg-slate-50',
+                ].join(' ')}
               >
-                Start practice
+                {isStarting ? 'Starting…' : 'Start practice'}
               </button>
 
               <Link
@@ -100,6 +111,8 @@ export function StudentPracticePage() {
                 View study plan
               </Link>
             </div>
+
+            {startError ? <div className="text-sm text-rose-700">{startError}</div> : null}
 
             <div className="rounded border border-slate-200 p-3 text-xs text-slate-600">
               Next steps: wire to API (create session → fetch questions → submit answers) and add a review mode for incorrect/flagged.

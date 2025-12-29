@@ -16,6 +16,23 @@ paths:
               schema:
                 $ref: '#/components/schemas/HealthzResponse'
 
+  /practice-sessions:
+    post:
+      operationId: createPracticeSession
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreatePracticeSessionRequest'
+      responses:
+        '200':
+          description: Practice session created
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PracticeSessionResponse'
+
   /exam-sessions/{sessionId}/heartbeat:
     post:
       operationId: heartbeat
@@ -38,6 +55,63 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/HeartbeatResponse'
+
+  /practice-sessions/{sessionId}:
+    get:
+      operationId: getPracticeSession
+      parameters:
+        - in: path
+          name: sessionId
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Practice session state
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PracticeSessionResponse'
+
+  /practice-sessions/{sessionId}/answers:
+    post:
+      operationId: submitPracticeAnswer
+      parameters:
+        - in: path
+          name: sessionId
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/SubmitPracticeAnswerRequest'
+      responses:
+        '200':
+          description: Answer accepted
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SubmitPracticeAnswerResponse'
+
+  /practice-sessions/{sessionId}/summary:
+    get:
+      operationId: getPracticeSessionSummary
+      parameters:
+        - in: path
+          name: sessionId
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Practice summary
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PracticeSessionSummaryResponse'
 
 components:
   schemas:
@@ -73,3 +147,106 @@ components:
         serverTs:
           type: string
           description: RFC3339 timestamp
+
+    CreatePracticeSessionRequest:
+      type: object
+      required: [timed, count]
+      properties:
+        packageId:
+          type: string
+          nullable: true
+        timed:
+          type: boolean
+        count:
+          type: integer
+          minimum: 1
+          maximum: 50
+
+    PracticeQuestionChoice:
+      type: object
+      required: [id, text]
+      properties:
+        id:
+          type: string
+        text:
+          type: string
+
+    PracticeQuestion:
+      type: object
+      required: [id, prompt, choices]
+      properties:
+        id:
+          type: string
+        prompt:
+          type: string
+        choices:
+          type: array
+          items:
+            $ref: '#/components/schemas/PracticeQuestionChoice'
+
+    PracticeSessionResponse:
+      type: object
+      required: [sessionId, status, createdAt, isTimed, targetCount, currentIndex, total, correctCount]
+      properties:
+        sessionId:
+          type: string
+        status:
+          type: string
+          enum: [active, finished]
+        createdAt:
+          type: string
+          description: RFC3339 timestamp
+        packageId:
+          type: string
+          nullable: true
+        isTimed:
+          type: boolean
+        targetCount:
+          type: integer
+        currentIndex:
+          type: integer
+        total:
+          type: integer
+        correctCount:
+          type: integer
+        question:
+          nullable: true
+          $ref: '#/components/schemas/PracticeQuestion'
+
+    SubmitPracticeAnswerRequest:
+      type: object
+      required: [questionId, choiceId]
+      properties:
+        questionId:
+          type: string
+        choiceId:
+          type: string
+        ts:
+          type: string
+          nullable: true
+          description: RFC3339 timestamp
+
+    SubmitPracticeAnswerResponse:
+      type: object
+      required: [correct, explanation, done]
+      properties:
+        correct:
+          type: boolean
+        explanation:
+          type: string
+        done:
+          type: boolean
+
+    PracticeSessionSummaryResponse:
+      type: object
+      required: [sessionId, total, correctCount, accuracy]
+      properties:
+        sessionId:
+          type: string
+        total:
+          type: integer
+        correctCount:
+          type: integer
+        accuracy:
+          type: number
+          format: float
