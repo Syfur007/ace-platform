@@ -172,7 +172,14 @@ The platform follows a modern microservices architecture with the following laye
 
 **Technical Implementation:**
 
-- JWT-based authentication with refresh tokens
+- JWT-based authentication:
+	- JWT access token (HS256) issued by the Go API gateway
+	- Role-based portals (Student/Instructor/Admin) with portal-specific auth routes
+	- JWT claims include `role` and `aud` (audience) and are enforced by middleware
+	- Web stores per-portal tokens in localStorage (dev simplification)
+	- Instructor/Admin accounts are provisioned in dev via bootstrap environment variables
+- Planned evolution:
+	- JWT-based authentication with access + refresh tokens
 - OAuth2 integration for social logins
 - Password hashing with bcrypt (cost factor: 12)
 - Session management with Redis
@@ -539,21 +546,27 @@ Flexible document storage for questions and activity.
 
 ## 6.1 API Architecture
 
-RESTful API design with JWT authentication. Base URL: <https://api.examprep.com/v1>
+RESTful API design with JWT authentication.
+
+- Local dev base URL: http://localhost:8080
+- Source-of-truth contract (local dev): `packages/shared-proto/openapi.yaml` (web types generated via `openapi-typescript`)
 
 ## 6.2 Authentication Endpoints
 
 | **Method** | **Endpoint** | **Description** |
 | --- | --- | --- |
-| POST | /auth/register | User registration |
-| POST | /auth/login | User login |
-| POST | /auth/logout | User logout |
-| POST | /auth/refresh | Refresh access token |
-| POST | /auth/forgot-password | Request password reset |
-| POST | /auth/reset-password | Reset password with token |
-| GET | /auth/verify-email | Verify email address |
-| POST | /auth/social/google | Google OAuth login |
-| POST | /auth/social/facebook | Facebook OAuth login |
+| POST | /student/auth/register | Student registration (local dev) |
+| POST | /student/auth/login | Student login |
+| GET | /student/auth/me | Current student |
+| POST | /instructor/auth/login | Instructor login (bootstrap-provisioned in dev) |
+| GET | /instructor/auth/me | Current instructor |
+| POST | /admin/auth/login | Admin login (bootstrap-provisioned in dev) |
+| GET | /admin/auth/me | Current admin |
+| POST | /auth/register | Legacy alias for student registration (deprecated) |
+| POST | /auth/login | Legacy alias for student login (deprecated) |
+| GET | /auth/me | Legacy alias for student me (deprecated) |
+
+Planned (not implemented yet): logout, refresh tokens, forgot/reset password, verify email, social login.
 
 ## 6.3 User Endpoints
 
@@ -841,11 +854,15 @@ RESTful API design with JWT authentication. Base URL: <https://api.examprep.com/
 
 ## 8.1 Authentication Strategy
 
-- JWT-based authentication with access and refresh tokens
-- Access token expiry: 15 minutes
-- Refresh token expiry: 7 days
-- OAuth2 integration for social login (Google, Facebook, Apple)
-- Multi-factor authentication using TOTP
+- Current implementation (Dec 2025, local dev):
+	- JWT access token only (no refresh token yet)
+	- Tokens are stored in localStorage per portal (`student`, `instructor`, `admin`)
+	- Portal-specific auth routes and portal-specific route guards in the web app
+	- JWT claims include `role` and `aud` and are enforced server-side
+- Planned evolution:
+	- Access + refresh tokens (15 min / 7 days)
+	- OAuth2 social login (Google/Facebook/Apple)
+	- MFA (TOTP)
 
 ## 8.2 Password Security
 
