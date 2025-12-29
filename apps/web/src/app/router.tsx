@@ -5,6 +5,13 @@ import { ExamSimulationPage } from '@/pages/ExamSimulationPage'
 import { InstructorDashboardPage } from '@/pages/InstructorDashboardPage'
 import { PackageDetailsPage } from '@/pages/PackageDetailsPage'
 import { StudentDashboardPage } from '@/pages/StudentDashboardPage'
+import { StudentLayout } from '@/layouts/StudentLayout'
+import { StudentCoursesPage } from '@/pages/student/StudentCoursesPage'
+import { StudentPracticePage } from '@/pages/student/StudentPracticePage'
+import { StudentPracticeSessionPage } from '@/pages/student/StudentPracticeSessionPage'
+import { StudentProfilePage } from '@/pages/student/StudentProfilePage'
+import { StudentStudyPlanPage } from '@/pages/student/StudentStudyPlanPage'
+import { StudentTestsPage } from '@/pages/student/StudentTestsPage'
 
 function AppShell() {
   return (
@@ -70,7 +77,20 @@ const router = createBrowserRouter([
     element: <AppShell />,
     children: [
       { index: true, element: <Home /> },
-      { path: 'student', element: <StudentDashboardPage /> },
+      {
+        path: 'student',
+        element: <StudentLayout />,
+        children: [
+          { index: true, element: <StudentDashboardPage /> },
+          { path: 'dashboard', element: <StudentDashboardPage /> },
+          { path: 'courses', element: <StudentCoursesPage /> },
+          { path: 'practice', element: <StudentPracticePage /> },
+          { path: 'practice/session/:sessionId', element: <StudentPracticeSessionPage /> },
+          { path: 'tests', element: <StudentTestsPage /> },
+          { path: 'study-plan', element: <StudentStudyPlanPage /> },
+          { path: 'profile', element: <StudentProfilePage /> },
+        ],
+      },
       { path: 'packages/:packageId', element: <PackageDetailsPage /> },
       { path: 'instructor', element: <InstructorDashboardPage /> },
       { path: 'admin', element: <AdminPanelPage /> },
