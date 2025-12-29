@@ -3,27 +3,43 @@ import type { paths } from '@/api/__generated__/schema'
 import { apiFetchJson } from '@/api/http'
 
 export type RegisterRequest =
-  paths['/auth/register']['post']['requestBody']['content']['application/json']
+  paths['/student/auth/register']['post']['requestBody']['content']['application/json']
 
 export type LoginRequest =
-  paths['/auth/login']['post']['requestBody']['content']['application/json']
+  paths['/student/auth/login']['post']['requestBody']['content']['application/json']
 
 export type AuthResponse =
-  paths['/auth/login']['post']['responses'][200]['content']['application/json']
+  paths['/student/auth/login']['post']['responses'][200]['content']['application/json']
 
 export type MeResponse =
-  paths['/auth/me']['get']['responses'][200]['content']['application/json']
+  paths['/student/auth/me']['get']['responses'][200]['content']['application/json']
 
-export async function register(body: RegisterRequest): Promise<AuthResponse> {
-  return apiFetchJson<AuthResponse>('/auth/register', { method: 'POST', body })
+export async function studentRegister(body: RegisterRequest): Promise<AuthResponse> {
+  return apiFetchJson<AuthResponse>('/student/auth/register', { method: 'POST', body })
 }
 
-export async function login(body: LoginRequest): Promise<AuthResponse> {
-  return apiFetchJson<AuthResponse>('/auth/login', { method: 'POST', body })
+export async function studentLogin(body: LoginRequest): Promise<AuthResponse> {
+  return apiFetchJson<AuthResponse>('/student/auth/login', { method: 'POST', body })
 }
 
-export async function getMe(): Promise<MeResponse> {
-  return apiFetchJson<MeResponse>('/auth/me', { method: 'GET' })
+export async function studentGetMe(): Promise<MeResponse> {
+  return apiFetchJson<MeResponse>('/student/auth/me', { method: 'GET' })
+}
+
+export async function instructorLogin(body: LoginRequest): Promise<AuthResponse> {
+  return apiFetchJson<AuthResponse>('/instructor/auth/login', { method: 'POST', body })
+}
+
+export async function instructorGetMe(): Promise<MeResponse> {
+  return apiFetchJson<MeResponse>('/instructor/auth/me', { method: 'GET' })
+}
+
+export async function adminLogin(body: LoginRequest): Promise<AuthResponse> {
+  return apiFetchJson<AuthResponse>('/admin/auth/login', { method: 'POST', body })
+}
+
+export async function adminGetMe(): Promise<MeResponse> {
+  return apiFetchJson<MeResponse>('/admin/auth/me', { method: 'GET' })
 }
 
 export type HealthzResponse =

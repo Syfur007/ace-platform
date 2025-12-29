@@ -26,6 +26,7 @@ type LoginRequest struct {
 type UserResponse struct {
 	ID        string `json:"id"`
 	Email     string `json:"email"`
+	Role      string `json:"role"`
 	CreatedAt string `json:"createdAt"`
 }
 
@@ -34,8 +35,14 @@ type AuthResponse struct {
 	User        UserResponse `json:"user"`
 }
 
-func RegisterAuthRoutes(r *gin.Engine, pool *pgxpool.Pool) {
-	r.POST("/auth/register", func(c *gin.Context) {
+const (
+	roleStudent    = "student"
+	roleInstructor = "instructor"
+	roleAdmin      = "admin"
+)
+
+func handleRegister(r *gin.Engine, pool *pgxpool.Pool, path string, role string, audience string) {
+	r.POST(path, func(c *gin.Context) {
 		var req RegisterRequest
 		if err := c.ShouldBindJSON(&req); err != nil {
 			c.JSON(http.StatusBadRequest, gin.H{"message": "invalid json body"})
@@ -56,7 +63,7 @@ func RegisterAuthRoutes(r *gin.Engine, pool *pgxpool.Pool) {
 
 		userID := util.NewID("usr")
 		ctx := context.Background()
-		_, err = pool.Exec(ctx, `insert into users (id, email, password_hash) values ($1, $2, $3)`, userID, email, hash)
+		_, err = pool.Exec(ctx, `insert into users (id, email, password_hash, role) values ($1, $2, $3, $4)`, userID, email, hash, role)
 		if err != nil {
 			// cheap conflict detection
 			c.JSON(http.StatusBadRequest, gin.H{"message": "user already exists or invalid"})
@@ -66,7 +73,7 @@ func RegisterAuthRoutes(r *gin.Engine, pool *pgxpool.Pool) {
 		var createdAt time.Time
 		_ = pool.QueryRow(ctx, `select created_at from users where id=$1`, userID).Scan(&createdAt)
 
-		token, err := auth.IssueAccessToken(userID, 24*time.Hour)
+		token, err := auth.IssueAccessToken(userID, role, audience, 24*time.Hour)
 		if err != nil {
 			c.JSON(http.StatusInternalServerError, gin.H{"message": "failed to issue token"})
 			return
@@ -74,11 +81,13 @@ func RegisterAuthRoutes(r *gin.Engine, pool *pgxpool.Pool) {
 
 		c.JSON(http.StatusOK, AuthResponse{
 			AccessToken: token,
-			User: UserResponse{ID: userID, Email: email, CreatedAt: createdAt.UTC().Format(time.RFC3339)},
+			User:        UserResponse{ID: userID, Email: email, Role: role, CreatedAt: createdAt.UTC().Format(time.RFC3339)},
 		})
 	})
+}
 
-	r.POST("/auth/login", func(c *gin.Context) {
+func handleLogin(r *gin.Engine, pool *pgxpool.Pool, path string, role string, audience string) {
+	r.POST(path, func(c *gin.Context) {
 		var req LoginRequest
 		if err := c.ShouldBindJSON(&req); err != nil {
 			c.JSON(http.StatusBadRequest, gin.H{"message": "invalid json body"})
@@ -95,7 +104,9 @@ func RegisterAuthRoutes(r *gin.Engine, pool *pgxpool.Pool) {
 		var userID string
 		var passwordHash string
 		var createdAt time.Time
-		err := pool.QueryRow(ctx, `select id, password_hash, created_at from users where email=$1`, email).Scan(&userID, &passwordHash, &createdAt)
+		var storedRole string
+		err := pool.QueryRow(ctx, `select id, password_hash, created_at, role from users where email=$1 and role=$2`, email, role).
+			Scan(&userID, &passwordHash, &createdAt, &storedRole)
 		if err != nil {
 			c.JSON(http.StatusUnauthorized, gin.H{"message": "invalid credentials"})
 			return
@@ -106,7 +117,7 @@ func RegisterAuthRoutes(r *gin.Engine, pool *pgxpool.Pool) {
 			return
 		}
 
-		token, err := auth.IssueAccessToken(userID, 24*time.Hour)
+		token, err := auth.IssueAccessToken(userID, storedRole, audience, 24*time.Hour)
 		if err != nil {
 			c.JSON(http.StatusInternalServerError, gin.H{"message": "failed to issue token"})
 			return
@@ -114,11 +125,13 @@ func RegisterAuthRoutes(r *gin.Engine, pool *pgxpool.Pool) {
 
 		c.JSON(http.StatusOK, AuthResponse{
 			AccessToken: token,
-			User: UserResponse{ID: userID, Email: email, CreatedAt: createdAt.UTC().Format(time.RFC3339)},
+			User:        UserResponse{ID: userID, Email: email, Role: storedRole, CreatedAt: createdAt.UTC().Format(time.RFC3339)},
 		})
 	})
+}
 
-	r.GET("/auth/me", auth.RequireAuth(), func(c *gin.Context) {
+func handleMe(r *gin.Engine, pool *pgxpool.Pool, path string, role string, audience string) {
+	r.GET(path, auth.RequirePortalAuth(role, audience), func(c *gin.Context) {
 		userID, ok := auth.GetUserID(c)
 		if !ok {
 			c.JSON(http.StatusUnauthorized, gin.H{"message": "unauthorized"})
@@ -128,12 +141,31 @@ func RegisterAuthRoutes(r *gin.Engine, pool *pgxpool.Pool) {
 		ctx := context.Background()
 		var email string
 		var createdAt time.Time
-		err := pool.QueryRow(ctx, `select email, created_at from users where id=$1`, userID).Scan(&email, &createdAt)
+		var storedRole string
+		err := pool.QueryRow(ctx, `select email, created_at, role from users where id=$1`, userID).Scan(&email, &createdAt, &storedRole)
 		if err != nil {
 			c.JSON(http.StatusUnauthorized, gin.H{"message": "unauthorized"})
 			return
 		}
 
-		c.JSON(http.StatusOK, UserResponse{ID: userID, Email: email, CreatedAt: createdAt.UTC().Format(time.RFC3339)})
+		c.JSON(http.StatusOK, UserResponse{ID: userID, Email: email, Role: storedRole, CreatedAt: createdAt.UTC().Format(time.RFC3339)})
 	})
+}
+
+func RegisterAuthRoutes(r *gin.Engine, pool *pgxpool.Pool) {
+	// Portal-specific routes
+	handleRegister(r, pool, "/student/auth/register", roleStudent, roleStudent)
+	handleLogin(r, pool, "/student/auth/login", roleStudent, roleStudent)
+	handleMe(r, pool, "/student/auth/me", roleStudent, roleStudent)
+
+	handleLogin(r, pool, "/instructor/auth/login", roleInstructor, roleInstructor)
+	handleMe(r, pool, "/instructor/auth/me", roleInstructor, roleInstructor)
+
+	handleLogin(r, pool, "/admin/auth/login", roleAdmin, roleAdmin)
+	handleMe(r, pool, "/admin/auth/me", roleAdmin, roleAdmin)
+
+	// Legacy aliases (treated as student portal)
+	handleRegister(r, pool, "/auth/register", roleStudent, roleStudent)
+	handleLogin(r, pool, "/auth/login", roleStudent, roleStudent)
+	handleMe(r, pool, "/auth/me", roleStudent, roleStudent)
 }

@@ -19,16 +19,19 @@ func jwtSecret() []byte {
 
 type Claims struct {
 	jwt.RegisteredClaims
+	Role string `json:"role"`
 }
 
-func IssueAccessToken(userID string, ttl time.Duration) (string, error) {
+func IssueAccessToken(userID string, role string, audience string, ttl time.Duration) (string, error) {
 	now := time.Now().UTC()
 	claims := Claims{
 		RegisteredClaims: jwt.RegisteredClaims{
 			Subject:   userID,
+			Audience:  []string{audience},
 			IssuedAt:  jwt.NewNumericDate(now),
 			ExpiresAt: jwt.NewNumericDate(now.Add(ttl)),
 		},
+		Role: role,
 	}
 	return jwt.NewWithClaims(jwt.SigningMethodHS256, claims).SignedString(jwtSecret())
 }

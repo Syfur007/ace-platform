@@ -4,9 +4,13 @@ import (
 	"context"
 	"fmt"
 	"os"
+	"strings"
 	"time"
 
 	"github.com/jackc/pgx/v5/pgxpool"
+
+	"github.com/ace-platform/api-gateway/internal/auth"
+	"github.com/ace-platform/api-gateway/internal/util"
 )
 
 func databaseURL() string {
@@ -50,8 +54,10 @@ func Migrate(ctx context.Context, pool *pgxpool.Pool) error {
 			id text primary key,
 			email text not null unique,
 			password_hash text not null,
+			role text not null default 'student',
 			created_at timestamptz not null default now()
 		);`,
+		`alter table users add column if not exists role text not null default 'student';`,
 		`create table if not exists practice_sessions (
 			id text primary key,
 			user_id text not null references users(id) on delete cascade,
@@ -80,6 +86,44 @@ func Migrate(ctx context.Context, pool *pgxpool.Pool) error {
 		if _, err := pool.Exec(ctx, stmt); err != nil {
 			return err
 		}
+	}
+
+	if err := bootstrapUserFromEnv(ctx, pool, "admin", "BOOTSTRAP_ADMIN_EMAIL", "BOOTSTRAP_ADMIN_PASSWORD"); err != nil {
+		return err
+	}
+	if err := bootstrapUserFromEnv(ctx, pool, "instructor", "BOOTSTRAP_INSTRUCTOR_EMAIL", "BOOTSTRAP_INSTRUCTOR_PASSWORD"); err != nil {
+		return err
+	}
+
+	return nil
+}
+
+func bootstrapUserFromEnv(ctx context.Context, pool *pgxpool.Pool, role string, emailKey string, passwordKey string) error {
+	email := strings.TrimSpace(strings.ToLower(os.Getenv(emailKey)))
+	password := os.Getenv(passwordKey)
+	if email == "" || password == "" {
+		return nil
+	}
+
+	var existingRole string
+	err := pool.QueryRow(ctx, `select role from users where email=$1`, email).Scan(&existingRole)
+	if err == nil {
+		// Email already exists. Only allow if it's the same role.
+		if existingRole != role {
+			return fmt.Errorf("bootstrap %s: email already exists with role %s", role, existingRole)
+		}
+		return nil
+	}
+
+	hash, err := auth.HashPassword(password)
+	if err != nil {
+		return fmt.Errorf("bootstrap %s: hash password: %w", role, err)
+	}
+
+	userID := util.NewID("usr")
+	_, err = pool.Exec(ctx, `insert into users (id, email, password_hash, role) values ($1, $2, $3, $4)`, userID, email, hash, role)
+	if err != nil {
+		return fmt.Errorf("bootstrap %s: insert user: %w", role, err)
 	}
 
 	return nil

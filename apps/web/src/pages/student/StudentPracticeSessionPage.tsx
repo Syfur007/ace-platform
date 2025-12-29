@@ -65,7 +65,7 @@ export function StudentPracticeSessionPage() {
             <div className="text-sm text-slate-600">Loading session…</div>
           ) : sessionQuery.isError ? (
             <div className="text-sm text-rose-700">
-              Failed to load session. <Link to="/auth" className="underline">Sign in</Link>
+              Failed to load session. <Link to="/student/auth" className="underline">Sign in</Link>
             </div>
           ) : sessionQuery.data?.status === 'finished' ? (
             <div className="space-y-4">
@@ -152,7 +152,7 @@ export function StudentPracticeSessionPage() {
 
                 {submitMutation.isError ? (
                   <div className="text-sm text-rose-700">
-                    Failed to submit answer. <Link to="/auth" className="underline">Sign in</Link>
+                    Failed to submit answer. <Link to="/student/auth" className="underline">Sign in</Link>
                   </div>
                 ) : null}
 
@@ -177,7 +177,7 @@ export function StudentPracticeSessionPage() {
               Explain more (planned)
             </button>
             <div className="rounded border border-slate-200 p-3 text-xs text-slate-600">
-              This runner is now API-backed (in-memory). Next steps: persist sessions, add review mode, and integrate a real question bank.
+              This runner is now API-backed (Postgres). Next steps: add review mode and integrate a real question bank.
             </div>
           </div>
         </aside>

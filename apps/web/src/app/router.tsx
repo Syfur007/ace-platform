@@ -1,12 +1,15 @@
-import { createBrowserRouter, Link, Outlet, RouterProvider } from 'react-router-dom'
+import { createBrowserRouter, Link, Navigate, Outlet, RouterProvider } from 'react-router-dom'
 
 import { AdminPanelPage } from '@/pages/AdminPanelPage'
-import { AuthPage } from '@/pages/AuthPage'
 import { ExamSimulationPage } from '@/pages/ExamSimulationPage'
 import { InstructorDashboardPage } from '@/pages/InstructorDashboardPage'
 import { PackageDetailsPage } from '@/pages/PackageDetailsPage'
 import { StudentDashboardPage } from '@/pages/StudentDashboardPage'
+import { RequirePortalAuth } from '@/auth/RequirePortalAuth'
 import { StudentLayout } from '@/layouts/StudentLayout'
+import { AdminAuthPage } from '@/pages/admin/AdminAuthPage'
+import { InstructorAuthPage } from '@/pages/instructor/InstructorAuthPage'
+import { StudentAuthPage } from '@/pages/student/StudentAuthPage'
 import { StudentCoursesPage } from '@/pages/student/StudentCoursesPage'
 import { StudentPracticePage } from '@/pages/student/StudentPracticePage'
 import { StudentPracticeSessionPage } from '@/pages/student/StudentPracticeSessionPage'
@@ -23,8 +26,8 @@ function AppShell() {
             ACE
           </Link>
           <nav className="flex gap-4 text-sm">
-            <Link to="/auth" className="hover:underline">
-              Auth
+            <Link to="/student/auth" className="hover:underline">
+              Student Auth
             </Link>
             <Link to="/student" className="hover:underline">
               Student
@@ -81,10 +84,14 @@ const router = createBrowserRouter([
     element: <AppShell />,
     children: [
       { index: true, element: <Home /> },
-      { path: 'auth', element: <AuthPage /> },
+      { path: 'auth', element: <Navigate to="/student/auth" replace /> },
       {
         path: 'student',
-        element: <StudentLayout />,
+        element: (
+          <RequirePortalAuth portal="student">
+            <StudentLayout />
+          </RequirePortalAuth>
+        ),
         children: [
           { index: true, element: <StudentDashboardPage /> },
           { path: 'dashboard', element: <StudentDashboardPage /> },
@@ -96,9 +103,26 @@ const router = createBrowserRouter([
           { path: 'profile', element: <StudentProfilePage /> },
         ],
       },
+      { path: 'student/auth', element: <StudentAuthPage /> },
       { path: 'packages/:packageId', element: <PackageDetailsPage /> },
-      { path: 'instructor', element: <InstructorDashboardPage /> },
-      { path: 'admin', element: <AdminPanelPage /> },
+      { path: 'instructor/auth', element: <InstructorAuthPage /> },
+      {
+        path: 'instructor',
+        element: (
+          <RequirePortalAuth portal="instructor">
+            <InstructorDashboardPage />
+          </RequirePortalAuth>
+        ),
+      },
+      { path: 'admin/auth', element: <AdminAuthPage /> },
+      {
+        path: 'admin',
+        element: (
+          <RequirePortalAuth portal="admin">
+            <AdminPanelPage />
+          </RequirePortalAuth>
+        ),
+      },
       { path: 'exam/:sessionId', element: <ExamSimulationPage /> },
     ],
   },

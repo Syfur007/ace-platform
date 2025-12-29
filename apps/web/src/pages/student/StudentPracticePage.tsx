@@ -119,7 +119,7 @@ export function StudentPracticePage() {
 
             {startError ? (
               <div className="text-sm text-rose-700">
-                {startError} <Link to="/auth" className="underline">Go to Auth</Link>
+                {startError} <Link to="/student/auth" className="underline">Go to Student Auth</Link>
               </div>
             ) : null}
 
