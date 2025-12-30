@@ -1,4 +1,5 @@
-import { createBrowserRouter, Link, Navigate, Outlet, RouterProvider } from 'react-router-dom'
+import { useEffect } from 'react'
+import { createBrowserRouter, Link, Navigate, Outlet, RouterProvider, useLocation, useNavigate } from 'react-router-dom'
 
 import { AdminPanelPage } from '@/pages/AdminPanelPage'
 import { ExamSimulationPage } from '@/pages/ExamSimulationPage'
@@ -16,8 +17,19 @@ import { StudentPracticeSessionPage } from '@/pages/student/StudentPracticeSessi
 import { StudentProfilePage } from '@/pages/student/StudentProfilePage'
 import { StudentStudyPlanPage } from '@/pages/student/StudentStudyPlanPage'
 import { StudentTestsPage } from '@/pages/student/StudentTestsPage'
+import { clearAllAccessTokens, getAuthenticatedPortal, getPortalFromPathname, normalizeAccessTokens } from '@/auth/token'
 
 function AppShell() {
+  const location = useLocation()
+  const navigate = useNavigate()
+
+  useEffect(() => {
+    normalizeAccessTokens(getPortalFromPathname(location.pathname))
+  }, [location.pathname])
+
+  const currentPortal = getPortalFromPathname(location.pathname)
+  const authenticatedPortal = getAuthenticatedPortal()
+
   return (
     <div className="min-h-dvh bg-white text-slate-900">
       <header className="border-b border-slate-200">
@@ -26,18 +38,44 @@ function AppShell() {
             ACE
           </Link>
           <nav className="flex gap-4 text-sm">
-            <Link to="/student/auth" className="hover:underline">
-              Student Auth
-            </Link>
-            <Link to="/student" className="hover:underline">
-              Student
-            </Link>
-            <Link to="/instructor" className="hover:underline">
-              Instructor
-            </Link>
-            <Link to="/admin" className="hover:underline">
-              Admin
-            </Link>
+            {authenticatedPortal ? (
+              <>
+                <Link
+                  to={authenticatedPortal === 'student' ? '/student' : authenticatedPortal === 'instructor' ? '/instructor' : '/admin'}
+                  className="hover:underline"
+                >
+                  {authenticatedPortal === 'student'
+                    ? 'Student'
+                    : authenticatedPortal === 'instructor'
+                      ? 'Instructor'
+                      : 'Admin'}
+                </Link>
+                <button
+                  type="button"
+                  className="hover:underline"
+                  onClick={() => {
+                    clearAllAccessTokens()
+                    const nextPortal = currentPortal
+                    if (nextPortal) navigate(`/${nextPortal}/auth`)
+                    else navigate('/')
+                  }}
+                >
+                  Log out
+                </button>
+              </>
+            ) : (
+              <>
+                <Link to="/student/auth" className="hover:underline">
+                  Student sign in
+                </Link>
+                <Link to="/instructor/auth" className="hover:underline">
+                  Instructor sign in
+                </Link>
+                <Link to="/admin/auth" className="hover:underline">
+                  Admin sign in
+                </Link>
+              </>
+            )}
           </nav>
         </div>
       </header>
@@ -54,6 +92,8 @@ function AppShell() {
 }
 
 function Home() {
+  const authenticatedPortal = getAuthenticatedPortal()
+
   return (
     <div className="space-y-4">
       <h1 className="text-2xl font-semibold">Adaptive Cross-Platform Exam Ecosystem</h1>
@@ -61,21 +101,44 @@ function Home() {
         Role dashboards and the real-time exam simulation engine are scaffolded here.
       </p>
       <div className="flex flex-wrap gap-3">
-        <Link className="rounded border border-slate-200 px-3 py-2 text-sm hover:bg-slate-50" to="/student">
-          Open Student Dashboard
-        </Link>
-        <Link className="rounded border border-slate-200 px-3 py-2 text-sm hover:bg-slate-50" to="/instructor">
-          Open Instructor Dashboard
-        </Link>
-        <Link className="rounded border border-slate-200 px-3 py-2 text-sm hover:bg-slate-50" to="/admin">
-          Open Admin Panel
-        </Link>
-        <Link
-          className="rounded border border-slate-200 px-3 py-2 text-sm hover:bg-slate-50"
-          to="/student/test/demo-session"
-        >
-          Open Exam Simulation
-        </Link>
+        {authenticatedPortal === 'student' ? (
+          <Link className="rounded border border-slate-200 px-3 py-2 text-sm hover:bg-slate-50" to="/student">
+            Continue as Student
+          </Link>
+        ) : (
+          <Link className="rounded border border-slate-200 px-3 py-2 text-sm hover:bg-slate-50" to="/student/auth">
+            Student sign in
+          </Link>
+        )}
+
+        {authenticatedPortal === 'instructor' ? (
+          <Link className="rounded border border-slate-200 px-3 py-2 text-sm hover:bg-slate-50" to="/instructor">
+            Continue as Instructor
+          </Link>
+        ) : (
+          <Link className="rounded border border-slate-200 px-3 py-2 text-sm hover:bg-slate-50" to="/instructor/auth">
+            Instructor sign in
+          </Link>
+        )}
+
+        {authenticatedPortal === 'admin' ? (
+          <Link className="rounded border border-slate-200 px-3 py-2 text-sm hover:bg-slate-50" to="/admin">
+            Continue as Admin
+          </Link>
+        ) : (
+          <Link className="rounded border border-slate-200 px-3 py-2 text-sm hover:bg-slate-50" to="/admin/auth">
+            Admin sign in
+          </Link>
+        )}
+
+        {authenticatedPortal === 'student' ? (
+          <Link
+            className="rounded border border-slate-200 px-3 py-2 text-sm hover:bg-slate-50"
+            to="/student/test/demo-session"
+          >
+            Open Exam Simulation
+          </Link>
+        ) : null}
       </div>
     </div>
   )

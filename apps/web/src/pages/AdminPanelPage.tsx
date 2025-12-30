@@ -1,5 +1,6 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
-import { useMemo, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
+import { useNavigate } from 'react-router-dom'
 
 import {
   getHealthz,
@@ -17,6 +18,7 @@ import {
   instructorUpdateQuestion,
   listQuestionDifficulties,
 } from '@/api/endpoints'
+import { clearAllAccessTokens } from '@/auth/token'
 
 type CreateQuestionFormState = {
   packageId: string
@@ -48,6 +50,7 @@ function compactStatusLabel(status?: string) {
 
 export function AdminPanelPage() {
   const queryClient = useQueryClient()
+  const navigate = useNavigate()
 
   const health = useQuery({
     queryKey: ['healthz'],
@@ -187,7 +190,8 @@ export function AdminPanelPage() {
   })
 
   // Keep edit form in sync when selection changes.
-  if (selectedQuestion.data && editQuestion == null) {
+  useEffect(() => {
+    if (!selectedQuestion.data) return
     const q = selectedQuestion.data
     const correctIndex = Math.max(0, q.choices.findIndex((c) => c.id === q.correctChoiceId))
     setEditQuestion({
@@ -199,15 +203,27 @@ export function AdminPanelPage() {
       choicesText: q.choices.map((c) => c.text),
       correctChoiceIndex: correctIndex,
     })
-  }
+  }, [selectedQuestionId, selectedQuestion.data])
 
   const selectedQuestionStatus = selectedQuestion.data?.status
 
   return (
     <div className="space-y-6">
-      <div className="space-y-1">
-        <h2 className="text-xl font-semibold">Admin Panel</h2>
-        <p className="text-sm text-slate-600">System monitoring and export hooks (contract-first).</p>
+      <div className="flex items-start justify-between gap-3">
+        <div className="space-y-1">
+          <h2 className="text-xl font-semibold">Admin Panel</h2>
+          <p className="text-sm text-slate-600">System monitoring and export hooks (contract-first).</p>
+        </div>
+        <button
+          type="button"
+          className="rounded border border-slate-200 px-3 py-2 text-sm hover:bg-slate-50"
+          onClick={() => {
+            clearAllAccessTokens()
+            navigate('/admin/auth')
+          }}
+        >
+          Log out
+        </button>
       </div>
 
       <div className="rounded border border-slate-200 p-4">
