@@ -2,6 +2,10 @@ import type { paths } from '@/api/__generated__/schema'
 
 import { apiFetchJson } from '@/api/http'
 
+export type ExamSessionStatus = 'active' | 'finished' | 'terminated' | 'invalid'
+export type UserRole = 'student' | 'instructor' | 'admin'
+export type InstructorQuestionStatus = 'draft' | 'in_review' | 'needs_changes' | 'published' | 'archived'
+
 export type RegisterRequest =
   paths['/student/auth/register']['post']['requestBody']['content']['application/json']
 
@@ -109,7 +113,7 @@ export type ListExamSessionsResponse =
 export async function listExamSessions(params?: {
   limit?: number
   offset?: number
-  status?: 'active' | 'finished'
+  status?: ExamSessionStatus
 }): Promise<ListExamSessionsResponse> {
   const search = new URLSearchParams()
   if (params?.limit != null) search.set('limit', String(params.limit))
@@ -117,6 +121,19 @@ export async function listExamSessions(params?: {
   if (params?.status) search.set('status', params.status)
   const qs = search.toString()
   return apiFetchJson<ListExamSessionsResponse>(`/exam-sessions${qs ? `?${qs}` : ''}`, { method: 'GET' })
+}
+
+export type RecordExamEventRequest = {
+  eventType: string
+  ts?: string | null
+  payload?: Record<string, unknown> | null
+}
+
+export async function recordExamEvent(sessionId: string, body: RecordExamEventRequest): Promise<OkResponse> {
+  return apiFetchJson<OkResponse>(`/exam-sessions/${encodeURIComponent(sessionId)}/events`, {
+    method: 'POST',
+    body,
+  })
 }
 
 export type SubmitExamSessionResponse =
@@ -259,7 +276,7 @@ export type InstructorListQuestionsResponse =
 export async function instructorListQuestions(params?: {
   limit?: number
   offset?: number
-  status?: 'draft' | 'published' | 'archived'
+  status?: InstructorQuestionStatus
   packageId?: string
   topicId?: string
   difficultyId?: string
@@ -307,4 +324,217 @@ export async function instructorArchiveQuestion(questionId: string): Promise<OkR
 
 export async function instructorDraftQuestion(questionId: string): Promise<OkResponse> {
   return apiFetchJson<OkResponse>(`/instructor/questions/${encodeURIComponent(questionId)}/draft`, { method: 'POST' })
+}
+
+export async function instructorSubmitQuestionForReview(questionId: string): Promise<OkResponse> {
+  return apiFetchJson<OkResponse>(`/instructor/questions/${encodeURIComponent(questionId)}/submit-for-review`, { method: 'POST' })
+}
+
+export async function adminApproveQuestion(questionId: string): Promise<OkResponse> {
+  return apiFetchJson<OkResponse>(`/admin/questions/${encodeURIComponent(questionId)}/approve`, { method: 'POST' })
+}
+
+export type AdminRequestQuestionChangesRequest = { note?: string }
+
+export async function adminRequestQuestionChanges(
+  questionId: string,
+  body?: AdminRequestQuestionChangesRequest,
+): Promise<OkResponse> {
+  return apiFetchJson<OkResponse>(`/admin/questions/${encodeURIComponent(questionId)}/request-changes`, {
+    method: 'POST',
+    body: body ?? {},
+  })
+}
+
+// Admin IAM
+
+export type AdminUserListItem = {
+  id: string
+  email: string
+  role: UserRole
+  createdAt: string
+  updatedAt: string
+  deletedAt?: string | null
+}
+
+export type ListAdminUsersResponse = {
+  items: AdminUserListItem[]
+  limit: number
+  offset: number
+  hasMore: boolean
+}
+
+export type CreateAdminUserRequest = {
+  email: string
+  password: string
+  role: UserRole
+}
+
+export type UpdateAdminUserRequest = {
+  email?: string | null
+  password?: string | null
+  role?: UserRole | null
+}
+
+export async function adminListUsers(params?: {
+  limit?: number
+  offset?: number
+  role?: UserRole
+  includeDeleted?: boolean
+}): Promise<ListAdminUsersResponse> {
+  const search = new URLSearchParams()
+  if (params?.limit != null) search.set('limit', String(params.limit))
+  if (params?.offset != null) search.set('offset', String(params.offset))
+  if (params?.role) search.set('role', params.role)
+  if (params?.includeDeleted != null) search.set('includeDeleted', params.includeDeleted ? 'true' : 'false')
+  const qs = search.toString()
+  return apiFetchJson<ListAdminUsersResponse>(`/admin/users${qs ? `?${qs}` : ''}`, { method: 'GET' })
+}
+
+export async function adminGetUser(userId: string): Promise<AdminUserListItem> {
+  return apiFetchJson<AdminUserListItem>(`/admin/users/${encodeURIComponent(userId)}`, { method: 'GET' })
+}
+
+export async function adminCreateUser(body: CreateAdminUserRequest): Promise<{ id: string }> {
+  return apiFetchJson<{ id: string }>(`/admin/users`, { method: 'POST', body })
+}
+
+export async function adminUpdateUser(userId: string, body: UpdateAdminUserRequest): Promise<OkResponse> {
+  return apiFetchJson<OkResponse>(`/admin/users/${encodeURIComponent(userId)}`, { method: 'PATCH', body })
+}
+
+export async function adminDeleteUser(userId: string): Promise<OkResponse> {
+  return apiFetchJson<OkResponse>(`/admin/users/${encodeURIComponent(userId)}`, { method: 'DELETE' })
+}
+
+export async function adminRestoreUser(userId: string): Promise<OkResponse> {
+  return apiFetchJson<OkResponse>(`/admin/users/${encodeURIComponent(userId)}/restore`, { method: 'POST' })
+}
+
+// Admin exam integrity
+
+export type AdminExamSessionListItem = {
+  userId: string
+  userEmail: string
+  sessionId: string
+  status: ExamSessionStatus
+  createdAt: string
+  updatedAt: string
+  lastHeartbeatAt: string
+  submittedAt?: string | null
+  terminatedAt?: string | null
+  invalidatedAt?: string | null
+}
+
+export type ListAdminExamSessionsResponse = {
+  items: AdminExamSessionListItem[]
+  limit: number
+  offset: number
+  hasMore: boolean
+}
+
+export type AdminExamSessionResponse = {
+  userId: string
+  userEmail: string
+  sessionId: string
+  status: ExamSessionStatus
+  createdAt: string
+  updatedAt: string
+  lastHeartbeatAt: string
+  submittedAt?: string | null
+  terminatedAt?: string | null
+  terminatedByUserId?: string | null
+  terminationReason: string
+  invalidatedAt?: string | null
+  invalidatedByUserId?: string | null
+  invalidationReason: string
+  snapshot: unknown
+}
+
+export type AdminExamActionRequest = { reason?: string }
+export type AdminFlagRequest = { flagType: string; note?: string }
+
+export type AdminExamEventListItem = {
+  id: number
+  eventType: string
+  payload: unknown
+  createdAt: string
+}
+
+export type ListAdminExamEventsResponse = {
+  items: AdminExamEventListItem[]
+  limit: number
+  offset: number
+  hasMore: boolean
+}
+
+export async function adminListExamSessions(params?: {
+  limit?: number
+  offset?: number
+  status?: ExamSessionStatus
+}): Promise<ListAdminExamSessionsResponse> {
+  const search = new URLSearchParams()
+  if (params?.limit != null) search.set('limit', String(params.limit))
+  if (params?.offset != null) search.set('offset', String(params.offset))
+  if (params?.status) search.set('status', params.status)
+  const qs = search.toString()
+  return apiFetchJson<ListAdminExamSessionsResponse>(`/admin/exam-sessions${qs ? `?${qs}` : ''}`, { method: 'GET' })
+}
+
+export async function adminGetExamSession(userId: string, sessionId: string): Promise<AdminExamSessionResponse> {
+  return apiFetchJson<AdminExamSessionResponse>(
+    `/admin/exam-sessions/${encodeURIComponent(userId)}/${encodeURIComponent(sessionId)}`,
+    { method: 'GET' },
+  )
+}
+
+export async function adminForceSubmitExamSession(userId: string, sessionId: string): Promise<OkResponse> {
+  return apiFetchJson<OkResponse>(
+    `/admin/exam-sessions/${encodeURIComponent(userId)}/${encodeURIComponent(sessionId)}/force-submit`,
+    { method: 'POST' },
+  )
+}
+
+export async function adminTerminateExamSession(
+  userId: string,
+  sessionId: string,
+  body?: AdminExamActionRequest,
+): Promise<OkResponse> {
+  return apiFetchJson<OkResponse>(
+    `/admin/exam-sessions/${encodeURIComponent(userId)}/${encodeURIComponent(sessionId)}/terminate`,
+    { method: 'POST', body: body ?? {} },
+  )
+}
+
+export async function adminInvalidateExamSession(
+  userId: string,
+  sessionId: string,
+  body?: AdminExamActionRequest,
+): Promise<OkResponse> {
+  return apiFetchJson<OkResponse>(
+    `/admin/exam-sessions/${encodeURIComponent(userId)}/${encodeURIComponent(sessionId)}/invalidate`,
+    { method: 'POST', body: body ?? {} },
+  )
+}
+
+export async function adminCreateExamFlag(userId: string, sessionId: string, body: AdminFlagRequest): Promise<OkResponse> {
+  return apiFetchJson<OkResponse>(
+    `/admin/exam-sessions/${encodeURIComponent(userId)}/${encodeURIComponent(sessionId)}/flags`,
+    { method: 'POST', body },
+  )
+}
+
+export async function adminListExamEvents(
+  userId: string,
+  sessionId: string,
+  params?: { limit?: number; offset?: number },
+): Promise<ListAdminExamEventsResponse> {
+  const search = new URLSearchParams()
+  if (params?.limit != null) search.set('limit', String(params.limit))
+  if (params?.offset != null) search.set('offset', String(params.offset))
+  const qs = search.toString()
+  return apiFetchJson<ListAdminExamEventsResponse>(
+    `/admin/exam-sessions/${encodeURIComponent(userId)}/${encodeURIComponent(sessionId)}/events${qs ? `?${qs}` : ''}`,
+    { method: 'GET' },
+  )
 }

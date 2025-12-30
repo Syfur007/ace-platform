@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"net/http"
+	"strings"
 	"time"
 
 	"github.com/gin-gonic/gin"
@@ -17,7 +18,19 @@ type ExamSessionStatus string
 const (
 	ExamSessionActive   ExamSessionStatus = "active"
 	ExamSessionFinished ExamSessionStatus = "finished"
+	ExamSessionTerminated ExamSessionStatus = "terminated"
+	ExamSessionInvalid  ExamSessionStatus = "invalid"
 )
+
+type ExamEventRequest struct {
+	EventType string          `json:"eventType"`
+	Payload   json.RawMessage `json:"payload"`
+	TS        string          `json:"ts"`
+}
+
+type OkResponse struct {
+	Ok bool `json:"ok"`
+}
 
 type HeartbeatRequest struct {
 	SessionID string          `json:"sessionId"`
@@ -68,8 +81,8 @@ func RegisterExamRoutes(r *gin.Engine, pool *pgxpool.Pool) {
 		}
 
 		limit, offset := parseListParams(c)
-		status := c.Query("status")
-		if status != "" && status != string(ExamSessionActive) && status != string(ExamSessionFinished) {
+			status := c.Query("status")
+			if status != "" && status != string(ExamSessionActive) && status != string(ExamSessionFinished) && status != string(ExamSessionTerminated) && status != string(ExamSessionInvalid) {
 			c.JSON(http.StatusBadRequest, gin.H{"message": "invalid status"})
 			return
 		}
@@ -165,12 +178,22 @@ func RegisterExamRoutes(r *gin.Engine, pool *pgxpool.Pool) {
 			snapshot = []byte("{}")
 		}
 
-		now := time.Now().UTC()
-		ctx := context.Background()
-		_, err := pool.Exec(ctx, `insert into exam_sessions (user_id, id, status, snapshot, created_at, updated_at, last_heartbeat_at)
-			values ($1,$2,$3,$4,now(),now(),now())
-			on conflict (user_id, id) do update set snapshot=excluded.snapshot, updated_at=excluded.updated_at, last_heartbeat_at=excluded.last_heartbeat_at`,
-			userID, sessionID, string(ExamSessionActive), snapshot)
+			now := time.Now().UTC()
+			ctx := context.Background()
+
+			var existingStatus string
+			err := pool.QueryRow(ctx, `select status from exam_sessions where user_id=$1 and id=$2`, userID, sessionID).Scan(&existingStatus)
+			if err == nil {
+				if existingStatus != string(ExamSessionActive) {
+					c.JSON(http.StatusConflict, gin.H{"message": "session is not active"})
+					return
+				}
+			}
+
+			_, err = pool.Exec(ctx, `insert into exam_sessions (user_id, id, status, snapshot, created_at, updated_at, last_heartbeat_at)
+				values ($1,$2,$3,$4,now(),now(),now())
+				on conflict (user_id, id) do update set snapshot=excluded.snapshot, updated_at=excluded.updated_at, last_heartbeat_at=excluded.last_heartbeat_at`,
+				userID, sessionID, string(ExamSessionActive), snapshot)
 		if err != nil {
 			c.JSON(http.StatusInternalServerError, gin.H{"message": "failed to persist heartbeat"})
 			return
@@ -244,7 +267,7 @@ func RegisterExamRoutes(r *gin.Engine, pool *pgxpool.Pool) {
 
 		err := pool.QueryRow(ctx, `update exam_sessions
 			set status=$1, updated_at=now(), submitted_at=coalesce(submitted_at, now())
-			where user_id=$2 and id=$3
+			where user_id=$2 and id=$3 and status in ('active','finished')
 			returning status, snapshot, created_at, updated_at, last_heartbeat_at, submitted_at`,
 			string(ExamSessionFinished), userID, sessionID).
 			Scan(&status, &snapshot, &createdAt, &updatedAt, &lastHeartbeatAt, &submittedAt)
@@ -272,5 +295,44 @@ func RegisterExamRoutes(r *gin.Engine, pool *pgxpool.Pool) {
 			SubmittedAt:     submittedAtStr,
 			Snapshot:        json.RawMessage(snapshot),
 		})
+	})
+
+	r.POST("/exam-sessions/:sessionId/events", studentAuth, func(c *gin.Context) {
+		userID, ok := auth.GetUserID(c)
+		if !ok {
+			c.JSON(http.StatusUnauthorized, gin.H{"message": "unauthorized"})
+			return
+		}
+
+		sessionID := c.Param("sessionId")
+		var req ExamEventRequest
+		if err := c.ShouldBindJSON(&req); err != nil {
+			c.JSON(http.StatusBadRequest, gin.H{"message": "invalid json body"})
+			return
+		}
+		eventType := strings.TrimSpace(req.EventType)
+		if eventType == "" {
+			c.JSON(http.StatusBadRequest, gin.H{"message": "eventType is required"})
+			return
+		}
+		payload := req.Payload
+		if len(payload) == 0 {
+			payload = []byte("{}")
+		}
+
+		ctx := context.Background()
+		var exists bool
+		if err := pool.QueryRow(ctx, `select exists(select 1 from exam_sessions where user_id=$1 and id=$2)`, userID, sessionID).Scan(&exists); err != nil || !exists {
+			c.JSON(http.StatusNotFound, gin.H{"message": "session not found"})
+			return
+		}
+
+		_, err := pool.Exec(ctx, `insert into exam_session_events (user_id, session_id, event_type, payload) values ($1,$2,$3,$4)`, userID, sessionID, eventType, payload)
+		if err != nil {
+			c.JSON(http.StatusInternalServerError, gin.H{"message": "failed to record event"})
+			return
+		}
+
+		c.JSON(http.StatusOK, OkResponse{Ok: true})
 	})
 }

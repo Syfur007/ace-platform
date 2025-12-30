@@ -105,7 +105,7 @@ func handleLogin(r *gin.Engine, pool *pgxpool.Pool, path string, role string, au
 		var passwordHash string
 		var createdAt time.Time
 		var storedRole string
-		err := pool.QueryRow(ctx, `select id, password_hash, created_at, role from users where email=$1 and role=$2`, email, role).
+		err := pool.QueryRow(ctx, `select id, password_hash, created_at, role from users where email=$1 and role=$2 and deleted_at is null`, email, role).
 			Scan(&userID, &passwordHash, &createdAt, &storedRole)
 		if err != nil {
 			c.JSON(http.StatusUnauthorized, gin.H{"message": "invalid credentials"})
@@ -142,7 +142,7 @@ func handleMe(r *gin.Engine, pool *pgxpool.Pool, path string, role string, audie
 		var email string
 		var createdAt time.Time
 		var storedRole string
-		err := pool.QueryRow(ctx, `select email, created_at, role from users where id=$1`, userID).Scan(&email, &createdAt, &storedRole)
+		err := pool.QueryRow(ctx, `select email, created_at, role from users where id=$1 and deleted_at is null`, userID).Scan(&email, &createdAt, &storedRole)
 		if err != nil {
 			c.JSON(http.StatusUnauthorized, gin.H{"message": "unauthorized"})
 			return

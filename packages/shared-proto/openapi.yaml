@@ -173,6 +173,358 @@ paths:
               schema:
                 $ref: '#/components/schemas/User'
 
+  /admin/users:
+    get:
+      operationId: adminListUsers
+      security:
+        - bearerAuth: []
+      parameters:
+        - in: query
+          name: limit
+          required: false
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 100
+            default: 20
+        - in: query
+          name: offset
+          required: false
+          schema:
+            type: integer
+            minimum: 0
+            default: 0
+        - in: query
+          name: role
+          required: false
+          schema:
+            type: string
+            enum: [student, instructor, admin]
+        - in: query
+          name: includeDeleted
+          required: false
+          schema:
+            type: boolean
+            default: false
+      responses:
+        '200':
+          description: Users
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ListAdminUsersResponse'
+    post:
+      operationId: adminCreateUser
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateAdminUserRequest'
+      responses:
+        '200':
+          description: User created
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [id]
+                properties:
+                  id:
+                    type: string
+
+  /admin/users/{userId}:
+    get:
+      operationId: adminGetUser
+      security:
+        - bearerAuth: []
+      parameters:
+        - in: path
+          name: userId
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: User
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AdminUser'
+    patch:
+      operationId: adminUpdateUser
+      security:
+        - bearerAuth: []
+      parameters:
+        - in: path
+          name: userId
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UpdateAdminUserRequest'
+      responses:
+        '200':
+          description: Updated
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/OkResponse'
+    delete:
+      operationId: adminDeleteUser
+      security:
+        - bearerAuth: []
+      parameters:
+        - in: path
+          name: userId
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Deleted (soft)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/OkResponse'
+
+  /admin/users/{userId}/restore:
+    post:
+      operationId: adminRestoreUser
+      security:
+        - bearerAuth: []
+      parameters:
+        - in: path
+          name: userId
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Restored
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/OkResponse'
+
+  /admin/exam-sessions:
+    get:
+      operationId: adminListExamSessions
+      security:
+        - bearerAuth: []
+      parameters:
+        - in: query
+          name: limit
+          required: false
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 100
+            default: 20
+        - in: query
+          name: offset
+          required: false
+          schema:
+            type: integer
+            minimum: 0
+            default: 0
+        - in: query
+          name: status
+          required: false
+          schema:
+            type: string
+            enum: [active, finished, terminated, invalid]
+      responses:
+        '200':
+          description: Exam sessions (admin)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ListAdminExamSessionsResponse'
+
+  /admin/exam-sessions/{userId}/{sessionId}:
+    get:
+      operationId: adminGetExamSession
+      security:
+        - bearerAuth: []
+      parameters:
+        - in: path
+          name: userId
+          required: true
+          schema:
+            type: string
+        - in: path
+          name: sessionId
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Exam session detail
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AdminExamSessionResponse'
+
+  /admin/exam-sessions/{userId}/{sessionId}/force-submit:
+    post:
+      operationId: adminForceSubmitExamSession
+      security:
+        - bearerAuth: []
+      parameters:
+        - in: path
+          name: userId
+          required: true
+          schema:
+            type: string
+        - in: path
+          name: sessionId
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/OkResponse'
+
+  /admin/exam-sessions/{userId}/{sessionId}/terminate:
+    post:
+      operationId: adminTerminateExamSession
+      security:
+        - bearerAuth: []
+      parameters:
+        - in: path
+          name: userId
+          required: true
+          schema:
+            type: string
+        - in: path
+          name: sessionId
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/AdminExamActionRequest'
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/OkResponse'
+
+  /admin/exam-sessions/{userId}/{sessionId}/invalidate:
+    post:
+      operationId: adminInvalidateExamSession
+      security:
+        - bearerAuth: []
+      parameters:
+        - in: path
+          name: userId
+          required: true
+          schema:
+            type: string
+        - in: path
+          name: sessionId
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/AdminExamActionRequest'
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/OkResponse'
+
+  /admin/exam-sessions/{userId}/{sessionId}/flags:
+    post:
+      operationId: adminCreateExamFlag
+      security:
+        - bearerAuth: []
+      parameters:
+        - in: path
+          name: userId
+          required: true
+          schema:
+            type: string
+        - in: path
+          name: sessionId
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/AdminFlagRequest'
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/OkResponse'
+
+  /admin/exam-sessions/{userId}/{sessionId}/events:
+    get:
+      operationId: adminListExamEvents
+      security:
+        - bearerAuth: []
+      parameters:
+        - in: path
+          name: userId
+          required: true
+          schema:
+            type: string
+        - in: path
+          name: sessionId
+          required: true
+          schema:
+            type: string
+        - in: query
+          name: limit
+          required: false
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 100
+            default: 20
+        - in: query
+          name: offset
+          required: false
+          schema:
+            type: integer
+            minimum: 0
+            default: 0
+      responses:
+        '200':
+          description: Events
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ListAdminExamEventsResponse'
+
   /practice-sessions:
     get:
       operationId: listPracticeSessions
@@ -251,7 +603,7 @@ paths:
           required: false
           schema:
             type: string
-            enum: [active, finished]
+            enum: [active, finished, terminated, invalid]
       responses:
         '200':
           description: Exam sessions
@@ -460,7 +812,7 @@ paths:
           required: false
           schema:
             type: string
-            enum: [draft, published, archived]
+            enum: [draft, in_review, needs_changes, published, archived]
         - in: query
           name: packageId
           required: false
@@ -625,6 +977,72 @@ paths:
               schema:
                 $ref: '#/components/schemas/OkResponse'
 
+  /instructor/questions/{questionId}/submit-for-review:
+    post:
+      operationId: instructorSubmitQuestionForReview
+      security:
+        - bearerAuth: []
+      parameters:
+        - in: path
+          name: questionId
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Updated
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/OkResponse'
+
+  /admin/questions/{questionId}/approve:
+    post:
+      operationId: adminApproveQuestion
+      security:
+        - bearerAuth: []
+      parameters:
+        - in: path
+          name: questionId
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Approved
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/OkResponse'
+
+  /admin/questions/{questionId}/request-changes:
+    post:
+      operationId: adminRequestQuestionChanges
+      security:
+        - bearerAuth: []
+      parameters:
+        - in: path
+          name: questionId
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                note:
+                  type: string
+      responses:
+        '200':
+          description: Updated
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/OkResponse'
+
   /exam-sessions/{sessionId}/heartbeat:
     post:
       operationId: heartbeat
@@ -687,6 +1105,31 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/ExamSessionResponse'
+
+  /exam-sessions/{sessionId}/events:
+    post:
+      operationId: recordExamEvent
+      security:
+        - bearerAuth: []
+      parameters:
+        - in: path
+          name: sessionId
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ExamEventRequest'
+      responses:
+        '200':
+          description: Recorded
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/OkResponse'
 
   /practice-sessions/{sessionId}:
     get:
@@ -858,7 +1301,7 @@ components:
           type: string
         status:
           type: string
-          enum: [active, finished]
+          enum: [active, finished, terminated, invalid]
         submittedAt:
           type: string
           nullable: true
@@ -899,7 +1342,7 @@ components:
           type: string
         status:
           type: string
-          enum: [active, finished]
+          enum: [active, finished, terminated, invalid]
         submittedAt:
           type: string
           nullable: true
@@ -1374,7 +1817,7 @@ components:
           type: string
         status:
           type: string
-          enum: [draft, published, archived]
+          enum: [draft, in_review, needs_changes, published, archived]
         correctChoiceId:
           type: string
         choices:
@@ -1415,6 +1858,231 @@ components:
         createdAt:
           type: string
           description: RFC3339 timestamp
+
+    ExamEventRequest:
+      type: object
+      required: [eventType]
+      properties:
+        eventType:
+          type: string
+        ts:
+          type: string
+          nullable: true
+          description: RFC3339 timestamp
+        payload:
+          type: object
+          nullable: true
+          additionalProperties: true
+
+    AdminUser:
+      type: object
+      required: [id, email, role, createdAt, updatedAt]
+      properties:
+        id:
+          type: string
+        email:
+          type: string
+        role:
+          type: string
+          enum: [student, instructor, admin]
+        createdAt:
+          type: string
+          description: RFC3339 timestamp
+        updatedAt:
+          type: string
+          description: RFC3339 timestamp
+        deletedAt:
+          type: string
+          nullable: true
+          description: RFC3339 timestamp
+
+    AdminUserListItem:
+      allOf:
+        - $ref: '#/components/schemas/AdminUser'
+
+    ListAdminUsersResponse:
+      type: object
+      required: [items, limit, offset, hasMore]
+      properties:
+        items:
+          type: array
+          items:
+            $ref: '#/components/schemas/AdminUserListItem'
+        limit:
+          type: integer
+        offset:
+          type: integer
+        hasMore:
+          type: boolean
+
+    CreateAdminUserRequest:
+      type: object
+      required: [email, password, role]
+      properties:
+        email:
+          type: string
+        password:
+          type: string
+        role:
+          type: string
+          enum: [student, instructor, admin]
+
+    UpdateAdminUserRequest:
+      type: object
+      properties:
+        email:
+          type: string
+          nullable: true
+        password:
+          type: string
+          nullable: true
+        role:
+          type: string
+          nullable: true
+          enum: [student, instructor, admin]
+
+    AdminExamSessionListItem:
+      type: object
+      required: [userId, userEmail, sessionId, status, createdAt, updatedAt, lastHeartbeatAt]
+      properties:
+        userId:
+          type: string
+        userEmail:
+          type: string
+        sessionId:
+          type: string
+        status:
+          type: string
+          enum: [active, finished, terminated, invalid]
+        createdAt:
+          type: string
+          description: RFC3339 timestamp
+        updatedAt:
+          type: string
+          description: RFC3339 timestamp
+        lastHeartbeatAt:
+          type: string
+          description: RFC3339 timestamp
+        submittedAt:
+          type: string
+          nullable: true
+          description: RFC3339 timestamp
+        terminatedAt:
+          type: string
+          nullable: true
+          description: RFC3339 timestamp
+        invalidatedAt:
+          type: string
+          nullable: true
+          description: RFC3339 timestamp
+
+    ListAdminExamSessionsResponse:
+      type: object
+      required: [items, limit, offset, hasMore]
+      properties:
+        items:
+          type: array
+          items:
+            $ref: '#/components/schemas/AdminExamSessionListItem'
+        limit:
+          type: integer
+        offset:
+          type: integer
+        hasMore:
+          type: boolean
+
+    AdminExamSessionResponse:
+      type: object
+      required: [userId, userEmail, sessionId, status, createdAt, updatedAt, lastHeartbeatAt, snapshot, terminationReason, invalidationReason]
+      properties:
+        userId:
+          type: string
+        userEmail:
+          type: string
+        sessionId:
+          type: string
+        status:
+          type: string
+          enum: [active, finished, terminated, invalid]
+        createdAt:
+          type: string
+          description: RFC3339 timestamp
+        updatedAt:
+          type: string
+          description: RFC3339 timestamp
+        lastHeartbeatAt:
+          type: string
+          description: RFC3339 timestamp
+        submittedAt:
+          type: string
+          nullable: true
+          description: RFC3339 timestamp
+        terminatedAt:
+          type: string
+          nullable: true
+          description: RFC3339 timestamp
+        terminatedByUserId:
+          type: string
+          nullable: true
+        terminationReason:
+          type: string
+        invalidatedAt:
+          type: string
+          nullable: true
+          description: RFC3339 timestamp
+        invalidatedByUserId:
+          type: string
+          nullable: true
+        invalidationReason:
+          type: string
+        snapshot:
+          type: object
+          additionalProperties: true
+
+    AdminExamActionRequest:
+      type: object
+      properties:
+        reason:
+          type: string
+
+    AdminFlagRequest:
+      type: object
+      required: [flagType]
+      properties:
+        flagType:
+          type: string
+        note:
+          type: string
+
+    AdminExamEventListItem:
+      type: object
+      required: [id, eventType, payload, createdAt]
+      properties:
+        id:
+          type: integer
+        eventType:
+          type: string
+        payload:
+          type: object
+          additionalProperties: true
+        createdAt:
+          type: string
+          description: RFC3339 timestamp
+
+    ListAdminExamEventsResponse:
+      type: object
+      required: [items, limit, offset, hasMore]
+      properties:
+        items:
+          type: array
+          items:
+            $ref: '#/components/schemas/AdminExamEventListItem'
+        limit:
+          type: integer
+        offset:
+          type: integer
+        hasMore:
+          type: boolean
 
     AuthResponse:
       type: object

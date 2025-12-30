@@ -19,6 +19,8 @@ type QuestionStatus string
 
 const (
 	QuestionDraft     QuestionStatus = "draft"
+	QuestionInReview  QuestionStatus = "in_review"
+	QuestionNeedsChanges QuestionStatus = "needs_changes"
 	QuestionPublished QuestionStatus = "published"
 	QuestionArchived  QuestionStatus = "archived"
 )
@@ -852,6 +854,10 @@ func RegisterQuestionRoutes(r *gin.Engine, pool *pgxpool.Pool) {
 					return
 				}
 				role, _ := auth.GetRole(c)
+				if status == QuestionPublished && role != "admin" {
+					c.JSON(http.StatusForbidden, gin.H{"message": "forbidden"})
+					return
+				}
 				qid := c.Param("questionId")
 				query := `update question_bank_questions set status=$1, updated_at=now(), updated_by_user_id=$2 where id=$3`
 				args := []any{string(status), userID, qid}
@@ -871,8 +877,82 @@ func RegisterQuestionRoutes(r *gin.Engine, pool *pgxpool.Pool) {
 			}
 		}
 
+		submitForReview := func() gin.HandlerFunc {
+			return func(c *gin.Context) {
+				userID, ok := auth.GetUserID(c)
+				if !ok {
+					c.JSON(http.StatusUnauthorized, gin.H{"message": "unauthorized"})
+					return
+				}
+				role, _ := auth.GetRole(c)
+				qid := c.Param("questionId")
+
+				query := `update question_bank_questions set status=$1, review_note='', updated_at=now(), updated_by_user_id=$2 where id=$3`
+				args := []any{string(QuestionInReview), userID, qid}
+				if role != "admin" {
+					query += " and created_by_user_id=$2"
+				}
+				cmd, err := pool.Exec(context.Background(), query, args...)
+				if err != nil {
+					c.JSON(http.StatusInternalServerError, gin.H{"message": "failed to submit for review"})
+					return
+				}
+				if cmd.RowsAffected() == 0 {
+					c.JSON(http.StatusNotFound, gin.H{"message": "question not found"})
+					return
+				}
+				c.JSON(http.StatusOK, gin.H{"ok": true})
+			}
+		}
+
+		requireAdmin := auth.RequirePortalAuth("admin", "admin")
+
+		r.POST("/admin/questions/:questionId/approve", requireAdmin, func(c *gin.Context) {
+			userID, ok := auth.GetUserID(c)
+			if !ok {
+				c.JSON(http.StatusUnauthorized, gin.H{"message": "unauthorized"})
+				return
+			}
+			qid := c.Param("questionId")
+			cmd, err := pool.Exec(context.Background(), `update question_bank_questions set status=$1, review_note='', updated_at=now(), updated_by_user_id=$2 where id=$3`, string(QuestionPublished), userID, qid)
+			if err != nil {
+				c.JSON(http.StatusInternalServerError, gin.H{"message": "failed to approve"})
+				return
+			}
+			if cmd.RowsAffected() == 0 {
+				c.JSON(http.StatusNotFound, gin.H{"message": "question not found"})
+				return
+			}
+			c.JSON(http.StatusOK, gin.H{"ok": true})
+		})
+
+		r.POST("/admin/questions/:questionId/request-changes", requireAdmin, func(c *gin.Context) {
+			userID, ok := auth.GetUserID(c)
+			if !ok {
+				c.JSON(http.StatusUnauthorized, gin.H{"message": "unauthorized"})
+				return
+			}
+			qid := c.Param("questionId")
+			var body struct {
+				Note string `json:"note"`
+			}
+			_ = c.ShouldBindJSON(&body)
+			note := strings.TrimSpace(body.Note)
+			cmd, err := pool.Exec(context.Background(), `update question_bank_questions set status=$1, review_note=$2, updated_at=now(), updated_by_user_id=$3 where id=$4`, string(QuestionNeedsChanges), note, userID, qid)
+			if err != nil {
+				c.JSON(http.StatusInternalServerError, gin.H{"message": "failed to request changes"})
+				return
+			}
+			if cmd.RowsAffected() == 0 {
+				c.JSON(http.StatusNotFound, gin.H{"message": "question not found"})
+				return
+			}
+			c.JSON(http.StatusOK, gin.H{"ok": true})
+		})
+
 		r.POST("/instructor/questions/:questionId/publish", requireInstructorOrAdmin, setStatus(QuestionPublished))
 		r.POST("/instructor/questions/:questionId/archive", requireInstructorOrAdmin, setStatus(QuestionArchived))
 		r.POST("/instructor/questions/:questionId/draft", requireInstructorOrAdmin, setStatus(QuestionDraft))
+		r.POST("/instructor/questions/:questionId/submit-for-review", requireInstructorOrAdmin, submitForReview())
 	}
 }

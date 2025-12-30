@@ -55,9 +55,15 @@ func Migrate(ctx context.Context, pool *pgxpool.Pool) error {
 			email text not null unique,
 			password_hash text not null,
 			role text not null default 'student',
-			created_at timestamptz not null default now()
+			created_at timestamptz not null default now(),
+			updated_at timestamptz not null default now(),
+			deleted_at timestamptz null
 		);`,
 		`alter table users add column if not exists role text not null default 'student';`,
+		`alter table users add column if not exists updated_at timestamptz not null default now();`,
+		`alter table users add column if not exists deleted_at timestamptz null;`,
+		`create index if not exists idx_users_role on users(role);`,
+		`create index if not exists idx_users_deleted_at on users(deleted_at);`,
 		`create table if not exists practice_sessions (
 			id text primary key,
 			user_id text not null references users(id) on delete cascade,
@@ -101,9 +107,60 @@ func Migrate(ctx context.Context, pool *pgxpool.Pool) error {
 			updated_at timestamptz not null default now(),
 			last_heartbeat_at timestamptz not null default now(),
 			submitted_at timestamptz null,
+			terminated_at timestamptz null,
+			terminated_by_user_id text null references users(id) on delete set null,
+			termination_reason text not null default '',
+			invalidated_at timestamptz null,
+			invalidated_by_user_id text null references users(id) on delete set null,
+			invalidation_reason text not null default '',
 			primary key (user_id, id)
 		);`,
 		`alter table exam_sessions add column if not exists submitted_at timestamptz null;`,
+		`alter table exam_sessions add column if not exists terminated_at timestamptz null;`,
+		`alter table exam_sessions add column if not exists terminated_by_user_id text null references users(id) on delete set null;`,
+		`alter table exam_sessions add column if not exists termination_reason text not null default '';`,
+		`alter table exam_sessions add column if not exists invalidated_at timestamptz null;`,
+		`alter table exam_sessions add column if not exists invalidated_by_user_id text null references users(id) on delete set null;`,
+		`alter table exam_sessions add column if not exists invalidation_reason text not null default '';`,
+		`create index if not exists idx_exam_sessions_last_heartbeat on exam_sessions(last_heartbeat_at desc);`,
+		`create index if not exists idx_exam_sessions_status on exam_sessions(status);`,
+
+		`create table if not exists exam_session_events (
+			id bigserial primary key,
+			user_id text not null,
+			session_id text not null,
+			event_type text not null,
+			payload jsonb not null default '{}'::jsonb,
+			created_at timestamptz not null default now(),
+			foreign key (user_id, session_id) references exam_sessions(user_id, id) on delete cascade
+		);`,
+		`create index if not exists idx_exam_session_events_user_session on exam_session_events(user_id, session_id, id desc);`,
+		`create index if not exists idx_exam_session_events_type on exam_session_events(event_type);`,
+
+		`create table if not exists exam_session_flags (
+			id bigserial primary key,
+			user_id text not null,
+			session_id text not null,
+			flag_type text not null,
+			note text not null default '',
+			created_by_user_id text not null references users(id) on delete restrict,
+			created_at timestamptz not null default now(),
+			foreign key (user_id, session_id) references exam_sessions(user_id, id) on delete cascade
+		);`,
+		`create index if not exists idx_exam_session_flags_user_session on exam_session_flags(user_id, session_id, id desc);`,
+
+		`create table if not exists audit_log (
+			id bigserial primary key,
+			actor_user_id text null references users(id) on delete set null,
+			actor_role text not null default '',
+			action text not null,
+			target_type text not null,
+			target_id text not null,
+			metadata jsonb not null default '{}'::jsonb,
+			created_at timestamptz not null default now()
+		);`,
+		`create index if not exists idx_audit_log_target on audit_log(target_type, target_id, id desc);`,
+		`create index if not exists idx_audit_log_actor on audit_log(actor_user_id, id desc);`,
 
 		// Normalized question bank (MVP)
 		`create table if not exists question_bank_packages (
@@ -138,12 +195,14 @@ func Migrate(ctx context.Context, pool *pgxpool.Pool) error {
 			difficulty_id text not null references question_bank_difficulties(id) on delete restrict,
 			prompt text not null,
 			explanation_text text not null default '',
+			review_note text not null default '',
 			status text not null default 'draft',
 			created_by_user_id text not null references users(id) on delete restrict,
 			updated_by_user_id text not null references users(id) on delete restrict,
 			created_at timestamptz not null default now(),
 			updated_at timestamptz not null default now()
 		);`,
+		`alter table question_bank_questions add column if not exists review_note text not null default '';`,
 		`create index if not exists idx_question_bank_questions_status on question_bank_questions(status);`,
 		`create index if not exists idx_question_bank_questions_package on question_bank_questions(package_id);`,
 		`create index if not exists idx_question_bank_questions_topic on question_bank_questions(topic_id);`,

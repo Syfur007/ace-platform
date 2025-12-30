@@ -57,6 +57,7 @@ func main() {
 	handlers.RegisterPracticeRoutes(r, pool)
 	handlers.RegisterExamRoutes(r, pool)
 	handlers.RegisterQuestionRoutes(r, pool)
+	handlers.RegisterAdminRoutes(r, pool)
 
 	if err := r.Run(":" + port); err != nil {
 		log.Fatal(err)
