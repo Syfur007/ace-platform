@@ -73,6 +73,7 @@ type PracticeSessionListItem struct {
 	SessionID    string               `json:"sessionId"`
 	Status       PracticeSessionStatus `json:"status"`
 	CreatedAt    string               `json:"createdAt"`
+	LastActivityAt string             `json:"lastActivityAt"`
 	PackageID    *string              `json:"packageId"`
 	IsTimed      bool                 `json:"isTimed"`
 	TargetCount  int                  `json:"targetCount"`
@@ -167,15 +168,15 @@ func RegisterPracticeRoutes(r *gin.Engine, pool *pgxpool.Pool) {
 		ctx := context.Background()
 
 		args := []any{userID}
-		query := `select id, status, created_at, package_id, is_timed, target_count, correct_count
+		query := `select id, status, created_at, last_activity_at, package_id, is_timed, target_count, correct_count
 			from practice_sessions where user_id=$1`
 		if status != "" {
 			query += " and status=$2"
 			args = append(args, status)
-			query += " order by created_at desc limit $3 offset $4"
+			query += " order by last_activity_at desc, created_at desc limit $3 offset $4"
 			args = append(args, limit+1, offset)
 		} else {
-			query += " order by created_at desc limit $2 offset $3"
+			query += " order by last_activity_at desc, created_at desc limit $2 offset $3"
 			args = append(args, limit+1, offset)
 		}
 
@@ -191,11 +192,12 @@ func RegisterPracticeRoutes(r *gin.Engine, pool *pgxpool.Pool) {
 			var id string
 			var st string
 			var createdAt time.Time
+			var lastActivityAt time.Time
 			var packageID *string
 			var isTimed bool
 			var targetCount int
 			var correctCount int
-			if err := rows.Scan(&id, &st, &createdAt, &packageID, &isTimed, &targetCount, &correctCount); err != nil {
+			if err := rows.Scan(&id, &st, &createdAt, &lastActivityAt, &packageID, &isTimed, &targetCount, &correctCount); err != nil {
 				c.JSON(http.StatusInternalServerError, gin.H{"message": "failed to list sessions"})
 				return
 			}
@@ -209,6 +211,7 @@ func RegisterPracticeRoutes(r *gin.Engine, pool *pgxpool.Pool) {
 				SessionID:    id,
 				Status:       PracticeSessionStatus(st),
 				CreatedAt:    createdAt.UTC().Format(time.RFC3339),
+				LastActivityAt: lastActivityAt.UTC().Format(time.RFC3339),
 				PackageID:    packageID,
 				IsTimed:      isTimed,
 				TargetCount:  targetCount,
@@ -403,7 +406,7 @@ func RegisterPracticeRoutes(r *gin.Engine, pool *pgxpool.Pool) {
 			newStatus = string(PracticeSessionFinished)
 		}
 
-		_, err = pool.Exec(ctx, `update practice_sessions set current_index=$1, correct_count=$2, status=$3 where id=$4 and user_id=$5`,
+		_, err = pool.Exec(ctx, `update practice_sessions set current_index=$1, correct_count=$2, status=$3, last_activity_at=now() where id=$4 and user_id=$5`,
 			newIndex, newCorrect, newStatus, sessionID, userID)
 		if err != nil {
 			c.JSON(http.StatusInternalServerError, gin.H{"message": "failed to update session"})

@@ -361,6 +361,8 @@ export interface components {
             status: "active" | "finished";
             /** @description RFC3339 timestamp */
             createdAt: string;
+            /** @description RFC3339 timestamp */
+            lastActivityAt: string;
             packageId?: string | null;
             isTimed: boolean;
             targetCount: number;

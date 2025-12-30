@@ -482,7 +482,7 @@ components:
 
     PracticeSessionListItem:
       type: object
-      required: [sessionId, status, createdAt, isTimed, targetCount, correctCount]
+      required: [sessionId, status, createdAt, lastActivityAt, isTimed, targetCount, correctCount]
       properties:
         sessionId:
           type: string
@@ -490,6 +490,9 @@ components:
           type: string
           enum: [active, finished]
         createdAt:
+          type: string
+          description: RFC3339 timestamp
+        lastActivityAt:
           type: string
           description: RFC3339 timestamp
         packageId:

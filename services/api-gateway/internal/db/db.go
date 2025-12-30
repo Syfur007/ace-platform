@@ -68,8 +68,10 @@ func Migrate(ctx context.Context, pool *pgxpool.Pool) error {
 			correct_count integer not null default 0,
 			status text not null,
 			question_order jsonb not null,
-			created_at timestamptz not null default now()
+			created_at timestamptz not null default now(),
+			last_activity_at timestamptz not null default now()
 		);`,
+		`alter table practice_sessions add column if not exists last_activity_at timestamptz not null default now();`,
 		`create table if not exists practice_answers (
 			id bigserial primary key,
 			session_id text not null references practice_sessions(id) on delete cascade,

@@ -79,14 +79,14 @@ export function StudentProfilePage() {
                     <div>
                       <div className="text-sm font-medium">Session {s.sessionId}</div>
                       <div className="mt-1 text-xs text-slate-500">
-                        {new Date(s.createdAt).toLocaleString()} • {s.isTimed ? 'Timed' : 'Untimed'} • {s.status}
+                        {new Date(s.lastActivityAt ?? s.createdAt).toLocaleString()} • {s.isTimed ? 'Timed' : 'Untimed'} • {s.status}
                       </div>
                     </div>
                     <Link
                       className="rounded border border-slate-200 px-3 py-2 text-sm hover:bg-slate-50"
                       to={`/student/practice/session/${encodeURIComponent(s.sessionId)}`}
                     >
-                      Open
+                      {s.status === 'active' ? 'Resume' : 'Review'}
                     </Link>
                   </div>
                   <div className="mt-2 text-sm text-slate-600">
@@ -128,7 +128,7 @@ export function StudentProfilePage() {
                       className="rounded border border-slate-200 px-3 py-2 text-sm hover:bg-slate-50"
                       to={`/student/test/${encodeURIComponent(s.sessionId)}`}
                     >
-                      Open
+                      {s.status === 'active' ? 'Resume' : 'Review'}
                     </Link>
                   </div>
                 </li>
