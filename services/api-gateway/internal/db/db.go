@@ -104,6 +104,65 @@ func Migrate(ctx context.Context, pool *pgxpool.Pool) error {
 			primary key (user_id, id)
 		);`,
 		`alter table exam_sessions add column if not exists submitted_at timestamptz null;`,
+
+		// Normalized question bank (MVP)
+		`create table if not exists question_bank_packages (
+			id text primary key,
+			name text not null unique,
+			created_by_user_id text not null references users(id) on delete restrict,
+			created_at timestamptz not null default now()
+		);`,
+		`alter table question_bank_packages add column if not exists created_by_user_id text not null references users(id) on delete restrict;`,
+
+		`create table if not exists question_bank_topics (
+			id text primary key,
+			package_id text null references question_bank_packages(id) on delete set null,
+			name text not null,
+			created_by_user_id text not null references users(id) on delete restrict,
+			created_at timestamptz not null default now(),
+			unique (package_id, name)
+		);`,
+		`alter table question_bank_topics add column if not exists created_by_user_id text not null references users(id) on delete restrict;`,
+		`create index if not exists idx_question_bank_topics_package_id on question_bank_topics(package_id);`,
+
+		`create table if not exists question_bank_difficulties (
+			id text primary key,
+			display_name text not null,
+			sort_order integer not null
+		);`,
+
+		`create table if not exists question_bank_questions (
+			id text primary key,
+			package_id text null references question_bank_packages(id) on delete set null,
+			topic_id text null references question_bank_topics(id) on delete set null,
+			difficulty_id text not null references question_bank_difficulties(id) on delete restrict,
+			prompt text not null,
+			explanation_text text not null default '',
+			status text not null default 'draft',
+			created_by_user_id text not null references users(id) on delete restrict,
+			updated_by_user_id text not null references users(id) on delete restrict,
+			created_at timestamptz not null default now(),
+			updated_at timestamptz not null default now()
+		);`,
+		`create index if not exists idx_question_bank_questions_status on question_bank_questions(status);`,
+		`create index if not exists idx_question_bank_questions_package on question_bank_questions(package_id);`,
+		`create index if not exists idx_question_bank_questions_topic on question_bank_questions(topic_id);`,
+		`create index if not exists idx_question_bank_questions_difficulty on question_bank_questions(difficulty_id);`,
+		`create index if not exists idx_question_bank_questions_status_updated_at on question_bank_questions(status, updated_at desc);`,
+
+		`create table if not exists question_bank_choices (
+			id text primary key,
+			question_id text not null references question_bank_questions(id) on delete cascade,
+			order_index integer not null,
+			text text not null,
+			unique (question_id, order_index)
+		);`,
+		`create index if not exists idx_question_bank_choices_question_id on question_bank_choices(question_id);`,
+
+		`create table if not exists question_bank_correct_choice (
+			question_id text primary key references question_bank_questions(id) on delete cascade,
+			choice_id text not null references question_bank_choices(id) on delete cascade
+		);`,
 	}
 
 	for _, stmt := range statements {
@@ -111,6 +170,13 @@ func Migrate(ctx context.Context, pool *pgxpool.Pool) error {
 			return err
 		}
 	}
+
+	// Seed difficulties (idempotent)
+	_, _ = pool.Exec(ctx, `insert into question_bank_difficulties (id, display_name, sort_order) values
+		('easy', 'Easy', 1),
+		('medium', 'Medium', 2),
+		('hard', 'Hard', 3)
+		on conflict (id) do nothing`)
 
 	if err := bootstrapUserFromEnv(ctx, pool, "admin", "BOOTSTRAP_ADMIN_EMAIL", "BOOTSTRAP_ADMIN_PASSWORD"); err != nil {
 		return err
