@@ -720,6 +720,44 @@ paths:
               schema:
                 $ref: '#/components/schemas/ListQuestionDifficultiesResponse'
 
+  /instructor/question-difficulties:
+    get:
+      operationId: instructorListQuestionDifficulties
+      security:
+        - bearerAuth: []
+      responses:
+        '200':
+          description: Question difficulties
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ListQuestionDifficultiesResponse'
+
+  /instructor/question-difficulties/{difficultyId}:
+    patch:
+      operationId: instructorUpdateQuestionDifficulty
+      security:
+        - bearerAuth: []
+      parameters:
+        - in: path
+          name: difficultyId
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UpdateQuestionDifficultyRequest'
+      responses:
+        '200':
+          description: Difficulty updated
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SuccessResponse'
+
   /instructor/question-packages:
     get:
       operationId: instructorListQuestionPackages
@@ -749,6 +787,48 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/CreateQuestionPackageResponse'
+
+  /instructor/question-packages/{packageId}:
+    patch:
+      operationId: instructorUpdateQuestionPackage
+      security:
+        - bearerAuth: []
+      parameters:
+        - in: path
+          name: packageId
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UpdateQuestionPackageRequest'
+      responses:
+        '200':
+          description: Package updated
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SuccessResponse'
+    delete:
+      operationId: instructorDeleteQuestionPackage
+      security:
+        - bearerAuth: []
+      parameters:
+        - in: path
+          name: packageId
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Package deleted
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SuccessResponse'
 
   /instructor/question-topics:
     get:
@@ -785,6 +865,48 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/CreateQuestionTopicResponse'
+
+  /instructor/question-topics/{topicId}:
+    patch:
+      operationId: instructorUpdateQuestionTopic
+      security:
+        - bearerAuth: []
+      parameters:
+        - in: path
+          name: topicId
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UpdateQuestionTopicRequest'
+      responses:
+        '200':
+          description: Topic updated
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SuccessResponse'
+    delete:
+      operationId: instructorDeleteQuestionTopic
+      security:
+        - bearerAuth: []
+      parameters:
+        - in: path
+          name: topicId
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Topic deleted
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SuccessResponse'
 
   /instructor/questions:
     get:
@@ -1574,6 +1696,13 @@ components:
         ok:
           type: boolean
 
+    SuccessResponse:
+      type: object
+      required: [success]
+      properties:
+        success:
+          type: boolean
+
     QuestionDifficulty:
       type: object
       required: [id, displayName]
@@ -1594,19 +1723,21 @@ components:
 
     QuestionPackage:
       type: object
-      required: [id, name, createdAt]
+      required: [id, name, isHidden, createdAt]
       properties:
         id:
           type: string
         name:
           type: string
+        isHidden:
+          type: boolean
         createdAt:
           type: string
           description: RFC3339 timestamp
 
     QuestionTopic:
       type: object
-      required: [id, name, createdAt]
+      required: [id, name, isHidden, createdAt]
       properties:
         id:
           type: string
@@ -1615,9 +1746,34 @@ components:
           nullable: true
         name:
           type: string
+        isHidden:
+          type: boolean
         createdAt:
           type: string
           description: RFC3339 timestamp
+
+    UpdateQuestionPackageRequest:
+      type: object
+      properties:
+        name:
+          type: string
+        isHidden:
+          type: boolean
+
+    UpdateQuestionTopicRequest:
+      type: object
+      properties:
+        name:
+          type: string
+        isHidden:
+          type: boolean
+
+    UpdateQuestionDifficultyRequest:
+      type: object
+      required: [displayName]
+      properties:
+        displayName:
+          type: string
 
     ListQuestionPackagesResponse:
       type: object

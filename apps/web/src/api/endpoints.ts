@@ -238,6 +238,27 @@ export async function instructorListQuestionPackages(): Promise<InstructorListQu
   return apiFetchJson<InstructorListQuestionPackagesResponse>('/instructor/question-packages', { method: 'GET' })
 }
 
+export type InstructorUpdateQuestionPackageRequest = {
+  name?: string
+  isHidden?: boolean
+}
+
+export async function instructorUpdateQuestionPackage(
+  packageId: string,
+  body: InstructorUpdateQuestionPackageRequest,
+): Promise<{ success: true }> {
+  return apiFetchJson<{ success: true }>(`/instructor/question-packages/${encodeURIComponent(packageId)}`, {
+    method: 'PATCH',
+    body,
+  })
+}
+
+export async function instructorDeleteQuestionPackage(packageId: string): Promise<{ success: true }> {
+  return apiFetchJson<{ success: true }>(`/instructor/question-packages/${encodeURIComponent(packageId)}`, {
+    method: 'DELETE',
+  })
+}
+
 export type InstructorCreateQuestionTopicRequest =
   paths['/instructor/question-topics']['post']['requestBody']['content']['application/json']
 export type InstructorCreateQuestionTopicResponse =
@@ -258,6 +279,49 @@ export async function instructorListQuestionTopics(params?: { packageId?: string
   const qs = search.toString()
   return apiFetchJson<InstructorListQuestionTopicsResponse>(`/instructor/question-topics${qs ? `?${qs}` : ''}`, {
     method: 'GET',
+  })
+}
+
+export type InstructorUpdateQuestionTopicRequest = {
+  name?: string
+  isHidden?: boolean
+}
+
+export async function instructorUpdateQuestionTopic(
+  topicId: string,
+  body: InstructorUpdateQuestionTopicRequest,
+): Promise<{ success: true }> {
+  return apiFetchJson<{ success: true }>(`/instructor/question-topics/${encodeURIComponent(topicId)}`, {
+    method: 'PATCH',
+    body,
+  })
+}
+
+export async function instructorDeleteQuestionTopic(topicId: string): Promise<{ success: true }> {
+  return apiFetchJson<{ success: true }>(`/instructor/question-topics/${encodeURIComponent(topicId)}`, {
+    method: 'DELETE',
+  })
+}
+
+export type InstructorListQuestionDifficultiesResponse = {
+  items: Array<{ id: string; displayName: string }>
+}
+
+export async function instructorListQuestionDifficulties(): Promise<InstructorListQuestionDifficultiesResponse> {
+  return apiFetchJson<InstructorListQuestionDifficultiesResponse>('/instructor/question-difficulties', { method: 'GET' })
+}
+
+export type InstructorUpdateQuestionDifficultyRequest = {
+  displayName: string
+}
+
+export async function instructorUpdateQuestionDifficulty(
+  difficultyId: string,
+  body: InstructorUpdateQuestionDifficultyRequest,
+): Promise<{ success: true }> {
+  return apiFetchJson<{ success: true }>(`/instructor/question-difficulties/${encodeURIComponent(difficultyId)}`, {
+    method: 'PATCH',
+    body,
   })
 }
 

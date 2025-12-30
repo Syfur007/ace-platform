@@ -23,16 +23,21 @@ import {
   instructorCreateQuestion,
   instructorCreateQuestionPackage,
   instructorCreateQuestionTopic,
+  instructorDeleteQuestionPackage,
+  instructorDeleteQuestionTopic,
   instructorDraftQuestion,
   instructorGetQuestion,
+  instructorListQuestionDifficulties,
   instructorListQuestionPackages,
   instructorListQuestionTopics,
   instructorListQuestions,
   instructorPublishQuestion,
   instructorReplaceChoices,
   instructorSubmitQuestionForReview,
+  instructorUpdateQuestionDifficulty,
+  instructorUpdateQuestionPackage,
+  instructorUpdateQuestionTopic,
   instructorUpdateQuestion,
-  listQuestionDifficulties,
 } from '@/api/endpoints'
 import { clearAllAccessTokens } from '@/auth/token'
 
@@ -93,6 +98,17 @@ export function AdminPanelPage() {
   const [topicName, setTopicName] = useState('')
   const [topicPackageId, setTopicPackageId] = useState('')
 
+  const [selectedPackageId, setSelectedPackageId] = useState('')
+  const [editPackageName, setEditPackageName] = useState('')
+  const [editPackageIsHidden, setEditPackageIsHidden] = useState(false)
+
+  const [selectedTopicId, setSelectedTopicId] = useState('')
+  const [editTopicName, setEditTopicName] = useState('')
+  const [editTopicIsHidden, setEditTopicIsHidden] = useState(false)
+
+  const [selectedDifficultyId, setSelectedDifficultyId] = useState('')
+  const [editDifficultyDisplayName, setEditDifficultyDisplayName] = useState('')
+
   const [questionFilters, setQuestionFilters] = useState<{
     status: '' | 'draft' | 'in_review' | 'needs_changes' | 'published' | 'archived'
     packageId: string
@@ -103,7 +119,7 @@ export function AdminPanelPage() {
   const [createQuestion, setCreateQuestion] = useState<CreateQuestionFormState>({
     packageId: '',
     topicId: '',
-    difficultyId: 'easy',
+    difficultyId: '',
     prompt: '',
     explanation: '',
     choicesText: ['', '', '', ''],
@@ -127,7 +143,7 @@ export function AdminPanelPage() {
 
   const difficulties = useQuery({
     queryKey: ['questionBank', 'difficulties'],
-    queryFn: listQuestionDifficulties,
+    queryFn: instructorListQuestionDifficulties,
   })
 
   const questions = useQuery({
@@ -150,16 +166,26 @@ export function AdminPanelPage() {
   })
 
   const visibleTopics = useMemo(() => {
-    const items = topics.data?.items ?? []
+    const items = (topics.data?.items ?? []).filter((t: any) => !t.isHidden)
     if (questionFilters.packageId) return items.filter((t) => t.packageId === questionFilters.packageId)
     return items
   }, [topics.data?.items, questionFilters.packageId])
 
   const visibleTopicsForCreate = useMemo(() => {
-    const items = topics.data?.items ?? []
+    const items = (topics.data?.items ?? []).filter((t: any) => !t.isHidden)
     if (createQuestion.packageId) return items.filter((t) => t.packageId === createQuestion.packageId)
     return items
   }, [topics.data?.items, createQuestion.packageId])
+
+  const visiblePackagesForSelect = useMemo(() => {
+    return (packages.data?.items ?? []).filter((p: any) => !p.isHidden)
+  }, [packages.data?.items])
+
+  const difficultiesById = useMemo(() => {
+    const map = new Map<string, string>()
+    for (const d of difficulties.data?.items ?? []) map.set(d.id, d.displayName)
+    return map
+  }, [difficulties.data?.items])
 
   const createPackageMutation = useMutation({
     mutationFn: instructorCreateQuestionPackage,
@@ -183,7 +209,7 @@ export function AdminPanelPage() {
       setCreateQuestion({
         packageId: '',
         topicId: '',
-        difficultyId: 'easy',
+        difficultyId: '',
         prompt: '',
         explanation: '',
         choicesText: ['', '', '', ''],
@@ -247,6 +273,82 @@ export function AdminPanelPage() {
       await queryClient.invalidateQueries({ queryKey: ['questionBank', 'question', selectedQuestionId] })
     },
   })
+
+  const updatePackageMutation = useMutation({
+    mutationFn: async (input: { packageId: string; body: { name?: string; isHidden?: boolean } }) =>
+      instructorUpdateQuestionPackage(input.packageId, input.body),
+    onSuccess: async () => {
+      await queryClient.invalidateQueries({ queryKey: ['questionBank', 'packages'] })
+      await queryClient.invalidateQueries({ queryKey: ['questionBank', 'topics'] })
+    },
+  })
+
+  const deletePackageMutation = useMutation({
+    mutationFn: instructorDeleteQuestionPackage,
+    onSuccess: async () => {
+      setSelectedPackageId('')
+      setEditPackageName('')
+      setEditPackageIsHidden(false)
+      await queryClient.invalidateQueries({ queryKey: ['questionBank', 'packages'] })
+      await queryClient.invalidateQueries({ queryKey: ['questionBank', 'topics'] })
+      await queryClient.invalidateQueries({ queryKey: ['questionBank', 'questions'] })
+    },
+  })
+
+  const updateTopicMutation = useMutation({
+    mutationFn: async (input: { topicId: string; body: { name?: string; isHidden?: boolean } }) =>
+      instructorUpdateQuestionTopic(input.topicId, input.body),
+    onSuccess: async () => {
+      await queryClient.invalidateQueries({ queryKey: ['questionBank', 'topics'] })
+      await queryClient.invalidateQueries({ queryKey: ['questionBank', 'questions'] })
+    },
+  })
+
+  const deleteTopicMutation = useMutation({
+    mutationFn: instructorDeleteQuestionTopic,
+    onSuccess: async () => {
+      setSelectedTopicId('')
+      setEditTopicName('')
+      setEditTopicIsHidden(false)
+      await queryClient.invalidateQueries({ queryKey: ['questionBank', 'topics'] })
+      await queryClient.invalidateQueries({ queryKey: ['questionBank', 'questions'] })
+    },
+  })
+
+  const updateDifficultyMutation = useMutation({
+    mutationFn: async (input: { difficultyId: string; displayName: string }) =>
+      instructorUpdateQuestionDifficulty(input.difficultyId, { displayName: input.displayName }),
+    onSuccess: async () => {
+      await queryClient.invalidateQueries({ queryKey: ['questionBank', 'difficulties'] })
+    },
+  })
+
+  useEffect(() => {
+    if (createQuestion.difficultyId) return
+    const first = (difficulties.data?.items ?? [])[0]
+    if (!first) return
+    setCreateQuestion((s) => (s.difficultyId ? s : { ...s, difficultyId: first.id }))
+  }, [difficulties.data?.items, createQuestion.difficultyId])
+
+  useEffect(() => {
+    const pkg = (packages.data?.items ?? []).find((p: any) => p.id === selectedPackageId)
+    if (!pkg) return
+    setEditPackageName(pkg.name ?? '')
+    setEditPackageIsHidden(Boolean((pkg as any).isHidden))
+  }, [packages.data?.items, selectedPackageId])
+
+  useEffect(() => {
+    const top = (topics.data?.items ?? []).find((t: any) => t.id === selectedTopicId)
+    if (!top) return
+    setEditTopicName(top.name ?? '')
+    setEditTopicIsHidden(Boolean((top as any).isHidden))
+  }, [topics.data?.items, selectedTopicId])
+
+  useEffect(() => {
+    const diff = (difficulties.data?.items ?? []).find((d) => d.id === selectedDifficultyId)
+    if (!diff) return
+    setEditDifficultyDisplayName(diff.displayName ?? '')
+  }, [difficulties.data?.items, selectedDifficultyId])
 
   // Users (IAM)
   const [userFilters, setUserFilters] = useState<{ role: '' | 'student' | 'instructor' | 'admin'; includeDeleted: boolean }>(
@@ -516,15 +618,77 @@ export function AdminPanelPage() {
 
               <div className="max-h-44 overflow-auto rounded border border-slate-200">
                 <div className="divide-y divide-slate-100">
-                  {(packages.data?.items ?? []).map((p) => (
-                    <div key={p.id} className="flex items-center justify-between px-3 py-2 text-sm">
-                      <div className="truncate">{p.name}</div>
+                  {(packages.data?.items ?? []).map((p: any) => (
+                    <button
+                      key={p.id}
+                      type="button"
+                      className={
+                        'flex w-full items-center justify-between px-3 py-2 text-left text-sm hover:bg-slate-50 ' +
+                        (selectedPackageId === p.id ? 'bg-slate-50' : '')
+                      }
+                      onClick={() => setSelectedPackageId(p.id)}
+                    >
+                      <div className="truncate">
+                        {p.name}
+                        {p.isHidden ? <span className="ml-2 text-xs text-slate-500">(hidden)</span> : null}
+                      </div>
                       <div className="text-xs text-slate-500">{p.id}</div>
-                    </div>
+                    </button>
                   ))}
                   {packages.isLoading && <div className="px-3 py-2 text-sm text-slate-600">Loading…</div>}
                   {packages.isError && <div className="px-3 py-2 text-sm text-red-600">Failed to load.</div>}
                 </div>
+              </div>
+
+              <div className="rounded border border-slate-200 p-3">
+                <div className="font-medium">Edit package</div>
+                {!selectedPackageId ? <div className="mt-1 text-sm text-slate-600">Select a package above.</div> : null}
+                {selectedPackageId ? (
+                  <div className="mt-3 grid gap-2">
+                    <input
+                      className="w-full rounded border border-slate-200 px-3 py-2 text-sm"
+                      value={editPackageName}
+                      onChange={(e) => setEditPackageName(e.target.value)}
+                    />
+                    <label className="flex items-center gap-2 text-sm">
+                      <input
+                        type="checkbox"
+                        checked={editPackageIsHidden}
+                        onChange={(e) => setEditPackageIsHidden(e.target.checked)}
+                      />
+                      Hidden (students won’t see it)
+                    </label>
+                    <div className="flex flex-wrap gap-2">
+                      <button
+                        type="button"
+                        className="rounded border border-slate-200 px-3 py-2 text-sm hover:bg-slate-50 disabled:opacity-50"
+                        disabled={updatePackageMutation.isPending || editPackageName.trim() === ''}
+                        onClick={() =>
+                          updatePackageMutation.mutate({
+                            packageId: selectedPackageId,
+                            body: { name: editPackageName.trim(), isHidden: editPackageIsHidden },
+                          })
+                        }
+                      >
+                        Save
+                      </button>
+                      <button
+                        type="button"
+                        className="rounded border border-slate-200 px-3 py-2 text-sm hover:bg-slate-50 disabled:opacity-50"
+                        disabled={deletePackageMutation.isPending}
+                        onClick={() => {
+                          if (!confirm('Delete this package? Topics/questions will be detached.')) return
+                          deletePackageMutation.mutate(selectedPackageId)
+                        }}
+                      >
+                        Delete
+                      </button>
+                    </div>
+                    {updatePackageMutation.isError || deletePackageMutation.isError ? (
+                      <div className="text-sm text-red-600">Package action failed.</div>
+                    ) : null}
+                  </div>
+                ) : null}
               </div>
             </div>
 
@@ -537,9 +701,9 @@ export function AdminPanelPage() {
                   onChange={(e) => setTopicPackageId(e.target.value)}
                 >
                   <option value="">No package (global)</option>
-                  {(packages.data?.items ?? []).map((p) => (
+                  {(packages.data?.items ?? []).map((p: any) => (
                     <option key={p.id} value={p.id}>
-                      {p.name}
+                      {p.name}{p.isHidden ? ' (hidden)' : ''}
                     </option>
                   ))}
                 </select>
@@ -569,16 +733,128 @@ export function AdminPanelPage() {
 
               <div className="max-h-44 overflow-auto rounded border border-slate-200">
                 <div className="divide-y divide-slate-100">
-                  {(topics.data?.items ?? []).map((t) => (
-                    <div key={t.id} className="flex items-center justify-between px-3 py-2 text-sm">
-                      <div className="truncate">{t.name}</div>
+                  {(topics.data?.items ?? []).map((t: any) => (
+                    <button
+                      key={t.id}
+                      type="button"
+                      className={
+                        'flex w-full items-center justify-between px-3 py-2 text-left text-sm hover:bg-slate-50 ' +
+                        (selectedTopicId === t.id ? 'bg-slate-50' : '')
+                      }
+                      onClick={() => setSelectedTopicId(t.id)}
+                    >
+                      <div className="truncate">
+                        {t.name}
+                        {t.isHidden ? <span className="ml-2 text-xs text-slate-500">(hidden)</span> : null}
+                      </div>
                       <div className="text-xs text-slate-500">{t.packageId ?? '—'}</div>
-                    </div>
+                    </button>
                   ))}
                   {topics.isLoading && <div className="px-3 py-2 text-sm text-slate-600">Loading…</div>}
                   {topics.isError && <div className="px-3 py-2 text-sm text-red-600">Failed to load.</div>}
                 </div>
               </div>
+
+              <div className="rounded border border-slate-200 p-3">
+                <div className="font-medium">Edit topic</div>
+                {!selectedTopicId ? <div className="mt-1 text-sm text-slate-600">Select a topic above.</div> : null}
+                {selectedTopicId ? (
+                  <div className="mt-3 grid gap-2">
+                    <input
+                      className="w-full rounded border border-slate-200 px-3 py-2 text-sm"
+                      value={editTopicName}
+                      onChange={(e) => setEditTopicName(e.target.value)}
+                    />
+                    <label className="flex items-center gap-2 text-sm">
+                      <input
+                        type="checkbox"
+                        checked={editTopicIsHidden}
+                        onChange={(e) => setEditTopicIsHidden(e.target.checked)}
+                      />
+                      Hidden (students won’t see it)
+                    </label>
+                    <div className="flex flex-wrap gap-2">
+                      <button
+                        type="button"
+                        className="rounded border border-slate-200 px-3 py-2 text-sm hover:bg-slate-50 disabled:opacity-50"
+                        disabled={updateTopicMutation.isPending || editTopicName.trim() === ''}
+                        onClick={() =>
+                          updateTopicMutation.mutate({
+                            topicId: selectedTopicId,
+                            body: { name: editTopicName.trim(), isHidden: editTopicIsHidden },
+                          })
+                        }
+                      >
+                        Save
+                      </button>
+                      <button
+                        type="button"
+                        className="rounded border border-slate-200 px-3 py-2 text-sm hover:bg-slate-50 disabled:opacity-50"
+                        disabled={deleteTopicMutation.isPending}
+                        onClick={() => {
+                          if (!confirm('Delete this topic? Questions will be detached.')) return
+                          deleteTopicMutation.mutate(selectedTopicId)
+                        }}
+                      >
+                        Delete
+                      </button>
+                    </div>
+                    {updateTopicMutation.isError || deleteTopicMutation.isError ? (
+                      <div className="text-sm text-red-600">Topic action failed.</div>
+                    ) : null}
+                  </div>
+                ) : null}
+              </div>
+            </div>
+
+            <div className="space-y-2">
+              <div className="font-medium">Difficulties</div>
+
+              <select
+                className="w-full rounded border border-slate-200 px-3 py-2 text-sm"
+                value={selectedDifficultyId}
+                onChange={(e) => setSelectedDifficultyId(e.target.value)}
+              >
+                <option value="">Select difficulty</option>
+                {(difficulties.data?.items ?? []).map((d) => (
+                  <option key={d.id} value={d.id}>
+                    {d.displayName} ({d.id})
+                  </option>
+                ))}
+              </select>
+
+              <div className="grid gap-2 rounded border border-slate-200 p-3">
+                <div className="font-medium">Edit difficulty label</div>
+                {!selectedDifficultyId ? <div className="text-sm text-slate-600">Select a difficulty above.</div> : null}
+                {selectedDifficultyId ? (
+                  <>
+                    <input
+                      className="w-full rounded border border-slate-200 px-3 py-2 text-sm"
+                      value={editDifficultyDisplayName}
+                      onChange={(e) => setEditDifficultyDisplayName(e.target.value)}
+                    />
+                    <button
+                      type="button"
+                      className="rounded border border-slate-200 px-3 py-2 text-sm hover:bg-slate-50 disabled:opacity-50"
+                      disabled={updateDifficultyMutation.isPending || editDifficultyDisplayName.trim() === ''}
+                      onClick={() =>
+                        updateDifficultyMutation.mutate({
+                          difficultyId: selectedDifficultyId,
+                          displayName: editDifficultyDisplayName.trim(),
+                        })
+                      }
+                    >
+                      Save label
+                    </button>
+                    {updateDifficultyMutation.isError ? (
+                      <div className="text-sm text-red-600">Failed to update label.</div>
+                    ) : null}
+                  </>
+                ) : null}
+              </div>
+
+              {difficulties.isLoading ? <div className="text-sm text-slate-600">Loading…</div> : null}
+              {difficulties.isError ? <div className="text-sm text-red-600">Failed to load difficulties.</div> : null}
             </div>
 
             <div className="space-y-3">
@@ -591,7 +867,7 @@ export function AdminPanelPage() {
                   onChange={(e) => setCreateQuestion((s) => ({ ...s, packageId: e.target.value, topicId: '' }))}
                 >
                   <option value="">No package</option>
-                  {(packages.data?.items ?? []).map((p) => (
+                  {visiblePackagesForSelect.map((p: any) => (
                     <option key={p.id} value={p.id}>
                       {p.name}
                     </option>
@@ -616,6 +892,7 @@ export function AdminPanelPage() {
                   value={createQuestion.difficultyId}
                   onChange={(e) => setCreateQuestion((s) => ({ ...s, difficultyId: e.target.value }))}
                 >
+                  <option value="">Select difficulty</option>
                   {(difficulties.data?.items ?? []).map((d) => (
                     <option key={d.id} value={d.id}>
                       {d.displayName}
@@ -716,7 +993,7 @@ export function AdminPanelPage() {
                   onChange={(e) => setQuestionFilters((s) => ({ ...s, packageId: e.target.value, topicId: '' }))}
                 >
                   <option value="">Any package</option>
-                  {(packages.data?.items ?? []).map((p) => (
+                  {visiblePackagesForSelect.map((p: any) => (
                     <option key={p.id} value={p.id}>
                       {p.name}
                     </option>
@@ -766,7 +1043,9 @@ export function AdminPanelPage() {
                       }}
                     >
                       <div className="truncate font-medium">{q.prompt}</div>
-                      <div className="mt-1 text-xs text-slate-500">id={q.id} difficulty={q.difficultyId}</div>
+                      <div className="mt-1 text-xs text-slate-500">
+                        id={q.id} difficulty={difficultiesById.get(q.difficultyId) ?? q.difficultyId}
+                      </div>
                     </button>
                   ))}
                   {questions.isLoading && <div className="px-3 py-2 text-sm text-slate-600">Loading…</div>}
@@ -865,7 +1144,7 @@ export function AdminPanelPage() {
                     onChange={(e) => setEditQuestion((s) => (s ? { ...s, packageId: e.target.value, topicId: '' } : s))}
                   >
                     <option value="">No package</option>
-                    {(packages.data?.items ?? []).map((p) => (
+                    {visiblePackagesForSelect.map((p: any) => (
                       <option key={p.id} value={p.id}>
                         {p.name}
                       </option>
@@ -878,7 +1157,10 @@ export function AdminPanelPage() {
                     onChange={(e) => setEditQuestion((s) => (s ? { ...s, topicId: e.target.value } : s))}
                   >
                     <option value="">No topic</option>
-                    {(topics.data?.items ?? []).filter((t) => (editQuestion.packageId ? t.packageId === editQuestion.packageId : true)).map((t) => (
+                    {(topics.data?.items ?? [])
+                      .filter((t: any) => !t.isHidden)
+                      .filter((t) => (editQuestion.packageId ? t.packageId === editQuestion.packageId : true))
+                      .map((t) => (
                       <option key={t.id} value={t.id}>
                         {t.name}
                       </option>
@@ -890,6 +1172,7 @@ export function AdminPanelPage() {
                     value={editQuestion.difficultyId}
                     onChange={(e) => setEditQuestion((s) => (s ? { ...s, difficultyId: e.target.value } : s))}
                   >
+                    <option value="">Select difficulty</option>
                     {(difficulties.data?.items ?? []).map((d) => (
                       <option key={d.id} value={d.id}>
                         {d.displayName}

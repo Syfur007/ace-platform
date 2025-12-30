@@ -167,19 +167,25 @@ func Migrate(ctx context.Context, pool *pgxpool.Pool) error {
 			id text primary key,
 			name text not null unique,
 			created_by_user_id text not null references users(id) on delete restrict,
+			is_hidden boolean not null default false,
 			created_at timestamptz not null default now()
 		);`,
 		`alter table question_bank_packages add column if not exists created_by_user_id text not null references users(id) on delete restrict;`,
+		`alter table question_bank_packages add column if not exists is_hidden boolean not null default false;`,
+		`alter table question_bank_packages add column if not exists updated_at timestamptz not null default now();`,
 
 		`create table if not exists question_bank_topics (
 			id text primary key,
 			package_id text null references question_bank_packages(id) on delete set null,
 			name text not null,
 			created_by_user_id text not null references users(id) on delete restrict,
+			is_hidden boolean not null default false,
 			created_at timestamptz not null default now(),
 			unique (package_id, name)
 		);`,
 		`alter table question_bank_topics add column if not exists created_by_user_id text not null references users(id) on delete restrict;`,
+		`alter table question_bank_topics add column if not exists is_hidden boolean not null default false;`,
+		`alter table question_bank_topics add column if not exists updated_at timestamptz not null default now();`,
 		`create index if not exists idx_question_bank_topics_package_id on question_bank_topics(package_id);`,
 
 		`create table if not exists question_bank_difficulties (

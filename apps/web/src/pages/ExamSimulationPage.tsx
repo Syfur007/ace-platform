@@ -1,8 +1,10 @@
+import { useEffect, useRef } from 'react'
+
 import { useParams } from 'react-router-dom'
 
 import { useMutation, useQuery } from '@tanstack/react-query'
 
-import { getExamSession, submitExamSession } from '@/api/endpoints'
+import { getExamSession, recordExamEvent, submitExamSession } from '@/api/endpoints'
 
 import { StemValidationBox } from '@/exam/StemValidationBox'
 import { useExamEngine } from '@/exam/useExamEngine'
@@ -11,6 +13,7 @@ import { useHeartbeatSync } from '@/exam/useHeartbeatSync'
 export function ExamSimulationPage() {
   const { testId } = useParams()
   const engine = useExamEngine({ sessionId: testId ?? 'unknown-session' })
+  const lastIntegrityEventAtRef = useRef<Record<string, number>>({})
 
   const sessionQuery = useQuery({
     queryKey: ['exam-session', engine.state.sessionId],
@@ -29,6 +32,53 @@ export function ExamSimulationPage() {
 
   const status = sessionQuery.data?.status ?? 'active'
   const isFinished = status === 'finished'
+
+  useEffect(() => {
+    const sessionId = engine.state.sessionId
+    if (!sessionId || sessionId === 'unknown-session') return
+    if (isFinished) return
+
+    const emit = (eventType: string, payload?: Record<string, unknown>) => {
+      const now = Date.now()
+      const lastAt = lastIntegrityEventAtRef.current[eventType] ?? 0
+      if (now - lastAt < 1500) return
+      lastIntegrityEventAtRef.current[eventType] = now
+
+      void recordExamEvent(sessionId, {
+        eventType,
+        ts: new Date().toISOString(),
+        payload: payload ?? null,
+      }).catch(() => {
+        // No-op: integrity events should never break the exam UI.
+      })
+    }
+
+    const onVisibilityChange = () => {
+      emit(document.visibilityState === 'hidden' ? 'visibility_hidden' : 'visibility_visible', {
+        visibilityState: document.visibilityState,
+        hidden: document.hidden,
+        href: window.location.href,
+      })
+    }
+
+    const onFocus = () => {
+      emit('window_focus', { href: window.location.href })
+    }
+
+    const onBlur = () => {
+      emit('window_blur', { href: window.location.href })
+    }
+
+    document.addEventListener('visibilitychange', onVisibilityChange)
+    window.addEventListener('focus', onFocus)
+    window.addEventListener('blur', onBlur)
+
+    return () => {
+      document.removeEventListener('visibilitychange', onVisibilityChange)
+      window.removeEventListener('focus', onFocus)
+      window.removeEventListener('blur', onBlur)
+    }
+  }, [engine.state.sessionId, isFinished])
 
   const activeSection = engine.state.sections[engine.state.activeSectionIndex]
   const theta = activeSection ? (engine.state.thetaBySectionId[activeSection.id] ?? 0) : 0

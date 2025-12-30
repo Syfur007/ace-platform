@@ -33,6 +33,7 @@ type QuestionDifficulty struct {
 type QuestionPackage struct {
 	ID        string `json:"id"`
 	Name      string `json:"name"`
+	IsHidden  bool   `json:"isHidden"`
 	CreatedAt string `json:"createdAt"`
 }
 
@@ -40,7 +41,12 @@ type QuestionTopic struct {
 	ID        string  `json:"id"`
 	PackageID *string `json:"packageId"`
 	Name      string  `json:"name"`
+	IsHidden  bool    `json:"isHidden"`
 	CreatedAt string  `json:"createdAt"`
+}
+
+type ListQuestionDifficultiesResponse struct {
+	Items []QuestionDifficulty `json:"items"`
 }
 
 type ListQuestionPackagesResponse struct {
@@ -125,6 +131,20 @@ type CreateQuestionPackageRequest struct {
 type CreateQuestionTopicRequest struct {
 	PackageID *string `json:"packageId"`
 	Name      string  `json:"name"`
+}
+
+type UpdateQuestionPackageRequest struct {
+	Name     *string `json:"name"`
+	IsHidden *bool   `json:"isHidden"`
+}
+
+type UpdateQuestionTopicRequest struct {
+	Name     *string `json:"name"`
+	IsHidden *bool   `json:"isHidden"`
+}
+
+type UpdateQuestionDifficultyRequest struct {
+	DisplayName *string `json:"displayName"`
 }
 
 func authRequireRolesAndAudiences(allowedRoles []string, allowedAudiences []string) gin.HandlerFunc {
@@ -293,7 +313,7 @@ func RegisterQuestionRoutes(r *gin.Engine, pool *pgxpool.Pool) {
 	// Reference data (read-only for now)
 	{
 		r.GET("/question-packages", auth.RequirePortalAuth("student", "student"), func(c *gin.Context) {
-			rows, err := pool.Query(context.Background(), `select id, name, created_at from question_bank_packages order by name asc`)
+			rows, err := pool.Query(context.Background(), `select id, name, is_hidden, created_at from question_bank_packages where is_hidden=false order by name asc`)
 			if err != nil {
 				c.JSON(http.StatusInternalServerError, gin.H{"message": "failed to list packages"})
 				return
@@ -302,12 +322,13 @@ func RegisterQuestionRoutes(r *gin.Engine, pool *pgxpool.Pool) {
 			items := []QuestionPackage{}
 			for rows.Next() {
 				var id, name string
+				var hidden bool
 				var createdAt time.Time
-				if err := rows.Scan(&id, &name, &createdAt); err != nil {
+				if err := rows.Scan(&id, &name, &hidden, &createdAt); err != nil {
 					c.JSON(http.StatusInternalServerError, gin.H{"message": "failed to list packages"})
 					return
 				}
-				items = append(items, QuestionPackage{ID: id, Name: name, CreatedAt: createdAt.UTC().Format(time.RFC3339)})
+				items = append(items, QuestionPackage{ID: id, Name: name, IsHidden: hidden, CreatedAt: createdAt.UTC().Format(time.RFC3339)})
 			}
 			c.JSON(http.StatusOK, ListQuestionPackagesResponse{Items: items})
 		})
@@ -315,11 +336,13 @@ func RegisterQuestionRoutes(r *gin.Engine, pool *pgxpool.Pool) {
 		r.GET("/question-topics", auth.RequirePortalAuth("student", "student"), func(c *gin.Context) {
 			packageID := strings.TrimSpace(c.Query("packageId"))
 			args := []any{}
-			query := `select id, package_id, name, created_at from question_bank_topics`
+			query := `select id, package_id, name, is_hidden, created_at from question_bank_topics`
+			where := []string{"is_hidden=false"}
 			if packageID != "" {
-				query += " where package_id=$1"
+				where = append(where, "package_id=$1")
 				args = append(args, packageID)
 			}
+			query += " where " + strings.Join(where, " and ")
 			query += " order by name asc"
 
 			rows, err := pool.Query(context.Background(), query, args...)
@@ -333,12 +356,13 @@ func RegisterQuestionRoutes(r *gin.Engine, pool *pgxpool.Pool) {
 				var id string
 				var pkg *string
 				var name string
+				var hidden bool
 				var createdAt time.Time
-				if err := rows.Scan(&id, &pkg, &name, &createdAt); err != nil {
+				if err := rows.Scan(&id, &pkg, &name, &hidden, &createdAt); err != nil {
 					c.JSON(http.StatusInternalServerError, gin.H{"message": "failed to list topics"})
 					return
 				}
-				items = append(items, QuestionTopic{ID: id, PackageID: pkg, Name: name, CreatedAt: createdAt.UTC().Format(time.RFC3339)})
+				items = append(items, QuestionTopic{ID: id, PackageID: pkg, Name: name, IsHidden: hidden, CreatedAt: createdAt.UTC().Format(time.RFC3339)})
 			}
 			c.JSON(http.StatusOK, ListQuestionTopicsResponse{Items: items})
 		})
@@ -361,7 +385,7 @@ func RegisterQuestionRoutes(r *gin.Engine, pool *pgxpool.Pool) {
 				}
 				out = append(out, QuestionDifficulty{ID: id, DisplayName: display})
 			}
-			c.JSON(http.StatusOK, gin.H{"items": out})
+			c.JSON(http.StatusOK, ListQuestionDifficultiesResponse{Items: out})
 		})
 	}
 
@@ -396,7 +420,7 @@ func RegisterQuestionRoutes(r *gin.Engine, pool *pgxpool.Pool) {
 		})
 
 		r.GET("/instructor/question-packages", requireInstructorOrAdmin, func(c *gin.Context) {
-			rows, err := pool.Query(context.Background(), `select id, name, created_at from question_bank_packages order by name asc`)
+			rows, err := pool.Query(context.Background(), `select id, name, is_hidden, created_at from question_bank_packages order by name asc`)
 			if err != nil {
 				c.JSON(http.StatusInternalServerError, gin.H{"message": "failed to list packages"})
 				return
@@ -405,14 +429,82 @@ func RegisterQuestionRoutes(r *gin.Engine, pool *pgxpool.Pool) {
 			items := []QuestionPackage{}
 			for rows.Next() {
 				var id, name string
+				var hidden bool
 				var createdAt time.Time
-				if err := rows.Scan(&id, &name, &createdAt); err != nil {
+				if err := rows.Scan(&id, &name, &hidden, &createdAt); err != nil {
 					c.JSON(http.StatusInternalServerError, gin.H{"message": "failed to list packages"})
 					return
 				}
-				items = append(items, QuestionPackage{ID: id, Name: name, CreatedAt: createdAt.UTC().Format(time.RFC3339)})
+				items = append(items, QuestionPackage{ID: id, Name: name, IsHidden: hidden, CreatedAt: createdAt.UTC().Format(time.RFC3339)})
 			}
 			c.JSON(http.StatusOK, ListQuestionPackagesResponse{Items: items})
+		})
+
+		r.PATCH("/instructor/question-packages/:packageId", requireInstructorOrAdmin, func(c *gin.Context) {
+			pid := strings.TrimSpace(c.Param("packageId"))
+			if pid == "" {
+				c.JSON(http.StatusBadRequest, gin.H{"message": "packageId is required"})
+				return
+			}
+
+			var req UpdateQuestionPackageRequest
+			if err := c.ShouldBindJSON(&req); err != nil {
+				c.JSON(http.StatusBadRequest, gin.H{"message": "invalid json body"})
+				return
+			}
+
+			set := []string{}
+			args := []any{}
+			idx := 1
+
+			if req.Name != nil {
+				name := strings.TrimSpace(*req.Name)
+				if name == "" {
+					c.JSON(http.StatusBadRequest, gin.H{"message": "name cannot be empty"})
+					return
+				}
+				set = append(set, "name="+sqlParam(idx))
+				args = append(args, name)
+				idx++
+			}
+			if req.IsHidden != nil {
+				set = append(set, "is_hidden="+sqlParam(idx))
+				args = append(args, *req.IsHidden)
+				idx++
+			}
+
+			if len(set) == 0 {
+				c.JSON(http.StatusBadRequest, gin.H{"message": "no fields to update"})
+				return
+			}
+
+			set = append(set, "updated_at=now()")
+			args = append(args, pid)
+			_, err := pool.Exec(context.Background(), "update question_bank_packages set "+strings.Join(set, ", ")+" where id="+sqlParam(idx), args...)
+			if err != nil {
+				c.JSON(http.StatusBadRequest, gin.H{"message": "failed to update package"})
+				return
+			}
+
+			c.JSON(http.StatusOK, gin.H{"success": true})
+		})
+
+		r.DELETE("/instructor/question-packages/:packageId", requireInstructorOrAdmin, func(c *gin.Context) {
+			pid := strings.TrimSpace(c.Param("packageId"))
+			if pid == "" {
+				c.JSON(http.StatusBadRequest, gin.H{"message": "packageId is required"})
+				return
+			}
+			ct, err := pool.Exec(context.Background(), `delete from question_bank_packages where id=$1`, pid)
+			if err != nil {
+				c.JSON(http.StatusBadRequest, gin.H{"message": "failed to delete package"})
+				return
+			}
+			if ct.RowsAffected() == 0 {
+				c.JSON(http.StatusNotFound, gin.H{"message": "package not found"})
+				return
+			}
+			c.JSON(http.StatusOK, gin.H{"success": true})
 		})
 
 		r.POST("/instructor/question-topics", requireInstructorOrAdmin, func(c *gin.Context) {
@@ -444,7 +536,7 @@ func RegisterQuestionRoutes(r *gin.Engine, pool *pgxpool.Pool) {
 		r.GET("/instructor/question-topics", requireInstructorOrAdmin, func(c *gin.Context) {
 			packageID := strings.TrimSpace(c.Query("packageId"))
 			args := []any{}
-			query := `select id, package_id, name, created_at from question_bank_topics`
+			query := `select id, package_id, name, is_hidden, created_at from question_bank_topics`
 			if packageID != "" {
 				query += " where package_id=$1"
 				args = append(args, packageID)
@@ -461,14 +553,135 @@ func RegisterQuestionRoutes(r *gin.Engine, pool *pgxpool.Pool) {
 				var id string
 				var pkg *string
 				var name string
+				var hidden bool
 				var createdAt time.Time
-				if err := rows.Scan(&id, &pkg, &name, &createdAt); err != nil {
+				if err := rows.Scan(&id, &pkg, &name, &hidden, &createdAt); err != nil {
 					c.JSON(http.StatusInternalServerError, gin.H{"message": "failed to list topics"})
 					return
 				}
-				items = append(items, QuestionTopic{ID: id, PackageID: pkg, Name: name, CreatedAt: createdAt.UTC().Format(time.RFC3339)})
+				items = append(items, QuestionTopic{ID: id, PackageID: pkg, Name: name, IsHidden: hidden, CreatedAt: createdAt.UTC().Format(time.RFC3339)})
 			}
 			c.JSON(http.StatusOK, ListQuestionTopicsResponse{Items: items})
+		})
+
+		r.PATCH("/instructor/question-topics/:topicId", requireInstructorOrAdmin, func(c *gin.Context) {
+			tid := strings.TrimSpace(c.Param("topicId"))
+			if tid == "" {
+				c.JSON(http.StatusBadRequest, gin.H{"message": "topicId is required"})
+				return
+			}
+
+			var req UpdateQuestionTopicRequest
+			if err := c.ShouldBindJSON(&req); err != nil {
+				c.JSON(http.StatusBadRequest, gin.H{"message": "invalid json body"})
+				return
+			}
+
+			set := []string{}
+			args := []any{}
+			idx := 1
+
+			if req.Name != nil {
+				name := strings.TrimSpace(*req.Name)
+				if name == "" {
+					c.JSON(http.StatusBadRequest, gin.H{"message": "name cannot be empty"})
+					return
+				}
+				set = append(set, "name="+sqlParam(idx))
+				args = append(args, name)
+				idx++
+			}
+			if req.IsHidden != nil {
+				set = append(set, "is_hidden="+sqlParam(idx))
+				args = append(args, *req.IsHidden)
+				idx++
+			}
+
+			if len(set) == 0 {
+				c.JSON(http.StatusBadRequest, gin.H{"message": "no fields to update"})
+				return
+			}
+
+			set = append(set, "updated_at=now()")
+			args = append(args, tid)
+			_, err := pool.Exec(context.Background(), "update question_bank_topics set "+strings.Join(set, ", ")+" where id="+sqlParam(idx), args...)
+			if err != nil {
+				c.JSON(http.StatusBadRequest, gin.H{"message": "failed to update topic"})
+				return
+			}
+
+			c.JSON(http.StatusOK, gin.H{"success": true})
+		})
+
+		r.DELETE("/instructor/question-topics/:topicId", requireInstructorOrAdmin, func(c *gin.Context) {
+			tid := strings.TrimSpace(c.Param("topicId"))
+			if tid == "" {
+				c.JSON(http.StatusBadRequest, gin.H{"message": "topicId is required"})
+				return
+			}
+			ct, err := pool.Exec(context.Background(), `delete from question_bank_topics where id=$1`, tid)
+			if err != nil {
+				c.JSON(http.StatusBadRequest, gin.H{"message": "failed to delete topic"})
+				return
+			}
+			if ct.RowsAffected() == 0 {
+				c.JSON(http.StatusNotFound, gin.H{"message": "topic not found"})
+				return
+			}
+			c.JSON(http.StatusOK, gin.H{"success": true})
+		})
+
+		r.GET("/instructor/question-difficulties", requireInstructorOrAdmin, func(c *gin.Context) {
+			rows, err := pool.Query(context.Background(), `select id, display_name from question_bank_difficulties order by sort_order asc`)
+			if err != nil {
+				c.JSON(http.StatusInternalServerError, gin.H{"message": "failed to list difficulties"})
+				return
+			}
+			defer rows.Close()
+
+			out := []QuestionDifficulty{}
+			for rows.Next() {
+				var id string
+				var display string
+				if err := rows.Scan(&id, &display); err != nil {
+					c.JSON(http.StatusInternalServerError, gin.H{"message": "failed to list difficulties"})
+					return
+				}
+				out = append(out, QuestionDifficulty{ID: id, DisplayName: display})
+			}
+			c.JSON(http.StatusOK, ListQuestionDifficultiesResponse{Items: out})
+		})
+
+		r.PATCH("/instructor/question-difficulties/:difficultyId", requireInstructorOrAdmin, func(c *gin.Context) {
+		did := strings.TrimSpace(c.Param("difficultyId"))
+			if did == "" {
+				c.JSON(http.StatusBadRequest, gin.H{"message": "difficultyId is required"})
+				return
+			}
+			var req UpdateQuestionDifficultyRequest
+			if err := c.ShouldBindJSON(&req); err != nil {
+				c.JSON(http.StatusBadRequest, gin.H{"message": "invalid json body"})
+				return
+			}
+			if req.DisplayName == nil {
+				c.JSON(http.StatusBadRequest, gin.H{"message": "displayName is required"})
+				return
+			}
+			display := strings.TrimSpace(*req.DisplayName)
+			if display == "" {
+				c.JSON(http.StatusBadRequest, gin.H{"message": "displayName cannot be empty"})
+				return
+			}
+			ct, err := pool.Exec(context.Background(), `update question_bank_difficulties set display_name=$1 where id=$2`, display, did)
+			if err != nil {
+				c.JSON(http.StatusBadRequest, gin.H{"message": "failed to update difficulty"})
+				return
+			}
+			if ct.RowsAffected() == 0 {
+				c.JSON(http.StatusNotFound, gin.H{"message": "difficulty not found"})
+				return
+			}
+			c.JSON(http.StatusOK, gin.H{"success": true})
 		})
 
 		r.POST("/instructor/questions", requireInstructorOrAdmin, func(c *gin.Context) {
