@@ -36,6 +36,7 @@ type ExamSessionResponse struct {
 	CreatedAt        string          `json:"createdAt"`
 	UpdatedAt        string          `json:"updatedAt"`
 	LastHeartbeatAt  string          `json:"lastHeartbeatAt"`
+	SubmittedAt      *string         `json:"submittedAt,omitempty"`
 	Snapshot         json.RawMessage `json:"snapshot"`
 }
 
@@ -45,6 +46,7 @@ type ExamSessionListItem struct {
 	CreatedAt       string          `json:"createdAt"`
 	UpdatedAt       string          `json:"updatedAt"`
 	LastHeartbeatAt string          `json:"lastHeartbeatAt"`
+	SubmittedAt     *string         `json:"submittedAt,omitempty"`
 }
 
 type ListExamSessionsResponse struct {
@@ -75,7 +77,7 @@ func RegisterExamRoutes(r *gin.Engine, pool *pgxpool.Pool) {
 		ctx := context.Background()
 
 		args := []any{userID}
-		query := `select id, status, created_at, updated_at, last_heartbeat_at
+		query := `select id, status, created_at, updated_at, last_heartbeat_at, submitted_at
 			from exam_sessions where user_id=$1`
 		if status != "" {
 			query += " and status=$2"
@@ -101,9 +103,16 @@ func RegisterExamRoutes(r *gin.Engine, pool *pgxpool.Pool) {
 			var createdAt time.Time
 			var updatedAt time.Time
 			var lastHeartbeatAt time.Time
-			if err := rows.Scan(&id, &st, &createdAt, &updatedAt, &lastHeartbeatAt); err != nil {
+			var submittedAt *time.Time
+			if err := rows.Scan(&id, &st, &createdAt, &updatedAt, &lastHeartbeatAt, &submittedAt); err != nil {
 				c.JSON(http.StatusInternalServerError, gin.H{"message": "failed to list sessions"})
 				return
+			}
+
+			var submittedAtStr *string
+			if submittedAt != nil {
+				v := submittedAt.UTC().Format(time.RFC3339)
+				submittedAtStr = &v
 			}
 
 			items = append(items, ExamSessionListItem{
@@ -112,6 +121,7 @@ func RegisterExamRoutes(r *gin.Engine, pool *pgxpool.Pool) {
 				CreatedAt:       createdAt.UTC().Format(time.RFC3339),
 				UpdatedAt:       updatedAt.UTC().Format(time.RFC3339),
 				LastHeartbeatAt: lastHeartbeatAt.UTC().Format(time.RFC3339),
+				SubmittedAt:     submittedAtStr,
 			})
 			if len(items) == limit+1 {
 				break
@@ -184,10 +194,11 @@ func RegisterExamRoutes(r *gin.Engine, pool *pgxpool.Pool) {
 		var createdAt time.Time
 		var updatedAt time.Time
 		var lastHeartbeatAt time.Time
+		var submittedAt *time.Time
 
-		err := pool.QueryRow(ctx, `select status, snapshot, created_at, updated_at, last_heartbeat_at
+		err := pool.QueryRow(ctx, `select status, snapshot, created_at, updated_at, last_heartbeat_at, submitted_at
 			from exam_sessions where user_id=$1 and id=$2`, userID, sessionID).
-			Scan(&status, &snapshot, &createdAt, &updatedAt, &lastHeartbeatAt)
+			Scan(&status, &snapshot, &createdAt, &updatedAt, &lastHeartbeatAt, &submittedAt)
 		if err != nil {
 			c.JSON(http.StatusNotFound, gin.H{"message": "session not found"})
 			return
@@ -197,12 +208,68 @@ func RegisterExamRoutes(r *gin.Engine, pool *pgxpool.Pool) {
 			snapshot = []byte("{}")
 		}
 
+		var submittedAtStr *string
+		if submittedAt != nil {
+			v := submittedAt.UTC().Format(time.RFC3339)
+			submittedAtStr = &v
+		}
+
 		c.JSON(http.StatusOK, ExamSessionResponse{
 			SessionID:       sessionID,
 			Status:          ExamSessionStatus(status),
 			CreatedAt:       createdAt.UTC().Format(time.RFC3339),
 			UpdatedAt:       updatedAt.UTC().Format(time.RFC3339),
 			LastHeartbeatAt: lastHeartbeatAt.UTC().Format(time.RFC3339),
+			SubmittedAt:     submittedAtStr,
+			Snapshot:        json.RawMessage(snapshot),
+		})
+	})
+
+	r.POST("/exam-sessions/:sessionId/submit", studentAuth, func(c *gin.Context) {
+		userID, ok := auth.GetUserID(c)
+		if !ok {
+			c.JSON(http.StatusUnauthorized, gin.H{"message": "unauthorized"})
+			return
+		}
+
+		sessionID := c.Param("sessionId")
+		ctx := context.Background()
+
+		var status string
+		var snapshot []byte
+		var createdAt time.Time
+		var updatedAt time.Time
+		var lastHeartbeatAt time.Time
+		var submittedAt *time.Time
+
+		err := pool.QueryRow(ctx, `update exam_sessions
+			set status=$1, updated_at=now(), submitted_at=coalesce(submitted_at, now())
+			where user_id=$2 and id=$3
+			returning status, snapshot, created_at, updated_at, last_heartbeat_at, submitted_at`,
+			string(ExamSessionFinished), userID, sessionID).
+			Scan(&status, &snapshot, &createdAt, &updatedAt, &lastHeartbeatAt, &submittedAt)
+		if err != nil {
+			c.JSON(http.StatusNotFound, gin.H{"message": "session not found"})
+			return
+		}
+
+		if len(snapshot) == 0 {
+			snapshot = []byte("{}")
+		}
+
+		var submittedAtStr *string
+		if submittedAt != nil {
+			v := submittedAt.UTC().Format(time.RFC3339)
+			submittedAtStr = &v
+		}
+
+		c.JSON(http.StatusOK, ExamSessionResponse{
+			SessionID:       sessionID,
+			Status:          ExamSessionStatus(status),
+			CreatedAt:       createdAt.UTC().Format(time.RFC3339),
+			UpdatedAt:       updatedAt.UTC().Format(time.RFC3339),
+			LastHeartbeatAt: lastHeartbeatAt.UTC().Format(time.RFC3339),
+			SubmittedAt:     submittedAtStr,
 			Snapshot:        json.RawMessage(snapshot),
 		})
 	})

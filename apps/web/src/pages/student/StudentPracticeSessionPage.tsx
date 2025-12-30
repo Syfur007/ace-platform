@@ -1,12 +1,14 @@
-import { useMemo, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { Link, useParams } from 'react-router-dom'
 
 import { useMutation, useQuery } from '@tanstack/react-query'
 
-import { getPracticeSession, getPracticeSessionSummary, submitPracticeAnswer } from '@/api/endpoints'
+import { getPracticeSession, getPracticeSessionSummary, pausePracticeSession, resumePracticeSession, submitPracticeAnswer } from '@/api/endpoints'
 
 export function StudentPracticeSessionPage() {
   const { sessionId } = useParams()
+
+  const [nowTick, setNowTick] = useState(0)
 
   const sessionQuery = useQuery({
     queryKey: ['practice-session', sessionId],
@@ -30,12 +32,70 @@ export function StudentPracticeSessionPage() {
     },
   })
 
+  const pauseMutation = useMutation({
+    mutationFn: () => pausePracticeSession(String(sessionId)),
+    onSuccess: () => {
+      void sessionQuery.refetch()
+    },
+  })
+
+  const resumeMutation = useMutation({
+    mutationFn: () => resumePracticeSession(String(sessionId)),
+    onSuccess: () => {
+      void sessionQuery.refetch()
+    },
+  })
+
   const question = sessionQuery.data?.question ?? null
+
+  const isTimed = sessionQuery.data?.isTimed ?? false
+  const status = sessionQuery.data?.status
+  const startedAt = sessionQuery.data?.startedAt ?? null
+  const timeLimitSeconds = sessionQuery.data?.timeLimitSeconds ?? null
+  const currentQuestionStartedAt = sessionQuery.data?.currentQuestionStartedAt ?? null
+  const questionTimingsSeconds = sessionQuery.data?.questionTimingsSeconds ?? null
+
+  useEffect(() => {
+    if (!isTimed) return
+    if (status !== 'active') return
+    if (!startedAt || timeLimitSeconds == null) return
+
+    const id = window.setInterval(() => setNowTick((v) => v + 1), 1000)
+    return () => window.clearInterval(id)
+  }, [isTimed, startedAt, status, timeLimitSeconds])
+
+  const nowMs = Date.now() + nowTick * 0
+  const elapsedSeconds = useMemo(() => {
+    if (!startedAt) return null
+    const startedMs = Date.parse(startedAt)
+    if (Number.isNaN(startedMs)) return null
+    return Math.max(0, Math.floor((nowMs - startedMs) / 1000))
+  }, [nowMs, startedAt])
+
+  const timeRemainingSeconds = useMemo(() => {
+    if (timeLimitSeconds == null || elapsedSeconds == null) return null
+    return Math.max(0, timeLimitSeconds - elapsedSeconds)
+  }, [elapsedSeconds, timeLimitSeconds])
+
+  const currentQuestionElapsedSeconds = useMemo(() => {
+    if (!currentQuestionStartedAt) return null
+    const startedMs = Date.parse(currentQuestionStartedAt)
+    if (Number.isNaN(startedMs)) return null
+    return Math.max(0, Math.floor((nowMs - startedMs) / 1000))
+  }, [currentQuestionStartedAt, nowMs])
+
+  const avgAnsweredSeconds = useMemo(() => {
+    if (!questionTimingsSeconds || typeof questionTimingsSeconds !== 'object') return null
+    const values = Object.values(questionTimingsSeconds).filter((v) => typeof v === 'number' && Number.isFinite(v))
+    if (values.length === 0) return null
+    const sum = values.reduce((a, b) => a + b, 0)
+    return Math.round(sum / values.length)
+  }, [questionTimingsSeconds])
 
   const [selectedChoiceId, setSelectedChoiceId] = useState<string | null>(null)
   const [lastFeedback, setLastFeedback] = useState<{ correct: boolean; explanation: string } | null>(null)
 
-  const canSubmit = Boolean(question) && selectedChoiceId != null && !submitMutation.isPending
+  const canSubmit = Boolean(question) && selectedChoiceId != null && !submitMutation.isPending && status === 'active'
 
   const canStartOver = useMemo(() => sessionQuery.data?.status === 'finished', [sessionQuery.data?.status])
 
@@ -52,8 +112,17 @@ export function StudentPracticeSessionPage() {
           <div className="rounded border border-slate-200 px-2 py-1">Session: {sessionId ?? 'unknown'}</div>
           {sessionQuery.data ? (
             <>
-              <div className="rounded border border-slate-200 px-2 py-1">Mode: {sessionQuery.data.isTimed ? 'Timed' : 'Untimed'}</div>
+              <div className="rounded border border-slate-200 px-2 py-1">Mode: {sessionQuery.data.isTimed ? 'Ironman (Timed)' : 'Untimed'}</div>
               <div className="rounded border border-slate-200 px-2 py-1">Questions: {sessionQuery.data.total}</div>
+              {sessionQuery.data.isTimed && timeRemainingSeconds != null ? (
+                <div className="rounded border border-slate-200 px-2 py-1">Time remaining: {timeRemainingSeconds}s</div>
+              ) : null}
+              {sessionQuery.data.isTimed && currentQuestionElapsedSeconds != null && status === 'active' ? (
+                <div className="rounded border border-slate-200 px-2 py-1">This question: {currentQuestionElapsedSeconds}s</div>
+              ) : null}
+              {sessionQuery.data.isTimed && avgAnsweredSeconds != null ? (
+                <div className="rounded border border-slate-200 px-2 py-1">Avg (answered): {avgAnsweredSeconds}s</div>
+              ) : null}
             </>
           ) : null}
         </div>
@@ -89,6 +158,30 @@ export function StudentPracticeSessionPage() {
                   </Link>
                 ) : null}
               </div>
+            </div>
+          ) : sessionQuery.data?.status === 'paused' ? (
+            <div className="space-y-4">
+              <div className="text-sm font-medium">Session paused</div>
+              <div className="text-sm text-slate-600">Resume when you’re ready (pause is only available for untimed sessions).</div>
+
+              <div className="flex flex-wrap gap-2">
+                <button
+                  type="button"
+                  onClick={() => resumeMutation.mutate()}
+                  disabled={resumeMutation.isPending}
+                  className={[
+                    'rounded border px-3 py-2 text-sm',
+                    resumeMutation.isPending ? 'border-slate-100 text-slate-400' : 'border-slate-200 hover:bg-slate-50',
+                  ].join(' ')}
+                >
+                  {resumeMutation.isPending ? 'Resuming…' : 'Resume'}
+                </button>
+                <Link to="/student/practice" className="rounded border border-slate-200 px-3 py-2 text-sm hover:bg-slate-50">
+                  Back to Practice
+                </Link>
+              </div>
+
+              {resumeMutation.isError ? <div className="text-sm text-rose-700">Failed to resume.</div> : null}
             </div>
           ) : (
             <>
@@ -170,12 +263,26 @@ export function StudentPracticeSessionPage() {
         <aside className="rounded border border-slate-200 p-4">
           <div className="font-medium">Session actions</div>
           <div className="mt-3 space-y-2 text-sm">
+            {!isTimed && status === 'active' ? (
+              <button
+                type="button"
+                onClick={() => pauseMutation.mutate()}
+                disabled={pauseMutation.isPending}
+                className={[
+                  'w-full rounded border px-3 py-2 text-sm',
+                  pauseMutation.isPending ? 'border-slate-100 text-slate-400' : 'border-slate-200 hover:bg-slate-50',
+                ].join(' ')}
+              >
+                {pauseMutation.isPending ? 'Pausing…' : 'Pause'}
+              </button>
+            ) : null}
             <button type="button" className="w-full rounded border border-slate-200 px-3 py-2 text-sm hover:bg-slate-50">
               Flag question
             </button>
             <button type="button" className="w-full rounded border border-slate-200 px-3 py-2 text-sm hover:bg-slate-50">
               Explain more (planned)
             </button>
+            {pauseMutation.isError ? <div className="text-xs text-rose-700">Failed to pause.</div> : null}
             <div className="rounded border border-slate-200 p-3 text-xs text-slate-600">
               This runner is now API-backed (Postgres). Next steps: add review mode and integrate a real question bank.
             </div>

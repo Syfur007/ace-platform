@@ -1,5 +1,9 @@
 import { useParams } from 'react-router-dom'
 
+import { useMutation, useQuery } from '@tanstack/react-query'
+
+import { getExamSession, submitExamSession } from '@/api/endpoints'
+
 import { StemValidationBox } from '@/exam/StemValidationBox'
 import { useExamEngine } from '@/exam/useExamEngine'
 import { useHeartbeatSync } from '@/exam/useHeartbeatSync'
@@ -8,13 +12,31 @@ export function ExamSimulationPage() {
   const { testId } = useParams()
   const engine = useExamEngine({ sessionId: testId ?? 'unknown-session' })
 
+  const sessionQuery = useQuery({
+    queryKey: ['exam-session', engine.state.sessionId],
+    enabled: engine.state.sessionId !== 'unknown-session',
+    queryFn: () => getExamSession(engine.state.sessionId),
+    retry: false,
+    refetchOnWindowFocus: false,
+  })
+
+  const submitMutation = useMutation({
+    mutationFn: () => submitExamSession(engine.state.sessionId),
+    onSuccess: () => {
+      void sessionQuery.refetch()
+    },
+  })
+
+  const status = sessionQuery.data?.status ?? 'active'
+  const isFinished = status === 'finished'
+
   const activeSection = engine.state.sections[engine.state.activeSectionIndex]
   const theta = activeSection ? (engine.state.thetaBySectionId[activeSection.id] ?? 0) : 0
 
   useHeartbeatSync({
     sessionId: engine.state.sessionId,
     getSnapshot: () => engine.state,
-    enabled: engine.state.sessionId !== 'unknown-session',
+    enabled: engine.state.sessionId !== 'unknown-session' && !isFinished,
     onAttempt: () => engine.dispatch({ type: 'markHeartbeatAttempt' }),
   })
 
@@ -33,15 +55,37 @@ export function ExamSimulationPage() {
             <div>
               <div className="text-xs text-slate-500">Session</div>
               <div className="font-medium">{engine.state.sessionId}</div>
+              <div className="mt-1 text-xs text-slate-500">Status: {isFinished ? 'Finished' : 'In progress'}</div>
             </div>
-            <button
-              className="rounded border border-slate-200 px-3 py-2 text-sm hover:bg-slate-50"
-              type="button"
-              onClick={() => engine.dispatch({ type: 'advance' })}
-            >
-              Next Item
-            </button>
+            <div className="flex flex-wrap gap-2">
+              <button
+                className={[
+                  'rounded border px-3 py-2 text-sm',
+                  isFinished ? 'border-slate-100 text-slate-400' : 'border-slate-200 hover:bg-slate-50',
+                ].join(' ')}
+                type="button"
+                onClick={() => engine.dispatch({ type: 'advance' })}
+                disabled={isFinished}
+              >
+                Next Item
+              </button>
+              <button
+                className={[
+                  'rounded border px-3 py-2 text-sm',
+                  submitMutation.isPending || isFinished
+                    ? 'border-slate-100 text-slate-400'
+                    : 'border-slate-200 hover:bg-slate-50',
+                ].join(' ')}
+                type="button"
+                onClick={() => submitMutation.mutate()}
+                disabled={submitMutation.isPending || isFinished}
+              >
+                {isFinished ? 'Submitted' : submitMutation.isPending ? 'Submitting…' : 'Submit Test'}
+              </button>
+            </div>
           </div>
+
+          {submitMutation.isError ? <div className="mt-3 text-sm text-rose-700">Failed to submit test.</div> : null}
 
           <div className="mt-4 rounded border border-slate-200 p-4">
             <div className="text-xs text-slate-500">Current Item (QTI-backed model)</div>

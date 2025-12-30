@@ -247,6 +247,22 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/exam-sessions/{sessionId}/submit": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: operations["submitExamSession"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/practice-sessions/{sessionId}": {
         parameters: {
             query?: never;
@@ -257,6 +273,38 @@ export interface paths {
         get: operations["getPracticeSession"];
         put?: never;
         post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/practice-sessions/{sessionId}/pause": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: operations["pausePracticeSession"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/practice-sessions/{sessionId}/resume": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: operations["resumePracticeSession"];
         delete?: never;
         options?: never;
         head?: never;
@@ -323,6 +371,8 @@ export interface components {
             /** @enum {string} */
             status: "active" | "finished";
             /** @description RFC3339 timestamp */
+            submittedAt?: string | null;
+            /** @description RFC3339 timestamp */
             createdAt: string;
             /** @description RFC3339 timestamp */
             updatedAt: string;
@@ -343,6 +393,8 @@ export interface components {
             /** @enum {string} */
             status: "active" | "finished";
             /** @description RFC3339 timestamp */
+            submittedAt?: string | null;
+            /** @description RFC3339 timestamp */
             createdAt: string;
             /** @description RFC3339 timestamp */
             updatedAt: string;
@@ -358,13 +410,15 @@ export interface components {
         PracticeSessionListItem: {
             sessionId: string;
             /** @enum {string} */
-            status: "active" | "finished";
+            status: "active" | "paused" | "finished";
             /** @description RFC3339 timestamp */
             createdAt: string;
             /** @description RFC3339 timestamp */
             lastActivityAt: string;
             packageId?: string | null;
             isTimed: boolean;
+            timeLimitSeconds?: number | null;
+            timeRemainingSeconds?: number | null;
             targetCount: number;
             correctCount: number;
             /** Format: float */
@@ -387,11 +441,19 @@ export interface components {
         PracticeSessionResponse: {
             sessionId: string;
             /** @enum {string} */
-            status: "active" | "finished";
+            status: "active" | "paused" | "finished";
             /** @description RFC3339 timestamp */
             createdAt: string;
+            /** @description RFC3339 timestamp */
+            startedAt: string;
             packageId?: string | null;
             isTimed: boolean;
+            timeLimitSeconds?: number | null;
+            /** @description RFC3339 timestamp */
+            currentQuestionStartedAt?: string | null;
+            questionTimingsSeconds?: {
+                [key: string]: number;
+            } | null;
             targetCount: number;
             currentIndex: number;
             total: number;
@@ -695,7 +757,7 @@ export interface operations {
             query?: {
                 limit?: number;
                 offset?: number;
-                status?: "active" | "finished";
+                status?: "active" | "paused" | "finished";
             };
             header?: never;
             path?: never;
@@ -810,6 +872,28 @@ export interface operations {
             };
         };
     };
+    submitExamSession: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                sessionId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Exam session submitted */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ExamSessionResponse"];
+                };
+            };
+        };
+    };
     getPracticeSession: {
         parameters: {
             query?: never;
@@ -822,6 +906,50 @@ export interface operations {
         requestBody?: never;
         responses: {
             /** @description Practice session state */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PracticeSessionResponse"];
+                };
+            };
+        };
+    };
+    pausePracticeSession: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                sessionId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Practice session paused */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PracticeSessionResponse"];
+                };
+            };
+        };
+    };
+    resumePracticeSession: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                sessionId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Practice session resumed */
             200: {
                 headers: {
                     [name: string]: unknown;

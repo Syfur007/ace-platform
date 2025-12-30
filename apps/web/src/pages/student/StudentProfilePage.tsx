@@ -86,7 +86,7 @@ export function StudentProfilePage() {
                       className="rounded border border-slate-200 px-3 py-2 text-sm hover:bg-slate-50"
                       to={`/student/practice/session/${encodeURIComponent(s.sessionId)}`}
                     >
-                      {s.status === 'active' ? 'Resume' : 'Review'}
+                      {s.status === 'finished' ? 'Review' : 'Resume'}
                     </Link>
                   </div>
                   <div className="mt-2 text-sm text-slate-600">
@@ -128,7 +128,7 @@ export function StudentProfilePage() {
                       className="rounded border border-slate-200 px-3 py-2 text-sm hover:bg-slate-50"
                       to={`/student/test/${encodeURIComponent(s.sessionId)}`}
                     >
-                      {s.status === 'active' ? 'Resume' : 'Review'}
+                      {s.status === 'finished' ? 'Review' : 'Resume'}
                     </Link>
                   </div>
                 </li>

@@ -1,7 +1,9 @@
 import { useMemo, useState } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
 
-import { createPracticeSession } from '@/api/endpoints'
+import { useQuery } from '@tanstack/react-query'
+
+import { createPracticeSession, listPracticeSessions } from '@/api/endpoints'
 import { EXAM_PACKAGES } from '@/packages/catalog'
 
 export function StudentPracticePage() {
@@ -14,6 +16,12 @@ export function StudentPracticePage() {
   const [questionCount, setQuestionCount] = useState(10)
   const [isStarting, setIsStarting] = useState(false)
   const [startError, setStartError] = useState<string | null>(null)
+
+  const historyQuery = useQuery({
+    queryKey: ['practice-sessions', 'catalog'],
+    queryFn: () => listPracticeSessions({ limit: 10, offset: 0 }),
+    refetchOnWindowFocus: false,
+  })
 
   async function startSession() {
     if (isStarting) return
@@ -77,7 +85,7 @@ export function StudentPracticePage() {
                   value={isTimed ? 'timed' : 'untimed'}
                   onChange={(e) => setIsTimed(e.target.value === 'timed')}
                 >
-                  <option value="timed">Timed</option>
+                  <option value="timed">Ironman (Timed)</option>
                   <option value="untimed">Untimed</option>
                 </select>
               </label>
@@ -141,6 +149,55 @@ export function StudentPracticePage() {
           </div>
         </aside>
       </div>
+
+      <section className="rounded border border-slate-200 p-4">
+        <div className="flex flex-wrap items-center justify-between gap-3">
+          <div className="font-medium">Previous practice sessions</div>
+          <Link to="/student/profile" className="text-sm text-slate-600 hover:underline">
+            View full history
+          </Link>
+        </div>
+
+        <div className="mt-3">
+          {historyQuery.isLoading ? (
+            <div className="text-sm text-slate-600">Loading…</div>
+          ) : historyQuery.isError ? (
+            <div className="text-sm text-rose-700">Failed to load practice history.</div>
+          ) : (historyQuery.data?.items?.length ?? 0) === 0 ? (
+            <div className="text-sm text-slate-600">No sessions yet.</div>
+          ) : (
+            <div className="divide-y divide-slate-100">
+              {historyQuery.data!.items.map((s) => {
+                const actionLabel = s.status === 'finished' ? 'Review' : s.isTimed ? 'In progress' : 'Resume'
+                const statusLabel = s.status === 'paused' ? 'Paused' : s.status === 'finished' ? 'Finished' : 'Active'
+                const modeLabel = s.isTimed ? 'Ironman (Timed)' : 'Untimed'
+
+                return (
+                  <div key={s.sessionId} className="flex flex-wrap items-center justify-between gap-3 py-3">
+                    <div className="min-w-0">
+                      <div className="text-sm font-medium">{modeLabel}</div>
+                      <div className="mt-1 flex flex-wrap gap-2 text-xs text-slate-600">
+                        <div className="rounded border border-slate-200 px-2 py-1">Status: {statusLabel}</div>
+                        <div className="rounded border border-slate-200 px-2 py-1">Questions: {s.targetCount}</div>
+                        {s.isTimed && s.timeRemainingSeconds != null ? (
+                          <div className="rounded border border-slate-200 px-2 py-1">Remaining: {s.timeRemainingSeconds}s</div>
+                        ) : null}
+                      </div>
+                    </div>
+
+                    <Link
+                      to={`/student/practice/session/${encodeURIComponent(s.sessionId)}`}
+                      className="rounded border border-slate-200 px-3 py-2 text-sm hover:bg-slate-50"
+                    >
+                      {actionLabel}
+                    </Link>
+                  </div>
+                )
+              })}
+            </div>
+          )}
+        </div>
+      </section>
     </div>
   )
 }

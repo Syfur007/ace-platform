@@ -63,15 +63,25 @@ func Migrate(ctx context.Context, pool *pgxpool.Pool) error {
 			user_id text not null references users(id) on delete cascade,
 			package_id text null,
 			is_timed boolean not null,
+			started_at timestamptz not null default now(),
+			time_limit_seconds integer not null default 0,
 			target_count integer not null,
 			current_index integer not null default 0,
+			current_question_started_at timestamptz not null default now(),
+			question_timings jsonb not null default '{}'::jsonb,
 			correct_count integer not null default 0,
 			status text not null,
+			paused_at timestamptz null,
 			question_order jsonb not null,
 			created_at timestamptz not null default now(),
 			last_activity_at timestamptz not null default now()
 		);`,
 		`alter table practice_sessions add column if not exists last_activity_at timestamptz not null default now();`,
+		`alter table practice_sessions add column if not exists started_at timestamptz not null default now();`,
+		`alter table practice_sessions add column if not exists time_limit_seconds integer not null default 0;`,
+		`alter table practice_sessions add column if not exists current_question_started_at timestamptz not null default now();`,
+		`alter table practice_sessions add column if not exists question_timings jsonb not null default '{}'::jsonb;`,
+		`alter table practice_sessions add column if not exists paused_at timestamptz null;`,
 		`create table if not exists practice_answers (
 			id bigserial primary key,
 			session_id text not null references practice_sessions(id) on delete cascade,
@@ -90,8 +100,10 @@ func Migrate(ctx context.Context, pool *pgxpool.Pool) error {
 			created_at timestamptz not null default now(),
 			updated_at timestamptz not null default now(),
 			last_heartbeat_at timestamptz not null default now(),
+			submitted_at timestamptz null,
 			primary key (user_id, id)
 		);`,
+		`alter table exam_sessions add column if not exists submitted_at timestamptz null;`,
 	}
 
 	for _, stmt := range statements {

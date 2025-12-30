@@ -199,7 +199,7 @@ paths:
           required: false
           schema:
             type: string
-            enum: [active, finished]
+            enum: [active, paused, finished]
       responses:
         '200':
           description: Practice sessions
@@ -304,6 +304,25 @@ paths:
               schema:
                 $ref: '#/components/schemas/ExamSessionResponse'
 
+  /exam-sessions/{sessionId}/submit:
+    post:
+      operationId: submitExamSession
+      security:
+        - bearerAuth: []
+      parameters:
+        - in: path
+          name: sessionId
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Exam session submitted
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ExamSessionResponse'
+
   /practice-sessions/{sessionId}:
     get:
       operationId: getPracticeSession
@@ -318,6 +337,44 @@ paths:
       responses:
         '200':
           description: Practice session state
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PracticeSessionResponse'
+
+  /practice-sessions/{sessionId}/pause:
+    post:
+      operationId: pausePracticeSession
+      security:
+        - bearerAuth: []
+      parameters:
+        - in: path
+          name: sessionId
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Practice session paused
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PracticeSessionResponse'
+
+  /practice-sessions/{sessionId}/resume:
+    post:
+      operationId: resumePracticeSession
+      security:
+        - bearerAuth: []
+      parameters:
+        - in: path
+          name: sessionId
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Practice session resumed
           content:
             application/json:
               schema:
@@ -418,6 +475,10 @@ components:
         status:
           type: string
           enum: [active, finished]
+        submittedAt:
+          type: string
+          nullable: true
+          description: RFC3339 timestamp
         createdAt:
           type: string
           description: RFC3339 timestamp
@@ -455,6 +516,10 @@ components:
         status:
           type: string
           enum: [active, finished]
+        submittedAt:
+          type: string
+          nullable: true
+          description: RFC3339 timestamp
         createdAt:
           type: string
           description: RFC3339 timestamp
@@ -488,7 +553,7 @@ components:
           type: string
         status:
           type: string
-          enum: [active, finished]
+          enum: [active, paused, finished]
         createdAt:
           type: string
           description: RFC3339 timestamp
@@ -500,6 +565,12 @@ components:
           nullable: true
         isTimed:
           type: boolean
+        timeLimitSeconds:
+          type: integer
+          nullable: true
+        timeRemainingSeconds:
+          type: integer
+          nullable: true
         targetCount:
           type: integer
         correctCount:
@@ -546,14 +617,17 @@ components:
 
     PracticeSessionResponse:
       type: object
-      required: [sessionId, status, createdAt, isTimed, targetCount, currentIndex, total, correctCount]
+      required: [sessionId, status, createdAt, startedAt, isTimed, targetCount, currentIndex, total, correctCount]
       properties:
         sessionId:
           type: string
         status:
           type: string
-          enum: [active, finished]
+          enum: [active, paused, finished]
         createdAt:
+          type: string
+          description: RFC3339 timestamp
+        startedAt:
           type: string
           description: RFC3339 timestamp
         packageId:
@@ -561,6 +635,18 @@ components:
           nullable: true
         isTimed:
           type: boolean
+        timeLimitSeconds:
+          type: integer
+          nullable: true
+        currentQuestionStartedAt:
+          type: string
+          nullable: true
+          description: RFC3339 timestamp
+        questionTimingsSeconds:
+          type: object
+          nullable: true
+          additionalProperties:
+            type: integer
         targetCount:
           type: integer
         currentIndex:

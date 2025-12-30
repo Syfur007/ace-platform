@@ -55,7 +55,7 @@ export type ListPracticeSessionsResponse =
 export async function listPracticeSessions(params?: {
   limit?: number
   offset?: number
-  status?: 'active' | 'finished'
+  status?: 'active' | 'paused' | 'finished'
 }): Promise<ListPracticeSessionsResponse> {
   const search = new URLSearchParams()
   if (params?.limit != null) search.set('limit', String(params.limit))
@@ -63,6 +63,24 @@ export async function listPracticeSessions(params?: {
   if (params?.status) search.set('status', params.status)
   const qs = search.toString()
   return apiFetchJson<ListPracticeSessionsResponse>(`/practice-sessions${qs ? `?${qs}` : ''}`, { method: 'GET' })
+}
+
+export type PausePracticeSessionResponse =
+  paths['/practice-sessions/{sessionId}/pause']['post']['responses'][200]['content']['application/json']
+
+export async function pausePracticeSession(sessionId: string): Promise<PausePracticeSessionResponse> {
+  return apiFetchJson<PausePracticeSessionResponse>(`/practice-sessions/${encodeURIComponent(sessionId)}/pause`, {
+    method: 'POST',
+  })
+}
+
+export type ResumePracticeSessionResponse =
+  paths['/practice-sessions/{sessionId}/resume']['post']['responses'][200]['content']['application/json']
+
+export async function resumePracticeSession(sessionId: string): Promise<ResumePracticeSessionResponse> {
+  return apiFetchJson<ResumePracticeSessionResponse>(`/practice-sessions/${encodeURIComponent(sessionId)}/resume`, {
+    method: 'POST',
+  })
 }
 
 export type HeartbeatRequest =
@@ -99,6 +117,15 @@ export async function listExamSessions(params?: {
   if (params?.status) search.set('status', params.status)
   const qs = search.toString()
   return apiFetchJson<ListExamSessionsResponse>(`/exam-sessions${qs ? `?${qs}` : ''}`, { method: 'GET' })
+}
+
+export type SubmitExamSessionResponse =
+  paths['/exam-sessions/{sessionId}/submit']['post']['responses'][200]['content']['application/json']
+
+export async function submitExamSession(sessionId: string): Promise<SubmitExamSessionResponse> {
+  return apiFetchJson<SubmitExamSessionResponse>(`/exam-sessions/${encodeURIComponent(sessionId)}/submit`, {
+    method: 'POST',
+  })
 }
 
 export type CreatePracticeSessionRequest =
