@@ -178,3 +178,133 @@ export async function getPracticeSessionReview(sessionId: string): Promise<Pract
     method: 'GET',
   })
 }
+
+export type ListQuestionPackagesResponse =
+  paths['/question-packages']['get']['responses'][200]['content']['application/json']
+
+export async function listQuestionPackages(): Promise<ListQuestionPackagesResponse> {
+  return apiFetchJson<ListQuestionPackagesResponse>('/question-packages', { method: 'GET' })
+}
+
+export type ListQuestionTopicsResponse =
+  paths['/question-topics']['get']['responses'][200]['content']['application/json']
+
+export async function listQuestionTopics(params?: { packageId?: string }): Promise<ListQuestionTopicsResponse> {
+  const search = new URLSearchParams()
+  if (params?.packageId) search.set('packageId', params.packageId)
+  const qs = search.toString()
+  return apiFetchJson<ListQuestionTopicsResponse>(`/question-topics${qs ? `?${qs}` : ''}`, { method: 'GET' })
+}
+
+export type ListQuestionDifficultiesResponse =
+  paths['/question-difficulties']['get']['responses'][200]['content']['application/json']
+
+export async function listQuestionDifficulties(): Promise<ListQuestionDifficultiesResponse> {
+  return apiFetchJson<ListQuestionDifficultiesResponse>('/question-difficulties', { method: 'GET' })
+}
+
+export type InstructorCreateQuestionPackageRequest =
+  paths['/instructor/question-packages']['post']['requestBody']['content']['application/json']
+export type InstructorCreateQuestionPackageResponse =
+  paths['/instructor/question-packages']['post']['responses'][200]['content']['application/json']
+
+export async function instructorCreateQuestionPackage(
+  body: InstructorCreateQuestionPackageRequest,
+): Promise<InstructorCreateQuestionPackageResponse> {
+  return apiFetchJson<InstructorCreateQuestionPackageResponse>('/instructor/question-packages', { method: 'POST', body })
+}
+
+export type InstructorListQuestionPackagesResponse =
+  paths['/instructor/question-packages']['get']['responses'][200]['content']['application/json']
+
+export async function instructorListQuestionPackages(): Promise<InstructorListQuestionPackagesResponse> {
+  return apiFetchJson<InstructorListQuestionPackagesResponse>('/instructor/question-packages', { method: 'GET' })
+}
+
+export type InstructorCreateQuestionTopicRequest =
+  paths['/instructor/question-topics']['post']['requestBody']['content']['application/json']
+export type InstructorCreateQuestionTopicResponse =
+  paths['/instructor/question-topics']['post']['responses'][200]['content']['application/json']
+
+export async function instructorCreateQuestionTopic(
+  body: InstructorCreateQuestionTopicRequest,
+): Promise<InstructorCreateQuestionTopicResponse> {
+  return apiFetchJson<InstructorCreateQuestionTopicResponse>('/instructor/question-topics', { method: 'POST', body })
+}
+
+export type InstructorListQuestionTopicsResponse =
+  paths['/instructor/question-topics']['get']['responses'][200]['content']['application/json']
+
+export async function instructorListQuestionTopics(params?: { packageId?: string }): Promise<InstructorListQuestionTopicsResponse> {
+  const search = new URLSearchParams()
+  if (params?.packageId) search.set('packageId', params.packageId)
+  const qs = search.toString()
+  return apiFetchJson<InstructorListQuestionTopicsResponse>(`/instructor/question-topics${qs ? `?${qs}` : ''}`, {
+    method: 'GET',
+  })
+}
+
+export type InstructorCreateQuestionRequest =
+  paths['/instructor/questions']['post']['requestBody']['content']['application/json']
+export type InstructorCreateQuestionResponse =
+  paths['/instructor/questions']['post']['responses'][200]['content']['application/json']
+
+export async function instructorCreateQuestion(body: InstructorCreateQuestionRequest): Promise<InstructorCreateQuestionResponse> {
+  return apiFetchJson<InstructorCreateQuestionResponse>('/instructor/questions', { method: 'POST', body })
+}
+
+export type InstructorListQuestionsResponse =
+  paths['/instructor/questions']['get']['responses'][200]['content']['application/json']
+
+export async function instructorListQuestions(params?: {
+  limit?: number
+  offset?: number
+  status?: 'draft' | 'published' | 'archived'
+  packageId?: string
+  topicId?: string
+  difficultyId?: string
+}): Promise<InstructorListQuestionsResponse> {
+  const search = new URLSearchParams()
+  if (params?.limit != null) search.set('limit', String(params.limit))
+  if (params?.offset != null) search.set('offset', String(params.offset))
+  if (params?.status) search.set('status', params.status)
+  if (params?.packageId) search.set('packageId', params.packageId)
+  if (params?.topicId) search.set('topicId', params.topicId)
+  if (params?.difficultyId) search.set('difficultyId', params.difficultyId)
+  const qs = search.toString()
+  return apiFetchJson<InstructorListQuestionsResponse>(`/instructor/questions${qs ? `?${qs}` : ''}`, { method: 'GET' })
+}
+
+export type InstructorGetQuestionResponse =
+  paths['/instructor/questions/{questionId}']['get']['responses'][200]['content']['application/json']
+
+export async function instructorGetQuestion(questionId: string): Promise<InstructorGetQuestionResponse> {
+  return apiFetchJson<InstructorGetQuestionResponse>(`/instructor/questions/${encodeURIComponent(questionId)}`, { method: 'GET' })
+}
+
+export type InstructorUpdateQuestionRequest =
+  paths['/instructor/questions/{questionId}']['put']['requestBody']['content']['application/json']
+export type OkResponse = paths['/instructor/questions/{questionId}']['put']['responses'][200]['content']['application/json']
+
+export async function instructorUpdateQuestion(questionId: string, body: InstructorUpdateQuestionRequest): Promise<OkResponse> {
+  return apiFetchJson<OkResponse>(`/instructor/questions/${encodeURIComponent(questionId)}`, { method: 'PUT', body })
+}
+
+export type InstructorReplaceChoicesRequest =
+  paths['/instructor/questions/{questionId}/choices']['put']['requestBody']['content']['application/json']
+
+export async function instructorReplaceChoices(questionId: string, body: InstructorReplaceChoicesRequest): Promise<OkResponse> {
+  return apiFetchJson<OkResponse>(`/instructor/questions/${encodeURIComponent(questionId)}/choices`, { method: 'PUT', body })
+}
+
+export async function instructorPublishQuestion(questionId: string): Promise<OkResponse> {
+  return apiFetchJson<OkResponse>(`/instructor/questions/${encodeURIComponent(questionId)}/publish`, { method: 'POST' })
+}
+
+export async function instructorArchiveQuestion(questionId: string): Promise<OkResponse> {
+  return apiFetchJson<OkResponse>(`/instructor/questions/${encodeURIComponent(questionId)}/archive`, { method: 'POST' })
+}
+
+export async function instructorDraftQuestion(questionId: string): Promise<OkResponse> {
+  return apiFetchJson<OkResponse>(`/instructor/questions/${encodeURIComponent(questionId)}/draft`, { method: 'POST' })
+}

@@ -215,6 +215,214 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/questions": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["listQuestions"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/questions/{questionId}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["getQuestion"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/question-packages": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["listQuestionPackages"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/question-topics": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["listQuestionTopics"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/question-difficulties": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["listQuestionDifficulties"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/instructor/question-packages": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["instructorListQuestionPackages"];
+        put?: never;
+        post: operations["instructorCreateQuestionPackage"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/instructor/question-topics": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["instructorListQuestionTopics"];
+        put?: never;
+        post: operations["instructorCreateQuestionTopic"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/instructor/questions": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["instructorListQuestions"];
+        put?: never;
+        post: operations["instructorCreateQuestion"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/instructor/questions/{questionId}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["instructorGetQuestion"];
+        put: operations["instructorUpdateQuestion"];
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/instructor/questions/{questionId}/choices": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put: operations["instructorReplaceChoices"];
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/instructor/questions/{questionId}/publish": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: operations["instructorPublishQuestion"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/instructor/questions/{questionId}/archive": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: operations["instructorArchiveQuestion"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/instructor/questions/{questionId}/draft": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: operations["instructorDraftQuestion"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/exam-sessions/{sessionId}/heartbeat": {
         parameters: {
             query?: never;
@@ -511,6 +719,111 @@ export interface components {
             email: string;
             /** @description Plaintext password (sent over HTTPS in production) */
             password: string;
+        };
+        OkResponse: {
+            ok: boolean;
+        };
+        QuestionDifficulty: {
+            id: string;
+            displayName: string;
+        };
+        ListQuestionDifficultiesResponse: {
+            items: components["schemas"]["QuestionDifficulty"][];
+        };
+        QuestionPackage: {
+            id: string;
+            name: string;
+            /** @description RFC3339 timestamp */
+            createdAt: string;
+        };
+        QuestionTopic: {
+            id: string;
+            packageId?: string | null;
+            name: string;
+            /** @description RFC3339 timestamp */
+            createdAt: string;
+        };
+        ListQuestionPackagesResponse: {
+            items: components["schemas"]["QuestionPackage"][];
+        };
+        ListQuestionTopicsResponse: {
+            items: components["schemas"]["QuestionTopic"][];
+        };
+        PublicQuestionListItem: {
+            id: string;
+            packageId?: string | null;
+            topicId?: string | null;
+            difficultyId: string;
+            prompt: string;
+        };
+        ListQuestionsResponse: {
+            items: components["schemas"]["PublicQuestionListItem"][];
+            limit: number;
+            offset: number;
+            hasMore: boolean;
+        };
+        PublicQuestionResponse: {
+            id: string;
+            packageId?: string | null;
+            topicId?: string | null;
+            difficultyId: string;
+            prompt: string;
+            choices: components["schemas"]["PracticeQuestionChoice"][];
+        };
+        CreateQuestionPackageRequest: {
+            name: string;
+        };
+        CreateQuestionPackageResponse: {
+            id: string;
+        };
+        CreateQuestionTopicRequest: {
+            packageId?: string | null;
+            name: string;
+        };
+        CreateQuestionTopicResponse: {
+            id: string;
+        };
+        CreateQuestionRequest: {
+            packageId?: string | null;
+            topicId?: string | null;
+            difficultyId: string;
+            prompt: string;
+            explanation: string;
+            choices: {
+                text: string;
+            }[];
+            correctChoiceIndex: number;
+        };
+        UpdateQuestionRequest: {
+            packageId?: string | null;
+            topicId?: string | null;
+            difficultyId?: string | null;
+            prompt?: string | null;
+            explanation?: string | null;
+        };
+        ReplaceChoicesRequest: {
+            choices: {
+                text: string;
+            }[];
+            correctChoiceIndex: number;
+        };
+        InstructorQuestionResponse: {
+            id: string;
+            packageId?: string | null;
+            topicId?: string | null;
+            difficultyId: string;
+            prompt: string;
+            explanation: string;
+            /** @enum {string} */
+            status: "draft" | "published" | "archived";
+            correctChoiceId: string;
+            choices: components["schemas"]["PracticeQuestionChoice"][];
+            createdByUserId: string;
+            updatedByUserId: string;
+            /** @description RFC3339 timestamp */
+            createdAt: string;
+            /** @description RFC3339 timestamp */
+            updatedAt: string;
         };
         LoginRequest: {
             email: string;
@@ -849,6 +1162,397 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["ListExamSessionsResponse"];
+                };
+            };
+        };
+    };
+    listQuestions: {
+        parameters: {
+            query?: {
+                limit?: number;
+                offset?: number;
+                packageId?: string;
+                topicId?: string;
+                difficultyId?: string;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Published questions */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ListQuestionsResponse"];
+                };
+            };
+        };
+    };
+    getQuestion: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                questionId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Published question */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PublicQuestionResponse"];
+                };
+            };
+        };
+    };
+    listQuestionPackages: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Question packages */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ListQuestionPackagesResponse"];
+                };
+            };
+        };
+    };
+    listQuestionTopics: {
+        parameters: {
+            query?: {
+                packageId?: string;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Question topics */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ListQuestionTopicsResponse"];
+                };
+            };
+        };
+    };
+    listQuestionDifficulties: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Question difficulties */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ListQuestionDifficultiesResponse"];
+                };
+            };
+        };
+    };
+    instructorListQuestionPackages: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Question packages */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ListQuestionPackagesResponse"];
+                };
+            };
+        };
+    };
+    instructorCreateQuestionPackage: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["CreateQuestionPackageRequest"];
+            };
+        };
+        responses: {
+            /** @description Package created */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CreateQuestionPackageResponse"];
+                };
+            };
+        };
+    };
+    instructorListQuestionTopics: {
+        parameters: {
+            query?: {
+                packageId?: string;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Question topics */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ListQuestionTopicsResponse"];
+                };
+            };
+        };
+    };
+    instructorCreateQuestionTopic: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["CreateQuestionTopicRequest"];
+            };
+        };
+        responses: {
+            /** @description Topic created */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CreateQuestionTopicResponse"];
+                };
+            };
+        };
+    };
+    instructorListQuestions: {
+        parameters: {
+            query?: {
+                limit?: number;
+                offset?: number;
+                status?: "draft" | "published" | "archived";
+                packageId?: string;
+                topicId?: string;
+                difficultyId?: string;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Question list (instructor/admin) */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ListQuestionsResponse"];
+                };
+            };
+        };
+    };
+    instructorCreateQuestion: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["CreateQuestionRequest"];
+            };
+        };
+        responses: {
+            /** @description Question created */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["InstructorQuestionResponse"];
+                };
+            };
+        };
+    };
+    instructorGetQuestion: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                questionId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Question detail (instructor/admin) */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["InstructorQuestionResponse"];
+                };
+            };
+        };
+    };
+    instructorUpdateQuestion: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                questionId: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["UpdateQuestionRequest"];
+            };
+        };
+        responses: {
+            /** @description Updated */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["OkResponse"];
+                };
+            };
+        };
+    };
+    instructorReplaceChoices: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                questionId: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ReplaceChoicesRequest"];
+            };
+        };
+        responses: {
+            /** @description Updated */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["OkResponse"];
+                };
+            };
+        };
+    };
+    instructorPublishQuestion: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                questionId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Updated */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["OkResponse"];
+                };
+            };
+        };
+    };
+    instructorArchiveQuestion: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                questionId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Updated */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["OkResponse"];
+                };
+            };
+        };
+    };
+    instructorDraftQuestion: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                questionId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Updated */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["OkResponse"];
                 };
             };
         };
