@@ -2,7 +2,7 @@ Software Design Document
 
 **Online Exam Preparation Platform**
 
-Version 1.0
+Version 1.1
 
 December 2025
 
@@ -223,6 +223,26 @@ The platform follows a modern microservices architecture with the following laye
 
 **Technical Implementation:**
 
+### Current MVP Implementation (Dec 2025)
+
+The current codebase implements an MVP practice workflow inside the Go API gateway and Postgres. This is intentionally a stepping stone toward a dedicated Question Service (planned).
+
+- Practice sessions are persisted in PostgreSQL and are API-backed (no longer purely client-side).
+- A small in-memory demo question bank is used as the content source for now (question service integration is planned).
+- Two practice modes are supported:
+	- Untimed: can be paused/resumed.
+	- Ironman (Timed): server-enforced time limit and automatic force-finish when time runs out.
+- Per-question timing is recorded for both modes (seconds spent per question).
+- Explanations are returned after answer submission and are also available in review.
+- Review mode exists for finished practice sessions and displays question-by-question breakdown including:
+	- Selected answer
+	- Correct/incorrect verdict
+	- Explanation (if available)
+	- Time taken for that question
+	- Correct answer
+
+### Planned Target Architecture (Future)
+
 - MongoDB document database for flexible question schema
 - Full-text search with Elasticsearch
 - Question randomization algorithms
@@ -246,6 +266,17 @@ The platform follows a modern microservices architecture with the following laye
 - Test pause and resume functionality
 
 **Technical Implementation:**
+
+### Current MVP Implementation (Dec 2025)
+
+The current codebase implements a minimal “test session” lifecycle inside the Go API gateway and Postgres.
+
+- Exam sessions are persisted in PostgreSQL as `exam_sessions` keyed by `(user_id, id)`.
+- The web client sends periodic heartbeats containing a JSON snapshot to persist progress.
+- A "Submit Test" action is implemented to finalize a session (`status=finished`, `submitted_at` set).
+- The student Tests catalog page includes a “Previous tests” list with in-progress/review behavior.
+
+### Planned Target Architecture (Future)
 
 - Python FastAPI service for adaptive algorithm
 - IRT (Item Response Theory) model for question selection
@@ -390,6 +421,69 @@ The platform follows a modern microservices architecture with the following laye
 ## 5.1 PostgreSQL Schema
 
 Primary relational database for core entities.
+
+### 5.1.1 Current Implemented Schema (Dec 2025 MVP)
+
+The MVP schema is created idempotently by the Go API gateway at startup.
+
+**users**
+
+| **Column** | **Type** | **Description** |
+| --- | --- | --- |
+| id | TEXT | Primary key (generated ID) |
+| email | TEXT | Unique email |
+| password_hash | TEXT | Bcrypt hash |
+| role | TEXT | student / instructor / admin |
+| created_at | TIMESTAMPTZ | Created timestamp |
+
+**practice_sessions**
+
+| **Column** | **Type** | **Description** |
+| --- | --- | --- |
+| id | TEXT | Primary key (session id) |
+| user_id | TEXT | FK to users(id) |
+| package_id | TEXT (nullable) | Package / exam grouping (MVP placeholder) |
+| is_timed | BOOLEAN | Ironman vs Untimed |
+| started_at | TIMESTAMPTZ | Session start timestamp |
+| time_limit_seconds | INTEGER | Total allowed time for Ironman; 0 for untimed |
+| target_count | INTEGER | Total questions in session |
+| current_index | INTEGER | Current question index |
+| current_question_started_at | TIMESTAMPTZ | Start time of the current question |
+| question_timings | JSONB | Map of question_id -> seconds spent |
+| correct_count | INTEGER | Total correct |
+| status | TEXT | active / paused / finished |
+| paused_at | TIMESTAMPTZ (nullable) | Pause timestamp (untimed only) |
+| question_order | JSONB | Ordered list of question IDs |
+| created_at | TIMESTAMPTZ | Created timestamp |
+| last_activity_at | TIMESTAMPTZ | Activity timestamp for ordering/history |
+
+**practice_answers**
+
+| **Column** | **Type** | **Description** |
+| --- | --- | --- |
+| id | BIGSERIAL | Primary key |
+| session_id | TEXT | FK to practice_sessions(id) |
+| user_id | TEXT | FK to users(id) |
+| question_id | TEXT | Question identifier |
+| choice_id | TEXT | Selected choice identifier |
+| correct | BOOLEAN | Verdict |
+| explanation | TEXT | Explanation text (captured at submission time) |
+| ts | TIMESTAMPTZ | Submission time |
+
+**exam_sessions**
+
+| **Column** | **Type** | **Description** |
+| --- | --- | --- |
+| user_id | TEXT | FK to users(id) |
+| id | TEXT | Session id (composite primary key with user_id) |
+| status | TEXT | active / finished |
+| snapshot | JSONB | Persisted client snapshot |
+| created_at | TIMESTAMPTZ | Created timestamp |
+| updated_at | TIMESTAMPTZ | Updated timestamp |
+| last_heartbeat_at | TIMESTAMPTZ | Last heartbeat |
+| submitted_at | TIMESTAMPTZ (nullable) | Submit timestamp |
+
+### 5.1.2 Planned/Target Schema (Future)
 
 **Users Table:**
 
@@ -550,6 +644,32 @@ RESTful API design with JWT authentication.
 
 - Local dev base URL: http://localhost:8080
 - Source-of-truth contract (local dev): `packages/shared-proto/openapi.yaml` (web types generated via `openapi-typescript`)
+
+### 6.1.1 Current Implemented API (Dec 2025 MVP)
+
+The API surface is OpenAPI-first. The web app generates TypeScript types from the OpenAPI spec and uses those types for its client.
+
+**Practice Sessions (implemented)**
+
+| **Method** | **Endpoint** | **Description** |
+| --- | --- | --- |
+| GET | /practice-sessions | List practice sessions (supports status filtering; includes history ordering) |
+| POST | /practice-sessions | Create a new session (timed or untimed) |
+| GET | /practice-sessions/{sessionId} | Get session state (question, timing fields, status) |
+| POST | /practice-sessions/{sessionId}/answers | Submit answer (records correctness + explanation; records per-question time) |
+| POST | /practice-sessions/{sessionId}/pause | Pause session (untimed only) |
+| POST | /practice-sessions/{sessionId}/resume | Resume session (untimed only) |
+| GET | /practice-sessions/{sessionId}/summary | Summary stats (correct/total/accuracy) |
+| GET | /practice-sessions/{sessionId}/review | Ordered review breakdown (finished only) |
+
+**Exam Sessions (implemented)**
+
+| **Method** | **Endpoint** | **Description** |
+| --- | --- | --- |
+| GET | /exam-sessions | List exam sessions |
+| GET | /exam-sessions/{sessionId} | Get exam session state |
+| POST | /exam-sessions/{sessionId}/heartbeat | Persist snapshot heartbeat |
+| POST | /exam-sessions/{sessionId}/submit | Submit/finalize an exam session |
 
 ## 6.2 Authentication Endpoints
 
@@ -770,6 +890,14 @@ Planned (not implemented yet): logout, refresh tokens, forgot/reset password, ve
 - Similar questions button
 - Navigation: Previous, Next, Review flagged, End session
 
+Current MVP notes (implemented):
+
+- Practice start page prompts for mode selection: Ironman (Timed) vs Untimed.
+- Untimed sessions can be paused/resumed.
+- Ironman sessions show time remaining (server-enforced time limit).
+- Per-question timing is tracked and shown.
+- Finished sessions include an ordered Review section listing each question with selected answer, verdict, explanation (if available), time taken, and correct answer.
+
 **7.4.7 Mock Test Interface**
 
 - Full-screen mode with minimal distractions
@@ -779,6 +907,12 @@ Planned (not implemented yet): logout, refresh tokens, forgot/reset password, ve
 - Mark for review functionality
 - Submit test confirmation dialog
 - Auto-submit on timeout
+
+Current MVP notes (implemented):
+
+- Test sessions persist progress via periodic heartbeats.
+- A "Submit Test" action finalizes the attempt and transitions it to review state.
+- The Tests catalog page includes a “Previous tests” section with in-progress and review behavior.
 
 **7.4.8 Test Results Page**
 
@@ -1170,5 +1304,6 @@ Local development is container-first: Node.js and Go are run inside Docker conta
 | **Version** | **Date** | **Author** | **Changes** |
 | --- | --- | --- | --- |
 | 1.0 | Dec 2025 | Development Team | Initial release |
+| 1.1 | Dec 2025 | Development Team | Documented implemented practice modes (Ironman/Untimed), pause/resume gating, per-question timing + review breakdown, exam submit flow, and the MVP Postgres/OpenAPI schema/API/UI updates |
 
 **End of Document**
