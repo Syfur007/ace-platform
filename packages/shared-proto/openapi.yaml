@@ -174,6 +174,39 @@ paths:
                 $ref: '#/components/schemas/User'
 
   /practice-sessions:
+    get:
+      operationId: listPracticeSessions
+      security:
+        - bearerAuth: []
+      parameters:
+        - in: query
+          name: limit
+          required: false
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 100
+            default: 20
+        - in: query
+          name: offset
+          required: false
+          schema:
+            type: integer
+            minimum: 0
+            default: 0
+        - in: query
+          name: status
+          required: false
+          schema:
+            type: string
+            enum: [active, finished]
+      responses:
+        '200':
+          description: Practice sessions
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ListPracticeSessionsResponse'
     post:
       operationId: createPracticeSession
       security:
@@ -191,6 +224,41 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/PracticeSessionResponse'
+
+  /exam-sessions:
+    get:
+      operationId: listExamSessions
+      security:
+        - bearerAuth: []
+      parameters:
+        - in: query
+          name: limit
+          required: false
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 100
+            default: 20
+        - in: query
+          name: offset
+          required: false
+          schema:
+            type: integer
+            minimum: 0
+            default: 0
+        - in: query
+          name: status
+          required: false
+          schema:
+            type: string
+            enum: [active, finished]
+      responses:
+        '200':
+          description: Exam sessions
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ListExamSessionsResponse'
 
   /exam-sessions/{sessionId}/heartbeat:
     post:
@@ -362,6 +430,80 @@ components:
         snapshot:
           type: object
           additionalProperties: true
+
+    ListExamSessionsResponse:
+      type: object
+      required: [items, limit, offset, hasMore]
+      properties:
+        items:
+          type: array
+          items:
+            $ref: '#/components/schemas/ExamSessionListItem'
+        limit:
+          type: integer
+        offset:
+          type: integer
+        hasMore:
+          type: boolean
+
+    ExamSessionListItem:
+      type: object
+      required: [sessionId, status, createdAt, updatedAt, lastHeartbeatAt]
+      properties:
+        sessionId:
+          type: string
+        status:
+          type: string
+          enum: [active, finished]
+        createdAt:
+          type: string
+          description: RFC3339 timestamp
+        updatedAt:
+          type: string
+          description: RFC3339 timestamp
+        lastHeartbeatAt:
+          type: string
+          description: RFC3339 timestamp
+
+    ListPracticeSessionsResponse:
+      type: object
+      required: [items, limit, offset, hasMore]
+      properties:
+        items:
+          type: array
+          items:
+            $ref: '#/components/schemas/PracticeSessionListItem'
+        limit:
+          type: integer
+        offset:
+          type: integer
+        hasMore:
+          type: boolean
+
+    PracticeSessionListItem:
+      type: object
+      required: [sessionId, status, createdAt, isTimed, targetCount, correctCount]
+      properties:
+        sessionId:
+          type: string
+        status:
+          type: string
+          enum: [active, finished]
+        createdAt:
+          type: string
+          description: RFC3339 timestamp
+        packageId:
+          type: string
+          nullable: true
+        isTimed:
+          type: boolean
+        targetCount:
+          type: integer
+        correctCount:
+          type: integer
+        accuracy:
+          type: number
+          format: float
 
     CreatePracticeSessionRequest:
       type: object

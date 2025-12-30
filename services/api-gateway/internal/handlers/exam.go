@@ -39,9 +39,93 @@ type ExamSessionResponse struct {
 	Snapshot         json.RawMessage `json:"snapshot"`
 }
 
+type ExamSessionListItem struct {
+	SessionID       string          `json:"sessionId"`
+	Status          ExamSessionStatus `json:"status"`
+	CreatedAt       string          `json:"createdAt"`
+	UpdatedAt       string          `json:"updatedAt"`
+	LastHeartbeatAt string          `json:"lastHeartbeatAt"`
+}
+
+type ListExamSessionsResponse struct {
+	Items   []ExamSessionListItem `json:"items"`
+	Limit   int                  `json:"limit"`
+	Offset  int                  `json:"offset"`
+	HasMore bool                 `json:"hasMore"`
+}
+
 func RegisterExamRoutes(r *gin.Engine, pool *pgxpool.Pool) {
 	// Server-backed exam session state (student portal).
 	studentAuth := auth.RequirePortalAuth("student", "student")
+
+	r.GET("/exam-sessions", studentAuth, func(c *gin.Context) {
+		userID, ok := auth.GetUserID(c)
+		if !ok {
+			c.JSON(http.StatusUnauthorized, gin.H{"message": "unauthorized"})
+			return
+		}
+
+		limit, offset := parseListParams(c)
+		status := c.Query("status")
+		if status != "" && status != string(ExamSessionActive) && status != string(ExamSessionFinished) {
+			c.JSON(http.StatusBadRequest, gin.H{"message": "invalid status"})
+			return
+		}
+
+		ctx := context.Background()
+
+		args := []any{userID}
+		query := `select id, status, created_at, updated_at, last_heartbeat_at
+			from exam_sessions where user_id=$1`
+		if status != "" {
+			query += " and status=$2"
+			args = append(args, status)
+			query += " order by last_heartbeat_at desc limit $3 offset $4"
+			args = append(args, limit+1, offset)
+		} else {
+			query += " order by last_heartbeat_at desc limit $2 offset $3"
+			args = append(args, limit+1, offset)
+		}
+
+		rows, err := pool.Query(ctx, query, args...)
+		if err != nil {
+			c.JSON(http.StatusInternalServerError, gin.H{"message": "failed to list sessions"})
+			return
+		}
+		defer rows.Close()
+
+		items := make([]ExamSessionListItem, 0, limit)
+		for rows.Next() {
+			var id string
+			var st string
+			var createdAt time.Time
+			var updatedAt time.Time
+			var lastHeartbeatAt time.Time
+			if err := rows.Scan(&id, &st, &createdAt, &updatedAt, &lastHeartbeatAt); err != nil {
+				c.JSON(http.StatusInternalServerError, gin.H{"message": "failed to list sessions"})
+				return
+			}
+
+			items = append(items, ExamSessionListItem{
+				SessionID:       id,
+				Status:          ExamSessionStatus(st),
+				CreatedAt:       createdAt.UTC().Format(time.RFC3339),
+				UpdatedAt:       updatedAt.UTC().Format(time.RFC3339),
+				LastHeartbeatAt: lastHeartbeatAt.UTC().Format(time.RFC3339),
+			})
+			if len(items) == limit+1 {
+				break
+			}
+		}
+
+		hasMore := false
+		if len(items) > limit {
+			hasMore = true
+			items = items[:limit]
+		}
+
+		c.JSON(http.StatusOK, ListExamSessionsResponse{Items: items, Limit: limit, Offset: offset, HasMore: hasMore})
+	})
 
 	r.POST("/exam-sessions/:sessionId/heartbeat", studentAuth, func(c *gin.Context) {
 		userID, ok := auth.GetUserID(c)

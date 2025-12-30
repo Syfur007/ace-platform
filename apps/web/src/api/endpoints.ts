@@ -49,6 +49,22 @@ export async function getHealthz(): Promise<HealthzResponse> {
   return apiFetchJson<HealthzResponse>('/healthz', { method: 'GET' })
 }
 
+export type ListPracticeSessionsResponse =
+  paths['/practice-sessions']['get']['responses'][200]['content']['application/json']
+
+export async function listPracticeSessions(params?: {
+  limit?: number
+  offset?: number
+  status?: 'active' | 'finished'
+}): Promise<ListPracticeSessionsResponse> {
+  const search = new URLSearchParams()
+  if (params?.limit != null) search.set('limit', String(params.limit))
+  if (params?.offset != null) search.set('offset', String(params.offset))
+  if (params?.status) search.set('status', params.status)
+  const qs = search.toString()
+  return apiFetchJson<ListPracticeSessionsResponse>(`/practice-sessions${qs ? `?${qs}` : ''}`, { method: 'GET' })
+}
+
 export type HeartbeatRequest =
   paths['/exam-sessions/{sessionId}/heartbeat']['post']['requestBody']['content']['application/json']
 
@@ -67,6 +83,22 @@ export type GetExamSessionResponse =
 
 export async function getExamSession(sessionId: string): Promise<GetExamSessionResponse> {
   return apiFetchJson<GetExamSessionResponse>(`/exam-sessions/${encodeURIComponent(sessionId)}`, { method: 'GET' })
+}
+
+export type ListExamSessionsResponse =
+  paths['/exam-sessions']['get']['responses'][200]['content']['application/json']
+
+export async function listExamSessions(params?: {
+  limit?: number
+  offset?: number
+  status?: 'active' | 'finished'
+}): Promise<ListExamSessionsResponse> {
+  const search = new URLSearchParams()
+  if (params?.limit != null) search.set('limit', String(params.limit))
+  if (params?.offset != null) search.set('offset', String(params.offset))
+  if (params?.status) search.set('status', params.status)
+  const qs = search.toString()
+  return apiFetchJson<ListExamSessionsResponse>(`/exam-sessions${qs ? `?${qs}` : ''}`, { method: 'GET' })
 }
 
 export type CreatePracticeSessionRequest =

@@ -69,6 +69,24 @@ type PracticeSessionSummaryResponse struct {
 	Accuracy     float64 `json:"accuracy"`
 }
 
+type PracticeSessionListItem struct {
+	SessionID    string               `json:"sessionId"`
+	Status       PracticeSessionStatus `json:"status"`
+	CreatedAt    string               `json:"createdAt"`
+	PackageID    *string              `json:"packageId"`
+	IsTimed      bool                 `json:"isTimed"`
+	TargetCount  int                  `json:"targetCount"`
+	CorrectCount int                  `json:"correctCount"`
+	Accuracy     float64              `json:"accuracy"`
+}
+
+type ListPracticeSessionsResponse struct {
+	Items   []PracticeSessionListItem `json:"items"`
+	Limit   int                       `json:"limit"`
+	Offset  int                       `json:"offset"`
+	HasMore bool                      `json:"hasMore"`
+}
+
 type bankItem struct {
 	q           PracticeQuestion
 	correctID   string
@@ -132,6 +150,85 @@ func findInBank(bank []bankItem, id string) (bankItem, bool) {
 }
 
 func RegisterPracticeRoutes(r *gin.Engine, pool *pgxpool.Pool) {
+	r.GET("/practice-sessions", auth.RequirePortalAuth("student", "student"), func(c *gin.Context) {
+		userID, ok := auth.GetUserID(c)
+		if !ok {
+			c.JSON(http.StatusUnauthorized, gin.H{"message": "unauthorized"})
+			return
+		}
+
+		limit, offset := parseListParams(c)
+		status := c.Query("status")
+		if status != "" && status != string(PracticeSessionActive) && status != string(PracticeSessionFinished) {
+			c.JSON(http.StatusBadRequest, gin.H{"message": "invalid status"})
+			return
+		}
+
+		ctx := context.Background()
+
+		args := []any{userID}
+		query := `select id, status, created_at, package_id, is_timed, target_count, correct_count
+			from practice_sessions where user_id=$1`
+		if status != "" {
+			query += " and status=$2"
+			args = append(args, status)
+			query += " order by created_at desc limit $3 offset $4"
+			args = append(args, limit+1, offset)
+		} else {
+			query += " order by created_at desc limit $2 offset $3"
+			args = append(args, limit+1, offset)
+		}
+
+		rows, err := pool.Query(ctx, query, args...)
+		if err != nil {
+			c.JSON(http.StatusInternalServerError, gin.H{"message": "failed to list sessions"})
+			return
+		}
+		defer rows.Close()
+
+		items := make([]PracticeSessionListItem, 0, limit)
+		for rows.Next() {
+			var id string
+			var st string
+			var createdAt time.Time
+			var packageID *string
+			var isTimed bool
+			var targetCount int
+			var correctCount int
+			if err := rows.Scan(&id, &st, &createdAt, &packageID, &isTimed, &targetCount, &correctCount); err != nil {
+				c.JSON(http.StatusInternalServerError, gin.H{"message": "failed to list sessions"})
+				return
+			}
+
+			accuracy := 0.0
+			if targetCount > 0 {
+				accuracy = float64(correctCount) / float64(targetCount)
+			}
+
+			items = append(items, PracticeSessionListItem{
+				SessionID:    id,
+				Status:       PracticeSessionStatus(st),
+				CreatedAt:    createdAt.UTC().Format(time.RFC3339),
+				PackageID:    packageID,
+				IsTimed:      isTimed,
+				TargetCount:  targetCount,
+				CorrectCount: correctCount,
+				Accuracy:     accuracy,
+			})
+			if len(items) == limit+1 {
+				break
+			}
+		}
+
+		hasMore := false
+		if len(items) > limit {
+			hasMore = true
+			items = items[:limit]
+		}
+
+		c.JSON(http.StatusOK, ListPracticeSessionsResponse{Items: items, Limit: limit, Offset: offset, HasMore: hasMore})
+	})
+
 	r.POST("/practice-sessions", auth.RequirePortalAuth("student", "student"), func(c *gin.Context) {
 		userID, ok := auth.GetUserID(c)
 		if !ok {

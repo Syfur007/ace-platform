@@ -190,9 +190,25 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        get?: never;
+        get: operations["listPracticeSessions"];
         put?: never;
         post: operations["createPracticeSession"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/exam-sessions": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["listExamSessions"];
+        put?: never;
+        post?: never;
         delete?: never;
         options?: never;
         head?: never;
@@ -315,6 +331,42 @@ export interface components {
             snapshot: {
                 [key: string]: unknown;
             };
+        };
+        ListExamSessionsResponse: {
+            items: components["schemas"]["ExamSessionListItem"][];
+            limit: number;
+            offset: number;
+            hasMore: boolean;
+        };
+        ExamSessionListItem: {
+            sessionId: string;
+            /** @enum {string} */
+            status: "active" | "finished";
+            /** @description RFC3339 timestamp */
+            createdAt: string;
+            /** @description RFC3339 timestamp */
+            updatedAt: string;
+            /** @description RFC3339 timestamp */
+            lastHeartbeatAt: string;
+        };
+        ListPracticeSessionsResponse: {
+            items: components["schemas"]["PracticeSessionListItem"][];
+            limit: number;
+            offset: number;
+            hasMore: boolean;
+        };
+        PracticeSessionListItem: {
+            sessionId: string;
+            /** @enum {string} */
+            status: "active" | "finished";
+            /** @description RFC3339 timestamp */
+            createdAt: string;
+            packageId?: string | null;
+            isTimed: boolean;
+            targetCount: number;
+            correctCount: number;
+            /** Format: float */
+            accuracy?: number;
         };
         CreatePracticeSessionRequest: {
             packageId?: string | null;
@@ -636,6 +688,30 @@ export interface operations {
             };
         };
     };
+    listPracticeSessions: {
+        parameters: {
+            query?: {
+                limit?: number;
+                offset?: number;
+                status?: "active" | "finished";
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Practice sessions */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ListPracticeSessionsResponse"];
+                };
+            };
+        };
+    };
     createPracticeSession: {
         parameters: {
             query?: never;
@@ -656,6 +732,30 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["PracticeSessionResponse"];
+                };
+            };
+        };
+    };
+    listExamSessions: {
+        parameters: {
+            query?: {
+                limit?: number;
+                offset?: number;
+                status?: "active" | "finished";
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Exam sessions */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ListExamSessionsResponse"];
                 };
             };
         };
