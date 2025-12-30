@@ -3,12 +3,12 @@ import { Link, useParams } from 'react-router-dom'
 
 import { useMutation, useQuery } from '@tanstack/react-query'
 
-import { getPracticeSession, getPracticeSessionSummary, pausePracticeSession, resumePracticeSession, submitPracticeAnswer } from '@/api/endpoints'
+import { getPracticeSession, getPracticeSessionReview, getPracticeSessionSummary, pausePracticeSession, resumePracticeSession, submitPracticeAnswer } from '@/api/endpoints'
 
 export function StudentPracticeSessionPage() {
   const { sessionId } = useParams()
 
-  const [nowTick, setNowTick] = useState(0)
+  const [nowMs, setNowMs] = useState(() => Date.now())
 
   const sessionQuery = useQuery({
     queryKey: ['practice-session', sessionId],
@@ -21,6 +21,13 @@ export function StudentPracticeSessionPage() {
     queryKey: ['practice-summary', sessionId],
     enabled: Boolean(sessionId) && sessionQuery.data?.status === 'finished',
     queryFn: () => getPracticeSessionSummary(String(sessionId)),
+    refetchOnWindowFocus: false,
+  })
+
+  const reviewQuery = useQuery({
+    queryKey: ['practice-review', sessionId],
+    enabled: Boolean(sessionId) && sessionQuery.data?.status === 'finished',
+    queryFn: () => getPracticeSessionReview(String(sessionId)),
     refetchOnWindowFocus: false,
   })
 
@@ -56,15 +63,11 @@ export function StudentPracticeSessionPage() {
   const questionTimingsSeconds = sessionQuery.data?.questionTimingsSeconds ?? null
 
   useEffect(() => {
-    if (!isTimed) return
     if (status !== 'active') return
-    if (!startedAt || timeLimitSeconds == null) return
-
-    const id = window.setInterval(() => setNowTick((v) => v + 1), 1000)
+    // Use a wall-clock timestamp and update it every second.
+    const id = window.setInterval(() => setNowMs(Date.now()), 1000)
     return () => window.clearInterval(id)
-  }, [isTimed, startedAt, status, timeLimitSeconds])
-
-  const nowMs = Date.now() + nowTick * 0
+  }, [status])
   const elapsedSeconds = useMemo(() => {
     if (!startedAt) return null
     const startedMs = Date.parse(startedAt)
@@ -92,6 +95,22 @@ export function StudentPracticeSessionPage() {
     return Math.round(sum / values.length)
   }, [questionTimingsSeconds])
 
+  const totalAnsweredSeconds = useMemo(() => {
+    if (!questionTimingsSeconds || typeof questionTimingsSeconds !== 'object') return null
+    const values = Object.values(questionTimingsSeconds).filter((v) => typeof v === 'number' && Number.isFinite(v))
+    if (values.length === 0) return null
+    return values.reduce((a, b) => a + b, 0)
+  }, [questionTimingsSeconds])
+
+  const finishedTimeStats = useMemo(() => {
+    if (!reviewQuery.data) return null
+    const totalSeconds = reviewQuery.data.items.reduce((acc, item) => acc + (item.timeTakenSeconds ?? 0), 0)
+    const answered = reviewQuery.data.items.filter((item) => item.selectedChoiceId != null)
+    const answeredSeconds = answered.reduce((acc, item) => acc + (item.timeTakenSeconds ?? 0), 0)
+    const avgAnswered = answered.length > 0 ? Math.round(answeredSeconds / answered.length) : null
+    return { totalSeconds, avgAnswered }
+  }, [reviewQuery.data])
+
   const [selectedChoiceId, setSelectedChoiceId] = useState<string | null>(null)
   const [lastFeedback, setLastFeedback] = useState<{ correct: boolean; explanation: string } | null>(null)
 
@@ -117,11 +136,8 @@ export function StudentPracticeSessionPage() {
               {sessionQuery.data.isTimed && timeRemainingSeconds != null ? (
                 <div className="rounded border border-slate-200 px-2 py-1">Time remaining: {timeRemainingSeconds}s</div>
               ) : null}
-              {sessionQuery.data.isTimed && currentQuestionElapsedSeconds != null && status === 'active' ? (
+              {currentQuestionElapsedSeconds != null && status === 'active' ? (
                 <div className="rounded border border-slate-200 px-2 py-1">This question: {currentQuestionElapsedSeconds}s</div>
-              ) : null}
-              {sessionQuery.data.isTimed && avgAnsweredSeconds != null ? (
-                <div className="rounded border border-slate-200 px-2 py-1">Avg (answered): {avgAnsweredSeconds}s</div>
               ) : null}
             </>
           ) : null}
@@ -143,10 +159,66 @@ export function StudentPracticeSessionPage() {
                 <div className="rounded border border-slate-200 p-3">
                   <div className="text-sm">Correct: {summaryQuery.data.correctCount} / {summaryQuery.data.total}</div>
                   <div className="text-sm text-slate-600">Accuracy: {Math.round(summaryQuery.data.accuracy * 100)}%</div>
+                  {finishedTimeStats?.totalSeconds != null ? (
+                    <div className="mt-2 text-sm">Total time: {finishedTimeStats.totalSeconds}s</div>
+                  ) : totalAnsweredSeconds != null ? (
+                    <div className="mt-2 text-sm">Total time: {totalAnsweredSeconds}s</div>
+                  ) : null}
+                  {finishedTimeStats?.avgAnswered != null ? (
+                    <div className="text-sm text-slate-600">Avg (answered): {finishedTimeStats.avgAnswered}s</div>
+                  ) : avgAnsweredSeconds != null ? (
+                    <div className="text-sm text-slate-600">Avg (answered): {avgAnsweredSeconds}s</div>
+                  ) : null}
                 </div>
               ) : (
                 <div className="text-sm text-slate-600">Loading summary…</div>
               )}
+
+              <div className="space-y-2">
+                <div className="text-sm font-medium">Review</div>
+                {reviewQuery.isLoading ? (
+                  <div className="text-sm text-slate-600">Loading review…</div>
+                ) : reviewQuery.isError ? (
+                  <div className="text-sm text-rose-700">Failed to load review.</div>
+                ) : reviewQuery.data ? (
+                  <div className="space-y-3">
+                    {reviewQuery.data.items.map((item) => {
+                      const choicesById = new Map(item.question.choices.map((c) => [c.id, c.text]))
+                      const selectedText = item.selectedChoiceId ? choicesById.get(item.selectedChoiceId) ?? item.selectedChoiceId : null
+                      const correctText = choicesById.get(item.correctChoiceId) ?? item.correctChoiceId
+
+                      const verdict = item.correct == null ? 'Not answered' : item.correct ? 'Correct' : 'Incorrect'
+
+                      return (
+                        <div key={item.question.id} className="rounded border border-slate-200 p-3">
+                          <div className="text-sm font-medium">Question {item.index + 1}</div>
+                          <div className="mt-1 text-sm">{item.question.prompt}</div>
+
+                          <div className="mt-2 space-y-1 text-sm text-slate-700">
+                            <div>
+                              <span className="font-medium">Verdict:</span> {verdict}
+                            </div>
+                            <div>
+                              <span className="font-medium">Selected:</span> {selectedText ?? '—'}
+                            </div>
+                            <div>
+                              <span className="font-medium">Correct answer:</span> {correctText}
+                            </div>
+                            <div>
+                              <span className="font-medium">Time:</span> {item.timeTakenSeconds}s
+                            </div>
+                            {item.explanation ? (
+                              <div className="text-slate-600">
+                                <span className="font-medium text-slate-700">Explanation:</span> {item.explanation}
+                              </div>
+                            ) : null}
+                          </div>
+                        </div>
+                      )
+                    })}
+                  </div>
+                ) : null}
+              </div>
 
               <div className="flex flex-wrap gap-2">
                 <Link to="/student/practice" className="rounded border border-slate-200 px-3 py-2 text-sm hover:bg-slate-50">
@@ -252,7 +324,7 @@ export function StudentPracticeSessionPage() {
                 {lastFeedback ? (
                   <div className="rounded border border-slate-200 p-3">
                     <div className="text-sm font-medium">{lastFeedback.correct ? 'Correct' : 'Not quite'}</div>
-                    <div className="mt-1 text-sm text-slate-600">{lastFeedback.explanation}</div>
+                    {lastFeedback.explanation ? <div className="mt-1 text-sm text-slate-600">{lastFeedback.explanation}</div> : null}
                   </div>
                 ) : null}
               </div>

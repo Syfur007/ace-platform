@@ -76,6 +76,21 @@ type PracticeSessionSummaryResponse struct {
 	Accuracy     float64 `json:"accuracy"`
 }
 
+type PracticeSessionReviewItem struct {
+	Index            int              `json:"index"`
+	Question         PracticeQuestion `json:"question"`
+	SelectedChoiceID *string          `json:"selectedChoiceId,omitempty"`
+	Correct          *bool            `json:"correct,omitempty"`
+	Explanation      *string          `json:"explanation,omitempty"`
+	TimeTakenSeconds int              `json:"timeTakenSeconds"`
+	CorrectChoiceID  string           `json:"correctChoiceId"`
+}
+
+type PracticeSessionReviewResponse struct {
+	SessionID string                    `json:"sessionId"`
+	Items     []PracticeSessionReviewItem `json:"items"`
+}
+
 type PracticeSessionListItem struct {
 	SessionID    string               `json:"sessionId"`
 	Status       PracticeSessionStatus `json:"status"`
@@ -227,6 +242,13 @@ func RegisterPracticeRoutes(r *gin.Engine, pool *pgxpool.Pool) {
 				timeLimitPtr = &copy
 				if st == string(PracticeSessionActive) {
 					elapsedSeconds := int(now.Sub(startedAt).Seconds())
+					if elapsedSeconds >= timeLimitSeconds {
+						// Force-finish Ironman when time is up so catalog/history doesn't show stale "in progress".
+						_, _ = pool.Exec(ctx, `update practice_sessions set status=$1, last_activity_at=now() where id=$2 and user_id=$3 and status=$4`,
+							string(PracticeSessionFinished), id, userID, string(PracticeSessionActive))
+						st = string(PracticeSessionFinished)
+						elapsedSeconds = timeLimitSeconds
+					}
 					remaining := timeLimitSeconds - elapsedSeconds
 					if remaining < 0 {
 						remaining = 0
@@ -308,21 +330,18 @@ func RegisterPracticeRoutes(r *gin.Engine, pool *pgxpool.Pool) {
 		now := time.Now().UTC()
 		var timeLimitSeconds *int
 		var currentQuestionStartedAt *string
-		var questionTimings map[string]int
+		questionTimings := map[string]int{}
 		if req.Timed {
 			limit := count * ironmanSecondsPerQuestion
 			_, _ = pool.Exec(ctx, `update practice_sessions set started_at=now(), time_limit_seconds=$1, current_question_started_at=now(), question_timings='{}'::jsonb where id=$2 and user_id=$3`,
 				limit, sessionID, userID)
 			timeLimitSeconds = &limit
-			startedAt := now.Format(time.RFC3339)
-			currentQuestionStartedAt = &startedAt
-			questionTimings = map[string]int{}
-		} else {
-			_, _ = pool.Exec(ctx, `update practice_sessions set started_at=now(), current_question_started_at=now(), question_timings='{}'::jsonb where id=$1 and user_id=$2`,
-				sessionID, userID)
-			startedAt := now.Format(time.RFC3339)
-			currentQuestionStartedAt = &startedAt
 		}
+		// Always initialize timing fields so untimed sessions can show time-per-question in review.
+		_, _ = pool.Exec(ctx, `update practice_sessions set started_at=now(), current_question_started_at=now(), question_timings='{}'::jsonb where id=$1 and user_id=$2`,
+			sessionID, userID)
+		startedAt := now.Format(time.RFC3339)
+		currentQuestionStartedAt = &startedAt
 
 		c.JSON(http.StatusOK, PracticeSessionResponse{
 			SessionID:    sessionID,
@@ -374,16 +393,36 @@ func RegisterPracticeRoutes(r *gin.Engine, pool *pgxpool.Pool) {
 		}
 
 		now := time.Now().UTC()
-		if isTimed && status == string(PracticeSessionActive) {
-			elapsedSeconds := int(now.Sub(startedAt).Seconds())
-			if elapsedSeconds >= timeLimitSeconds {
-				_, _ = pool.Exec(ctx, `update practice_sessions set status=$1, last_activity_at=now() where id=$2 and user_id=$3`, string(PracticeSessionFinished), sessionID, userID)
-				status = string(PracticeSessionFinished)
-			}
-		}
 
 		var order []string
 		_ = json.Unmarshal(orderRaw, &order)
+
+		questionTimings := map[string]int{}
+		if len(questionTimingsRaw) > 0 {
+			_ = json.Unmarshal(questionTimingsRaw, &questionTimings)
+		}
+		if questionTimings == nil {
+			questionTimings = map[string]int{}
+		}
+
+		if isTimed && status == string(PracticeSessionActive) {
+			elapsedSeconds := int(now.Sub(startedAt).Seconds())
+			if elapsedSeconds >= timeLimitSeconds {
+				// Force-finish and persist the partial time for the current question.
+				if currentIndex >= 0 && currentIndex < len(order) {
+					qid := order[currentIndex]
+					spent := int(now.Sub(currentQuestionStartedAt).Seconds())
+					if spent < 0 {
+						spent = 0
+					}
+					questionTimings[qid] = questionTimings[qid] + spent
+				}
+				questionTimingsJSON, _ := json.Marshal(questionTimings)
+				_, _ = pool.Exec(ctx, `update practice_sessions set status=$1, question_timings=$2, last_activity_at=now() where id=$3 and user_id=$4`,
+					string(PracticeSessionFinished), questionTimingsJSON, sessionID, userID)
+				status = string(PracticeSessionFinished)
+			}
+		}
 
 		var question *PracticeQuestion
 		if status == string(PracticeSessionActive) && currentIndex >= 0 && currentIndex < len(order) {
@@ -395,25 +434,13 @@ func RegisterPracticeRoutes(r *gin.Engine, pool *pgxpool.Pool) {
 
 		var timeLimitPtr *int
 		var currentQuestionStartedAtPtr *string
-		var questionTimings map[string]int
 		if isTimed {
 			copy := timeLimitSeconds
 			timeLimitPtr = &copy
-			if !currentQuestionStartedAt.IsZero() {
-				v := currentQuestionStartedAt.UTC().Format(time.RFC3339)
-				currentQuestionStartedAtPtr = &v
-			}
-			if len(questionTimingsRaw) > 0 {
-				_ = json.Unmarshal(questionTimingsRaw, &questionTimings)
-			}
-			if questionTimings == nil {
-				questionTimings = map[string]int{}
-			}
-		} else {
-			if !currentQuestionStartedAt.IsZero() {
-				v := currentQuestionStartedAt.UTC().Format(time.RFC3339)
-				currentQuestionStartedAtPtr = &v
-			}
+		}
+		if !currentQuestionStartedAt.IsZero() {
+			v := currentQuestionStartedAt.UTC().Format(time.RFC3339)
+			currentQuestionStartedAtPtr = &v
 		}
 
 		c.JSON(http.StatusOK, PracticeSessionResponse{
@@ -479,8 +506,28 @@ func RegisterPracticeRoutes(r *gin.Engine, pool *pgxpool.Pool) {
 			c.JSON(http.StatusBadRequest, gin.H{"message": "session not active"})
 			return
 		} else {
-			_, err := pool.Exec(ctx, `update practice_sessions set status=$1, paused_at=now(), last_activity_at=now() where id=$2 and user_id=$3`,
-				string(PracticeSessionPaused), sessionID, userID)
+			// Persist time spent so far on the current question before pausing.
+			var order []string
+			_ = json.Unmarshal(orderRaw, &order)
+			questionTimings := map[string]int{}
+			if len(questionTimingsRaw) > 0 {
+				_ = json.Unmarshal(questionTimingsRaw, &questionTimings)
+			}
+			if questionTimings == nil {
+				questionTimings = map[string]int{}
+			}
+			if currentIndex >= 0 && currentIndex < len(order) {
+				qid := order[currentIndex]
+				spent := int(time.Now().UTC().Sub(currentQuestionStartedAt).Seconds())
+				if spent < 0 {
+					spent = 0
+				}
+				questionTimings[qid] = questionTimings[qid] + spent
+			}
+			questionTimingsJSON, _ := json.Marshal(questionTimings)
+
+			_, err := pool.Exec(ctx, `update practice_sessions set status=$1, paused_at=now(), question_timings=$2, last_activity_at=now() where id=$3 and user_id=$4`,
+				string(PracticeSessionPaused), questionTimingsJSON, sessionID, userID)
 			if err != nil {
 				c.JSON(http.StatusInternalServerError, gin.H{"message": "failed to pause session"})
 				return
@@ -488,13 +535,18 @@ func RegisterPracticeRoutes(r *gin.Engine, pool *pgxpool.Pool) {
 			status = string(PracticeSessionPaused)
 		}
 
-		var order []string
-		_ = json.Unmarshal(orderRaw, &order)
-
 		var currentQuestionStartedAtPtr *string
 		if !currentQuestionStartedAt.IsZero() {
 			v := currentQuestionStartedAt.UTC().Format(time.RFC3339)
 			currentQuestionStartedAtPtr = &v
+		}
+
+		questionTimings := map[string]int{}
+		if len(questionTimingsRaw) > 0 {
+			_ = json.Unmarshal(questionTimingsRaw, &questionTimings)
+		}
+		if questionTimings == nil {
+			questionTimings = map[string]int{}
 		}
 
 		c.JSON(http.StatusOK, PracticeSessionResponse{
@@ -510,6 +562,7 @@ func RegisterPracticeRoutes(r *gin.Engine, pool *pgxpool.Pool) {
 			CorrectCount: correctCount,
 			Question:     nil,
 			CurrentQuestionStartedAt: currentQuestionStartedAtPtr,
+			QuestionTimingsSeconds: questionTimings,
 		})
 	})
 
@@ -631,21 +684,37 @@ func RegisterPracticeRoutes(r *gin.Engine, pool *pgxpool.Pool) {
 			return
 		}
 
-		now := time.Now().UTC()
-		if isTimed {
-			elapsedSeconds := int(now.Sub(startedAt).Seconds())
-			if elapsedSeconds >= timeLimitSeconds {
-				_, _ = pool.Exec(ctx, `update practice_sessions set status=$1, last_activity_at=now() where id=$2 and user_id=$3`, string(PracticeSessionFinished), sessionID, userID)
-				c.JSON(http.StatusBadRequest, gin.H{"message": "time is up"})
-				return
-			}
-		}
-
 		var order []string
 		_ = json.Unmarshal(orderRaw, &order)
 		if currentIndex < 0 || currentIndex >= len(order) {
 			c.JSON(http.StatusBadRequest, gin.H{"message": "session is complete"})
 			return
+		}
+
+		now := time.Now().UTC()
+		if isTimed {
+			elapsedSeconds := int(now.Sub(startedAt).Seconds())
+			if elapsedSeconds >= timeLimitSeconds {
+				// Force-finish and persist the partial time for the current question.
+				questionTimings := map[string]int{}
+				if len(questionTimingsRaw) > 0 {
+					_ = json.Unmarshal(questionTimingsRaw, &questionTimings)
+				}
+				if questionTimings == nil {
+					questionTimings = map[string]int{}
+				}
+				qid := order[currentIndex]
+				spent := int(now.Sub(currentQuestionStartedAt).Seconds())
+				if spent < 0 {
+					spent = 0
+				}
+				questionTimings[qid] = questionTimings[qid] + spent
+				questionTimingsJSON, _ := json.Marshal(questionTimings)
+				_, _ = pool.Exec(ctx, `update practice_sessions set status=$1, question_timings=$2, last_activity_at=now() where id=$3 and user_id=$4`,
+					string(PracticeSessionFinished), questionTimingsJSON, sessionID, userID)
+				c.JSON(http.StatusBadRequest, gin.H{"message": "time is up"})
+				return
+			}
 		}
 
 		expectedQuestionID := order[currentIndex]
@@ -677,13 +746,14 @@ func RegisterPracticeRoutes(r *gin.Engine, pool *pgxpool.Pool) {
 		if len(questionTimingsRaw) > 0 {
 			_ = json.Unmarshal(questionTimingsRaw, &questionTimings)
 		}
-		if isTimed {
-			spent := int(now.Sub(currentQuestionStartedAt).Seconds())
-			if spent < 0 {
-				spent = 0
-			}
-			questionTimings[expectedQuestionID] = questionTimings[expectedQuestionID] + spent
+		if questionTimings == nil {
+			questionTimings = map[string]int{}
 		}
+		spent := int(now.Sub(currentQuestionStartedAt).Seconds())
+		if spent < 0 {
+			spent = 0
+		}
+		questionTimings[expectedQuestionID] = questionTimings[expectedQuestionID] + spent
 		questionTimingsJSON, _ := json.Marshal(questionTimings)
 
 		_, err = pool.Exec(ctx, `update practice_sessions set current_index=$1, correct_count=$2, status=$3, current_question_started_at=now(), question_timings=$4, last_activity_at=now() where id=$5 and user_id=$6`,
@@ -698,9 +768,100 @@ func RegisterPracticeRoutes(r *gin.Engine, pool *pgxpool.Pool) {
 
 		c.JSON(http.StatusOK, SubmitPracticeAnswerResponse{
 			Correct:     isCorrect,
+			// Explanations are available after submitting an answer.
 			Explanation: item.explanation,
 			Done:        newStatus == string(PracticeSessionFinished),
 		})
+	})
+
+	r.GET("/practice-sessions/:sessionId/review", auth.RequirePortalAuth("student", "student"), func(c *gin.Context) {
+		userID, ok := auth.GetUserID(c)
+		if !ok {
+			c.JSON(http.StatusUnauthorized, gin.H{"message": "unauthorized"})
+			return
+		}
+
+		sessionID := c.Param("sessionId")
+		ctx := context.Background()
+
+		var status string
+		var orderRaw []byte
+		var questionTimingsRaw []byte
+		err := pool.QueryRow(ctx, `select status, question_order, question_timings from practice_sessions where id=$1 and user_id=$2`, sessionID, userID).
+			Scan(&status, &orderRaw, &questionTimingsRaw)
+		if err != nil {
+			c.JSON(http.StatusNotFound, gin.H{"message": "session not found"})
+			return
+		}
+		if status != string(PracticeSessionFinished) {
+			c.JSON(http.StatusBadRequest, gin.H{"message": "review is only available for finished sessions"})
+			return
+		}
+
+		var order []string
+		_ = json.Unmarshal(orderRaw, &order)
+		questionTimings := map[string]int{}
+		if len(questionTimingsRaw) > 0 {
+			_ = json.Unmarshal(questionTimingsRaw, &questionTimings)
+		}
+		if questionTimings == nil {
+			questionTimings = map[string]int{}
+		}
+
+		type answerRow struct {
+			QuestionID  string
+			ChoiceID    string
+			Correct     bool
+			Explanation string
+		}
+		answers := map[string]answerRow{}
+		rows, err := pool.Query(ctx, `select question_id, choice_id, correct, explanation from practice_answers where session_id=$1 and user_id=$2 order by ts asc`, sessionID, userID)
+		if err != nil {
+			c.JSON(http.StatusInternalServerError, gin.H{"message": "failed to load review answers"})
+			return
+		}
+		defer rows.Close()
+		for rows.Next() {
+			var r answerRow
+			if err := rows.Scan(&r.QuestionID, &r.ChoiceID, &r.Correct, &r.Explanation); err != nil {
+				c.JSON(http.StatusInternalServerError, gin.H{"message": "failed to load review answers"})
+				return
+			}
+			answers[r.QuestionID] = r
+		}
+
+		bank := demoBank()
+		items := make([]PracticeSessionReviewItem, 0, len(order))
+		for i, qid := range order {
+			item, ok := findInBank(bank, qid)
+			if !ok {
+				c.JSON(http.StatusInternalServerError, gin.H{"message": "unknown question in session"})
+				return
+			}
+
+			var selectedChoiceID *string
+			var correctPtr *bool
+			var explanationPtr *string
+			if ans, ok := answers[qid]; ok {
+				selectedChoiceID = &ans.ChoiceID
+				correctCopy := ans.Correct
+				correctPtr = &correctCopy
+				explCopy := ans.Explanation
+				explanationPtr = &explCopy
+			}
+
+			items = append(items, PracticeSessionReviewItem{
+				Index:            i,
+				Question:         item.q,
+				SelectedChoiceID: selectedChoiceID,
+				Correct:          correctPtr,
+				Explanation:      explanationPtr,
+				TimeTakenSeconds: questionTimings[qid],
+				CorrectChoiceID:  item.correctID,
+			})
+		}
+
+		c.JSON(http.StatusOK, PracticeSessionReviewResponse{SessionID: sessionID, Items: items})
 	})
 
 	r.GET("/practice-sessions/:sessionId/summary", auth.RequirePortalAuth("student", "student"), func(c *gin.Context) {

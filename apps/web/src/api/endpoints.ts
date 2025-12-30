@@ -169,3 +169,12 @@ export async function getPracticeSessionSummary(sessionId: string): Promise<Prac
     method: 'GET',
   })
 }
+
+export type PracticeSessionReviewResponse =
+  paths['/practice-sessions/{sessionId}/review']['get']['responses'][200]['content']['application/json']
+
+export async function getPracticeSessionReview(sessionId: string): Promise<PracticeSessionReviewResponse> {
+  return apiFetchJson<PracticeSessionReviewResponse>(`/practice-sessions/${encodeURIComponent(sessionId)}/review`, {
+    method: 'GET',
+  })
+}
