@@ -1,7 +1,6 @@
 import { useEffect } from 'react'
 import { createBrowserRouter, Link, Navigate, Outlet, RouterProvider, useLocation, useNavigate } from 'react-router-dom'
 
-import { AdminPanelPage } from '@/pages/AdminPanelPage'
 import { ExamSimulationPage } from '@/pages/ExamSimulationPage'
 import { InstructorDashboardPage } from '@/pages/InstructorDashboardPage'
 import { PackageDetailsPage } from '@/pages/PackageDetailsPage'
@@ -199,7 +198,6 @@ const router = createBrowserRouter([
           { path: 'question-bank', element: <AdminQuestionBankPage /> },
           { path: 'users', element: <AdminUsersPage /> },
           { path: 'exam-integrity', element: <AdminExamIntegrityPage /> },
-          { path: 'manage', element: <AdminPanelPage /> },
         ],
       },
     ],

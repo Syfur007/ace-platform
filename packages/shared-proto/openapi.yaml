@@ -1138,19 +1138,6 @@ paths:
                 $ref: '#/components/schemas/OkResponse'
 
   /admin/questions/{questionId}/request-changes:
-      /admin/dashboard:
-        get:
-          operationId: adminGetDashboardStats
-          security:
-            - bearerAuth: []
-          responses:
-            '200':
-              description: Admin dashboard stats (lifetime totals)
-              content:
-                application/json:
-                  schema:
-                    $ref: '#/components/schemas/AdminDashboardStatsResponse'
-
     post:
       operationId: adminRequestQuestionChanges
       security:
@@ -1177,6 +1164,19 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/OkResponse'
+
+  /admin/dashboard:
+    get:
+      operationId: adminGetDashboardStats
+      security:
+        - bearerAuth: []
+      responses:
+        '200':
+          description: Admin dashboard stats (lifetime totals)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AdminDashboardStatsResponse'
 
   /exam-sessions/{sessionId}/heartbeat:
     post:

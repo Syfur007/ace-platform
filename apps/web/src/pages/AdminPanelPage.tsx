@@ -18,7 +18,6 @@ import {
   adminRestoreUser,
   adminTerminateExamSession,
   adminUpdateUser,
-  getHealthz,
   instructorArchiveQuestion,
   instructorCreateQuestion,
   instructorCreateQuestionPackage,
@@ -80,31 +79,17 @@ function examStatusLabel(status?: string) {
   return status
 }
 
-type AdminTab = 'questionBank' | 'users' | 'examIntegrity'
+export type AdminTab = 'questionBank' | 'users' | 'examIntegrity'
 
 export type AdminPanelPageProps = {
-  initialTab?: AdminTab
-  singleTab?: AdminTab
+  tab: AdminTab
 }
 
-export function AdminPanelPage(props?: AdminPanelPageProps) {
+export function AdminPanelPage(props: AdminPanelPageProps) {
   const queryClient = useQueryClient()
   const navigate = useNavigate()
 
-  const [activeTab, setActiveTab] = useState<AdminTab>(props?.singleTab ?? props?.initialTab ?? 'questionBank')
-
-  const isSingle = Boolean(props?.singleTab)
-
-  useEffect(() => {
-    if (!props?.singleTab) return
-    setActiveTab(props.singleTab)
-  }, [props?.singleTab])
-
-  const health = useQuery({
-    queryKey: ['healthz'],
-    queryFn: getHealthz,
-    refetchInterval: 15_000,
-  })
+  const activeTab = props.tab
 
   const [packageName, setPackageName] = useState('')
   const [topicName, setTopicName] = useState('')
@@ -520,114 +505,33 @@ export function AdminPanelPage(props?: AdminPanelPageProps) {
 
   return (
     <div className="space-y-6">
-      {isSingle ? (
-        <div className="flex flex-wrap items-start justify-between gap-3">
-          <div className="space-y-1">
-            <h2 className="text-xl font-semibold">
-              {activeTab === 'questionBank' ? 'Question Bank' : activeTab === 'users' ? 'Users' : 'Exam Integrity'}
-            </h2>
-            <p className="text-sm text-slate-600">Admin tools.</p>
-          </div>
-          <div className="flex flex-wrap gap-2">
-            <button
-              type="button"
-              className="rounded border border-slate-200 px-3 py-2 text-sm hover:bg-slate-50"
-              onClick={() => navigate('/admin')}
-            >
-              Back to dashboard
-            </button>
-            <button
-              type="button"
-              className="rounded border border-slate-200 px-3 py-2 text-sm hover:bg-slate-50"
-              onClick={() => {
-                clearAllAccessTokens()
-                navigate('/admin/auth')
-              }}
-            >
-              Log out
-            </button>
-          </div>
+      <div className="flex flex-wrap items-start justify-between gap-3">
+        <div className="space-y-1">
+          <h2 className="text-xl font-semibold">
+            {activeTab === 'questionBank' ? 'Question Bank' : activeTab === 'users' ? 'Users' : 'Exam Integrity'}
+          </h2>
+          <p className="text-sm text-slate-600">Admin tools.</p>
         </div>
-      ) : (
-        <>
-          <div className="flex items-start justify-between gap-3">
-            <div className="space-y-1">
-              <h2 className="text-xl font-semibold">Admin Panel</h2>
-              <p className="text-sm text-slate-600">System monitoring and export hooks (contract-first).</p>
-            </div>
-            <button
-              type="button"
-              className="rounded border border-slate-200 px-3 py-2 text-sm hover:bg-slate-50"
-              onClick={() => {
-                clearAllAccessTokens()
-                navigate('/admin/auth')
-              }}
-            >
-              Log out
-            </button>
-          </div>
-
-          <div className="rounded border border-slate-200 p-4">
-            <div className="flex items-center justify-between gap-3">
-              <div>
-                <div className="font-medium">API Gateway Health</div>
-                <div className="mt-1 text-sm text-slate-600">
-                  {health.isLoading && 'Loading…'}
-                  {health.isError && 'Error contacting gateway.'}
-                  {health.data && `status=${health.data.status} ts=${health.data.ts}`}
-                </div>
-              </div>
-              <button
-                className="rounded border border-slate-200 px-3 py-2 text-sm hover:bg-slate-50"
-                type="button"
-                onClick={() => alert('Export endpoint scaffolded in OpenAPI; wire when backend is ready.')}
-              >
-                Export Data
-              </button>
-            </div>
-          </div>
-
-          <div className="rounded border border-slate-200 p-4">
-            <div className="font-medium">Monitoring</div>
-            <div className="mt-1 text-sm text-slate-600">Next: surface metrics, queue depth, and active sessions.</div>
-          </div>
-
-          <div className="rounded border border-slate-200 p-2">
-            <div className="flex flex-wrap gap-2">
-              <button
-                type="button"
-                onClick={() => setActiveTab('questionBank')}
-                className={[
-                  'rounded border px-3 py-2 text-sm',
-                  activeTab === 'questionBank' ? 'border-slate-300 bg-slate-50' : 'border-slate-200 hover:bg-slate-50',
-                ].join(' ')}
-              >
-                Question Bank
-              </button>
-              <button
-                type="button"
-                onClick={() => setActiveTab('users')}
-                className={[
-                  'rounded border px-3 py-2 text-sm',
-                  activeTab === 'users' ? 'border-slate-300 bg-slate-50' : 'border-slate-200 hover:bg-slate-50',
-                ].join(' ')}
-              >
-                Users
-              </button>
-              <button
-                type="button"
-                onClick={() => setActiveTab('examIntegrity')}
-                className={[
-                  'rounded border px-3 py-2 text-sm',
-                  activeTab === 'examIntegrity' ? 'border-slate-300 bg-slate-50' : 'border-slate-200 hover:bg-slate-50',
-                ].join(' ')}
-              >
-                Exam Integrity
-              </button>
-            </div>
-          </div>
-        </>
-      )}
+        <div className="flex flex-wrap gap-2">
+          <button
+            type="button"
+            className="rounded border border-slate-200 px-3 py-2 text-sm hover:bg-slate-50"
+            onClick={() => navigate('/admin')}
+          >
+            Back to dashboard
+          </button>
+          <button
+            type="button"
+            className="rounded border border-slate-200 px-3 py-2 text-sm hover:bg-slate-50"
+            onClick={() => {
+              clearAllAccessTokens()
+              navigate('/admin/auth')
+            }}
+          >
+            Log out
+          </button>
+        </div>
+      </div>
 
       {activeTab === 'questionBank' ? (
       <div className="rounded border border-slate-200 p-4">

@@ -43,9 +43,6 @@ export function AdminDashboardPage() {
           <Link className="rounded border border-slate-200 px-3 py-2 text-sm hover:bg-slate-50" to="/admin/exam-integrity">
             Exam Integrity
           </Link>
-          <Link className="rounded border border-slate-200 px-3 py-2 text-sm hover:bg-slate-50" to="/admin/manage">
-            Admin Panel (tabs)
-          </Link>
         </div>
       </div>
 
