@@ -1138,6 +1138,19 @@ paths:
                 $ref: '#/components/schemas/OkResponse'
 
   /admin/questions/{questionId}/request-changes:
+      /admin/dashboard:
+        get:
+          operationId: adminGetDashboardStats
+          security:
+            - bearerAuth: []
+          responses:
+            '200':
+              description: Admin dashboard stats (lifetime totals)
+              content:
+                application/json:
+                  schema:
+                    $ref: '#/components/schemas/AdminDashboardStatsResponse'
+
     post:
       operationId: adminRequestQuestionChanges
       security:
@@ -1380,6 +1393,57 @@ components:
       scheme: bearer
       bearerFormat: JWT
   schemas:
+    AdminDashboardStatsResponse:
+      type: object
+      required: [ts, users, questionBank, exams]
+      properties:
+        ts:
+          type: string
+          format: date-time
+        users:
+          type: object
+          required: [total, active, deleted, byRole]
+          properties:
+            total:
+              type: integer
+            active:
+              type: integer
+            deleted:
+              type: integer
+            byRole:
+              type: object
+              additionalProperties:
+                type: integer
+        questionBank:
+          type: object
+          required: [packages, topics, questions, byStatus]
+          properties:
+            packages:
+              type: integer
+            topics:
+              type: integer
+            questions:
+              type: integer
+            byStatus:
+              type: object
+              additionalProperties:
+                type: integer
+        exams:
+          type: object
+          required: [sessions, submitted, byStatus, events, flags]
+          properties:
+            sessions:
+              type: integer
+            submitted:
+              type: integer
+            byStatus:
+              type: object
+              additionalProperties:
+                type: integer
+            events:
+              type: integer
+            flags:
+              type: integer
     HealthzResponse:
       type: object
       required: [status, ts]

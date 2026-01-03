@@ -18,6 +18,10 @@ import { StudentProfilePage } from '@/pages/student/StudentProfilePage'
 import { StudentStudyPlanPage } from '@/pages/student/StudentStudyPlanPage'
 import { StudentTestsPage } from '@/pages/student/StudentTestsPage'
 import { clearAllAccessTokens, getAuthenticatedPortal, getPortalFromPathname, normalizeAccessTokens } from '@/auth/token'
+import { AdminDashboardPage } from '@/pages/admin/AdminDashboardPage'
+import { AdminExamIntegrityPage } from '@/pages/admin/AdminExamIntegrityPage'
+import { AdminQuestionBankPage } from '@/pages/admin/AdminQuestionBankPage'
+import { AdminUsersPage } from '@/pages/admin/AdminUsersPage'
 
 function AppShell() {
   const location = useLocation()
@@ -186,9 +190,17 @@ const router = createBrowserRouter([
         path: 'admin',
         element: (
           <RequirePortalAuth portal="admin">
-            <AdminPanelPage />
+            <Outlet />
           </RequirePortalAuth>
         ),
+        children: [
+          { index: true, element: <AdminDashboardPage /> },
+          { path: 'dashboard', element: <AdminDashboardPage /> },
+          { path: 'question-bank', element: <AdminQuestionBankPage /> },
+          { path: 'users', element: <AdminUsersPage /> },
+          { path: 'exam-integrity', element: <AdminExamIntegrityPage /> },
+          { path: 'manage', element: <AdminPanelPage /> },
+        ],
       },
     ],
   },

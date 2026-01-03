@@ -602,3 +602,32 @@ export async function adminListExamEvents(
     { method: 'GET' },
   )
 }
+
+// Admin dashboard
+
+export type AdminDashboardStatsResponse = {
+  ts: string
+  users: {
+    total: number
+    active: number
+    deleted: number
+    byRole: Record<string, number>
+  }
+  questionBank: {
+    packages: number
+    topics: number
+    questions: number
+    byStatus: Record<string, number>
+  }
+  exams: {
+    sessions: number
+    submitted: number
+    byStatus: Record<string, number>
+    events: number
+    flags: number
+  }
+}
+
+export async function adminGetDashboardStats(): Promise<AdminDashboardStatsResponse> {
+  return apiFetchJson<AdminDashboardStatsResponse>('/admin/dashboard', { method: 'GET' })
+}

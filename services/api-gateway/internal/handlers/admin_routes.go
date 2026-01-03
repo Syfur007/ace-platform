@@ -105,6 +105,35 @@ type ListAdminExamEventsResponse struct {
 	HasMore bool                     `json:"hasMore"`
 }
 
+type AdminDashboardUsersStats struct {
+	Total   int64            `json:"total"`
+	Active  int64            `json:"active"`
+	Deleted int64            `json:"deleted"`
+	ByRole  map[string]int64 `json:"byRole"`
+}
+
+type AdminDashboardQuestionBankStats struct {
+	Packages  int64            `json:"packages"`
+	Topics    int64            `json:"topics"`
+	Questions int64            `json:"questions"`
+	ByStatus  map[string]int64 `json:"byStatus"`
+}
+
+type AdminDashboardExamStats struct {
+	Sessions  int64            `json:"sessions"`
+	Submitted int64            `json:"submitted"`
+	ByStatus  map[string]int64 `json:"byStatus"`
+	Events    int64            `json:"events"`
+	Flags     int64            `json:"flags"`
+}
+
+type AdminDashboardStatsResponse struct {
+	Ts           string                         `json:"ts"`
+	Users        AdminDashboardUsersStats       `json:"users"`
+	QuestionBank AdminDashboardQuestionBankStats `json:"questionBank"`
+	Exams        AdminDashboardExamStats        `json:"exams"`
+}
+
 func isValidRole(role string) bool {
 	return role == "student" || role == "instructor" || role == "admin"
 }
@@ -126,6 +155,115 @@ func audit(ctx context.Context, pool *pgxpool.Pool, actorUserID string, actorRol
 
 func RegisterAdminRoutes(r *gin.Engine, pool *pgxpool.Pool) {
 	adminAuth := auth.RequirePortalAuth("admin", "admin")
+
+	// Dashboard (lifetime totals)
+	r.GET("/admin/dashboard", adminAuth, func(c *gin.Context) {
+		ctx := context.Background()
+
+		var usersTotal, usersActive, usersDeleted int64
+		var usersStudent, usersInstructor, usersAdmin int64
+		var qbPackages, qbTopics, qbQuestions int64
+		var examSessions, examSubmitted int64
+		var examEvents, examFlags int64
+
+		err := pool.QueryRow(ctx, `
+			select
+				(select count(*) from users) as users_total,
+				(select count(*) from users where deleted_at is null) as users_active,
+				(select count(*) from users where deleted_at is not null) as users_deleted,
+				(select count(*) from users where deleted_at is null and role='student') as users_student,
+				(select count(*) from users where deleted_at is null and role='instructor') as users_instructor,
+				(select count(*) from users where deleted_at is null and role='admin') as users_admin,
+				(select count(*) from question_bank_packages) as qb_packages,
+				(select count(*) from question_bank_topics) as qb_topics,
+				(select count(*) from question_bank_questions) as qb_questions,
+				(select count(*) from exam_sessions) as exam_sessions,
+				(select count(*) from exam_sessions where submitted_at is not null) as exam_submitted,
+				(select count(*) from exam_session_events) as exam_events,
+				(select count(*) from exam_session_flags) as exam_flags
+		`).Scan(
+			&usersTotal,
+			&usersActive,
+			&usersDeleted,
+			&usersStudent,
+			&usersInstructor,
+			&usersAdmin,
+			&qbPackages,
+			&qbTopics,
+			&qbQuestions,
+			&examSessions,
+			&examSubmitted,
+			&examEvents,
+			&examFlags,
+		)
+		if err != nil {
+			c.JSON(http.StatusInternalServerError, gin.H{"message": "failed to compute dashboard stats"})
+			return
+		}
+
+		questionByStatus := map[string]int64{}
+		rows, err := pool.Query(ctx, `select status, count(*) from question_bank_questions group by status`)
+		if err != nil {
+			c.JSON(http.StatusInternalServerError, gin.H{"message": "failed to compute question stats"})
+			return
+		}
+		for rows.Next() {
+			var status string
+			var count int64
+			if err := rows.Scan(&status, &count); err != nil {
+				rows.Close()
+				c.JSON(http.StatusInternalServerError, gin.H{"message": "failed to compute question stats"})
+				return
+			}
+			questionByStatus[status] = count
+		}
+		rows.Close()
+
+		examByStatus := map[string]int64{}
+		rows2, err := pool.Query(ctx, `select status, count(*) from exam_sessions group by status`)
+		if err != nil {
+			c.JSON(http.StatusInternalServerError, gin.H{"message": "failed to compute exam stats"})
+			return
+		}
+		for rows2.Next() {
+			var status string
+			var count int64
+			if err := rows2.Scan(&status, &count); err != nil {
+				rows2.Close()
+				c.JSON(http.StatusInternalServerError, gin.H{"message": "failed to compute exam stats"})
+				return
+			}
+			examByStatus[status] = count
+		}
+		rows2.Close()
+
+		c.JSON(http.StatusOK, AdminDashboardStatsResponse{
+			Ts: time.Now().UTC().Format(time.RFC3339),
+			Users: AdminDashboardUsersStats{
+				Total:   usersTotal,
+				Active:  usersActive,
+				Deleted: usersDeleted,
+				ByRole: map[string]int64{
+					"student":    usersStudent,
+					"instructor": usersInstructor,
+					"admin":      usersAdmin,
+				},
+			},
+			QuestionBank: AdminDashboardQuestionBankStats{
+				Packages:  qbPackages,
+				Topics:    qbTopics,
+				Questions: qbQuestions,
+				ByStatus:  questionByStatus,
+			},
+			Exams: AdminDashboardExamStats{
+				Sessions:  examSessions,
+				Submitted: examSubmitted,
+				ByStatus:  examByStatus,
+				Events:    examEvents,
+				Flags:     examFlags,
+			},
+		})
+	})
 
 	// IAM
 	{
