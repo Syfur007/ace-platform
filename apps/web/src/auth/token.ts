@@ -63,55 +63,50 @@ function clearOtherAccessTokens(keepPortal: Portal) {
 }
 
 export function getAuthenticatedPortal(): Portal | null {
+  try {
+    const v = window.localStorage.getItem(ACTIVE_PORTAL_KEY) as Portal | null
+    if (v === 'student' || v === 'instructor' || v === 'admin') return v
+  } catch {
+    // ignore
+  }
+
+  // Legacy fallback: if exactly one portal token exists, keep that portal as active.
   const portals = getPortalsWithTokens()
-  return portals.length === 1 ? portals[0] : null
+  if (portals.length === 1) {
+    try {
+      window.localStorage.setItem(ACTIVE_PORTAL_KEY, portals[0])
+    } catch {
+      // ignore
+    }
+    return portals[0]
+  }
+  return null
 }
 
 export function normalizeAccessTokens(preferredPortal: Portal | null) {
+  // Cookie-based auth: keep only a portal hint for navigation.
   try {
-    const portals = getPortalsWithTokens()
-    if (portals.length <= 1) return
+    if (preferredPortal) window.localStorage.setItem(ACTIVE_PORTAL_KEY, preferredPortal)
 
-    // If we're currently in a portal and have that token, keep it.
-    if (preferredPortal) {
-      const preferredToken = window.localStorage.getItem(portalTokenKey(preferredPortal))
-      if (preferredToken) {
-        clearOtherAccessTokens(preferredPortal)
-        window.localStorage.setItem(ACTIVE_PORTAL_KEY, preferredPortal)
-        return
-      }
-    }
-
-    // Otherwise keep the last active portal if possible.
-    const lastActive = window.localStorage.getItem(ACTIVE_PORTAL_KEY) as Portal | null
-    if (lastActive && (lastActive === 'student' || lastActive === 'instructor' || lastActive === 'admin')) {
-      const lastActiveToken = window.localStorage.getItem(portalTokenKey(lastActive))
-      if (lastActiveToken) {
-        clearOtherAccessTokens(lastActive)
-        window.localStorage.setItem(ACTIVE_PORTAL_KEY, lastActive)
-        return
-      }
-    }
-
-    // Fallback: keep admin > instructor > student.
-    const fallbackOrder: Portal[] = ['admin', 'instructor', 'student']
-    for (const portal of fallbackOrder) {
-      const token = window.localStorage.getItem(portalTokenKey(portal))
-      if (token) {
-        clearOtherAccessTokens(portal)
-        window.localStorage.setItem(ACTIVE_PORTAL_KEY, portal)
-        return
-      }
-    }
+    // Best-effort cleanup of any legacy tokens.
+    window.localStorage.removeItem(portalTokenKey('student'))
+    window.localStorage.removeItem(portalTokenKey('instructor'))
+    window.localStorage.removeItem(portalTokenKey('admin'))
+    window.localStorage.removeItem(LEGACY_ACCESS_TOKEN_KEY)
   } catch {
     // ignore
   }
 }
 
 export function setAccessToken(portal: Portal, token: string) {
+  // Backward-compatible API: callers still pass a token, but we no longer persist it.
+  void token
   try {
-    clearOtherAccessTokens(portal)
-    window.localStorage.setItem(portalTokenKey(portal), token)
+    // Clear any legacy tokens, keep only the active portal hint.
+    window.localStorage.removeItem(portalTokenKey('student'))
+    window.localStorage.removeItem(portalTokenKey('instructor'))
+    window.localStorage.removeItem(portalTokenKey('admin'))
+    window.localStorage.removeItem(LEGACY_ACCESS_TOKEN_KEY)
     window.localStorage.setItem(ACTIVE_PORTAL_KEY, portal)
   } catch {
     // ignore
@@ -142,12 +137,9 @@ export function clearAllAccessTokens() {
 }
 
 export function getActiveAccessToken(): string | null {
-  const portal = getPortalFromPathname(window.location.pathname)
-  if (!portal) return null
-  normalizeAccessTokens(portal)
-  return getAccessToken(portal)
+  return null
 }
 
 export function isAuthenticated(portal: Portal) {
-  return Boolean(getAccessToken(portal))
+  return getAuthenticatedPortal() === portal
 }

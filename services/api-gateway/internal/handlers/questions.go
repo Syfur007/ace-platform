@@ -147,7 +147,7 @@ type UpdateQuestionDifficultyRequest struct {
 	DisplayName *string `json:"displayName"`
 }
 
-func authRequireRolesAndAudiences(allowedRoles []string, allowedAudiences []string) gin.HandlerFunc {
+func authRequireRolesAndAudiences(pool *pgxpool.Pool, allowedRoles []string, allowedAudiences []string) gin.HandlerFunc {
 	roleAllowed := func(role string) bool {
 		for _, r := range allowedRoles {
 			if r == role {
@@ -168,22 +168,46 @@ func authRequireRolesAndAudiences(allowedRoles []string, allowedAudiences []stri
 	}
 
 	return func(c *gin.Context) {
+		token := ""
 		authz := c.GetHeader("Authorization")
-		if authz == "" {
+		if authz != "" {
+			parts := strings.SplitN(authz, " ", 2)
+			if len(parts) != 2 || !strings.EqualFold(parts[0], "Bearer") {
+				c.AbortWithStatusJSON(http.StatusUnauthorized, gin.H{"message": "invalid authorization"})
+				return
+			}
+			token = parts[1]
+		} else {
+			if v, err := c.Cookie("ace_access"); err == nil {
+				token = strings.TrimSpace(v)
+			}
+		}
+		if token == "" {
 			c.AbortWithStatusJSON(http.StatusUnauthorized, gin.H{"message": "missing authorization"})
 			return
 		}
 
-		parts := strings.SplitN(authz, " ", 2)
-		if len(parts) != 2 || !strings.EqualFold(parts[0], "Bearer") {
-			c.AbortWithStatusJSON(http.StatusUnauthorized, gin.H{"message": "invalid authorization"})
-			return
-		}
-
-		claims, err := auth.ParseAccessToken(parts[1])
+		claims, err := auth.ParseAccessToken(token)
 		if err != nil || claims.Subject == "" {
 			c.AbortWithStatusJSON(http.StatusUnauthorized, gin.H{"message": "invalid token"})
 			return
+		}
+
+		if claims.SessionID != "" && pool != nil {
+			var revokedAt *time.Time
+			var expiresAt time.Time
+			err := pool.QueryRow(context.Background(), `select revoked_at, expires_at from auth_sessions where id=$1 and user_id=$2`, claims.SessionID, claims.Subject).
+				Scan(&revokedAt, &expiresAt)
+			if err != nil {
+				c.AbortWithStatusJSON(http.StatusUnauthorized, gin.H{"message": "unauthorized"})
+				return
+			}
+			now := time.Now().UTC()
+			if revokedAt != nil || !expiresAt.After(now) {
+				c.AbortWithStatusJSON(http.StatusUnauthorized, gin.H{"message": "unauthorized"})
+				return
+			}
+			_, _ = pool.Exec(context.Background(), `update auth_sessions set last_seen_at=now() where id=$1`, claims.SessionID)
 		}
 
 		if len(allowedRoles) > 0 && !roleAllowed(claims.Role) {
@@ -198,6 +222,7 @@ func authRequireRolesAndAudiences(allowedRoles []string, allowedAudiences []stri
 
 		c.Set(string(auth.UserIDKey), claims.Subject)
 		c.Set(string(auth.RoleKey), claims.Role)
+		c.Set(string(auth.SessionIDKey), claims.SessionID)
 		c.Next()
 	}
 }
@@ -209,7 +234,7 @@ func sqlParam(n int) string {
 func RegisterQuestionRoutes(r *gin.Engine, pool *pgxpool.Pool) {
 	// Public/student read endpoints
 	{
-		r.GET("/questions", auth.RequirePortalAuth("student", "student"), func(c *gin.Context) {
+		r.GET("/questions", auth.RequirePortalAuth(pool, "student", "student"), func(c *gin.Context) {
 			limit, offset := parseListParams(c)
 			packageID := strings.TrimSpace(c.Query("packageId"))
 			topicID := strings.TrimSpace(c.Query("topicId"))
@@ -272,7 +297,7 @@ func RegisterQuestionRoutes(r *gin.Engine, pool *pgxpool.Pool) {
 			c.JSON(http.StatusOK, ListQuestionsResponse{Items: items, Limit: limit, Offset: offset, HasMore: hasMore})
 		})
 
-		r.GET("/questions/:questionId", auth.RequirePortalAuth("student", "student"), func(c *gin.Context) {
+		r.GET("/questions/:questionId", auth.RequirePortalAuth(pool, "student", "student"), func(c *gin.Context) {
 			qid := c.Param("questionId")
 			ctx := context.Background()
 
@@ -312,7 +337,7 @@ func RegisterQuestionRoutes(r *gin.Engine, pool *pgxpool.Pool) {
 
 	// Reference data (read-only for now)
 	{
-		r.GET("/question-packages", auth.RequirePortalAuth("student", "student"), func(c *gin.Context) {
+		r.GET("/question-packages", auth.RequirePortalAuth(pool, "student", "student"), func(c *gin.Context) {
 			rows, err := pool.Query(context.Background(), `select id, name, is_hidden, created_at from question_bank_packages where is_hidden=false order by name asc`)
 			if err != nil {
 				c.JSON(http.StatusInternalServerError, gin.H{"message": "failed to list packages"})
@@ -333,7 +358,7 @@ func RegisterQuestionRoutes(r *gin.Engine, pool *pgxpool.Pool) {
 			c.JSON(http.StatusOK, ListQuestionPackagesResponse{Items: items})
 		})
 
-		r.GET("/question-topics", auth.RequirePortalAuth("student", "student"), func(c *gin.Context) {
+		r.GET("/question-topics", auth.RequirePortalAuth(pool, "student", "student"), func(c *gin.Context) {
 			packageID := strings.TrimSpace(c.Query("packageId"))
 			args := []any{}
 			query := `select id, package_id, name, is_hidden, created_at from question_bank_topics`
@@ -367,7 +392,7 @@ func RegisterQuestionRoutes(r *gin.Engine, pool *pgxpool.Pool) {
 			c.JSON(http.StatusOK, ListQuestionTopicsResponse{Items: items})
 		})
 
-		r.GET("/question-difficulties", auth.RequirePortalAuth("student", "student"), func(c *gin.Context) {
+		r.GET("/question-difficulties", auth.RequirePortalAuth(pool, "student", "student"), func(c *gin.Context) {
 			rows, err := pool.Query(context.Background(), `select id, display_name from question_bank_difficulties order by sort_order asc`)
 			if err != nil {
 				c.JSON(http.StatusInternalServerError, gin.H{"message": "failed to list difficulties"})
@@ -391,7 +416,7 @@ func RegisterQuestionRoutes(r *gin.Engine, pool *pgxpool.Pool) {
 
 	// Instructor/admin write endpoints
 	{
-		requireInstructorOrAdmin := authRequireRolesAndAudiences([]string{"instructor", "admin"}, []string{"instructor", "admin"})
+		requireInstructorOrAdmin := authRequireRolesAndAudiences(pool, []string{"instructor", "admin"}, []string{"instructor", "admin"})
 
 		r.POST("/instructor/question-packages", requireInstructorOrAdmin, func(c *gin.Context) {
 			userID, ok := auth.GetUserID(c)
@@ -1118,7 +1143,7 @@ func RegisterQuestionRoutes(r *gin.Engine, pool *pgxpool.Pool) {
 			}
 		}
 
-		requireAdmin := auth.RequirePortalAuth("admin", "admin")
+		requireAdmin := auth.RequirePortalAuth(pool, "admin", "admin")
 
 		r.POST("/admin/questions/:questionId/approve", requireAdmin, func(c *gin.Context) {
 			userID, ok := auth.GetUserID(c)

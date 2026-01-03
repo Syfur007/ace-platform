@@ -17,6 +17,7 @@ import { StudentProfilePage } from '@/pages/student/StudentProfilePage'
 import { StudentStudyPlanPage } from '@/pages/student/StudentStudyPlanPage'
 import { StudentTestsPage } from '@/pages/student/StudentTestsPage'
 import { clearAllAccessTokens, getAuthenticatedPortal, getPortalFromPathname, normalizeAccessTokens } from '@/auth/token'
+import { apiFetchJson } from '@/api/http'
 import { AdminDashboardPage } from '@/pages/admin/AdminDashboardPage'
 import { AdminExamIntegrityPage } from '@/pages/admin/AdminExamIntegrityPage'
 import { AdminQuestionBankPage } from '@/pages/admin/AdminQuestionBankPage'
@@ -57,10 +58,20 @@ function AppShell() {
                   type="button"
                   className="hover:underline"
                   onClick={() => {
-                    clearAllAccessTokens()
-                    const nextPortal = currentPortal
-                    if (nextPortal) navigate(`/${nextPortal}/auth`)
-                    else navigate('/')
+                    void (async () => {
+                      const portal = getPortalFromPathname(window.location.pathname)
+                      if (portal) {
+                        try {
+                          await apiFetchJson(`/${portal}/auth/logout`, { method: 'POST' })
+                        } catch {
+                          // ignore
+                        }
+                      }
+                      clearAllAccessTokens()
+                      const nextPortal = currentPortal
+                      if (nextPortal) navigate(`/${nextPortal}/auth`)
+                      else navigate('/')
+                    })()
                   }}
                 >
                   Log out

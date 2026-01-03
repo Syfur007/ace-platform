@@ -64,6 +64,44 @@ func Migrate(ctx context.Context, pool *pgxpool.Pool) error {
 		`alter table users add column if not exists deleted_at timestamptz null;`,
 		`create index if not exists idx_users_role on users(role);`,
 		`create index if not exists idx_users_deleted_at on users(deleted_at);`,
+
+		// Auth sessions + refresh tokens (cookie-based auth)
+		`create table if not exists auth_sessions (
+			id text primary key,
+			user_id text not null references users(id) on delete cascade,
+			role text not null,
+			audience text not null,
+			ip text not null default '',
+			user_agent text not null default '',
+			created_at timestamptz not null default now(),
+			last_seen_at timestamptz not null default now(),
+			expires_at timestamptz not null,
+			revoked_at timestamptz null,
+			revoked_reason text not null default ''
+		);`,
+		`create index if not exists idx_auth_sessions_user_created on auth_sessions(user_id, created_at desc);`,
+		`create index if not exists idx_auth_sessions_user_active on auth_sessions(user_id, revoked_at, expires_at);`,
+
+		`create table if not exists auth_refresh_tokens (
+			id text primary key,
+			session_id text not null references auth_sessions(id) on delete cascade,
+			token_hash bytea not null,
+			created_at timestamptz not null default now(),
+			expires_at timestamptz not null,
+			revoked_at timestamptz null,
+			replaced_by_token_id text null
+		);`,
+		`create unique index if not exists idx_auth_refresh_tokens_hash on auth_refresh_tokens(token_hash);`,
+		`create index if not exists idx_auth_refresh_tokens_session_created on auth_refresh_tokens(session_id, created_at desc);`,
+
+		`create table if not exists auth_session_limits_role (
+			role text primary key,
+			max_active_sessions integer not null
+		);`,
+		`create table if not exists auth_session_limits_user (
+			user_id text primary key references users(id) on delete cascade,
+			max_active_sessions integer not null
+		);`,
 		`create table if not exists practice_sessions (
 			id text primary key,
 			user_id text not null references users(id) on delete cascade,

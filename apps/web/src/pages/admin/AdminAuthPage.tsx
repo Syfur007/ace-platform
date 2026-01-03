@@ -2,6 +2,7 @@ import { useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 
 import { adminLogin } from '@/api/endpoints'
+import { apiFetchJson } from '@/api/http'
 import { clearAccessToken, setAccessToken } from '@/auth/token'
 
 export function AdminAuthPage() {
@@ -41,8 +42,15 @@ export function AdminAuthPage() {
           <button
             type="button"
             onClick={() => {
-              clearAccessToken('admin')
-              navigate('/')
+                void (async () => {
+                  try {
+                    await apiFetchJson('/admin/auth/logout', { method: 'POST' })
+                  } catch {
+                    // ignore
+                  }
+                  clearAccessToken('admin')
+                  navigate('/')
+                })()
             }}
             className="ml-auto rounded border border-slate-200 px-3 py-2 text-sm hover:bg-slate-50"
           >

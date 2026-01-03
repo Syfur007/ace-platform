@@ -2,6 +2,7 @@ import { useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 
 import { instructorLogin } from '@/api/endpoints'
+import { apiFetchJson } from '@/api/http'
 import { clearAccessToken, setAccessToken } from '@/auth/token'
 
 export function InstructorAuthPage() {
@@ -41,8 +42,15 @@ export function InstructorAuthPage() {
           <button
             type="button"
             onClick={() => {
-              clearAccessToken('instructor')
-              navigate('/')
+              void (async () => {
+                try {
+                  await apiFetchJson('/instructor/auth/logout', { method: 'POST' })
+                } catch {
+                  // ignore
+                }
+                clearAccessToken('instructor')
+                navigate('/')
+              })()
             }}
             className="ml-auto rounded border border-slate-200 px-3 py-2 text-sm hover:bg-slate-50"
           >

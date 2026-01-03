@@ -5,6 +5,7 @@ import (
 	"log"
 	"net/http"
 	"os"
+	"strings"
 	"time"
 
 	"github.com/gin-gonic/gin"
@@ -35,12 +36,54 @@ func main() {
 	// Minimal CORS for local dev: web runs on localhost:5173 and API on localhost:8080.
 	// This keeps the gateway usable from the browser without requiring extra deps.
 	r.Use(func(c *gin.Context) {
+		origin := c.GetHeader("Origin")
+		allowed := os.Getenv("CORS_ORIGINS")
+		if strings.TrimSpace(allowed) == "" {
+			allowed = "http://localhost:5173"
+		}
+		allowedList := strings.Split(allowed, ",")
+		originAllowed := false
+		for _, raw := range allowedList {
+			v := strings.TrimSpace(raw)
+			if v != "" && strings.EqualFold(v, origin) {
+				originAllowed = true
+				break
+			}
+		}
+
 		h := c.Writer.Header()
-		h.Set("Access-Control-Allow-Origin", "*")
+		if origin != "" && originAllowed {
+			h.Set("Access-Control-Allow-Origin", origin)
+			h.Add("Vary", "Origin")
+		}
+		h.Set("Access-Control-Allow-Credentials", "true")
 		h.Set("Access-Control-Allow-Methods", "GET,POST,PUT,PATCH,DELETE,OPTIONS")
-		h.Set("Access-Control-Allow-Headers", "Content-Type,Accept,Authorization")
+		h.Set("Access-Control-Allow-Headers", "Content-Type,Accept,Authorization,X-CSRF-Token")
 		if c.Request.Method == http.MethodOptions {
 			c.AbortWithStatus(http.StatusNoContent)
+			return
+		}
+		c.Next()
+	})
+
+	// Double-submit CSRF protection for cookie auth.
+	// - For unsafe methods, require X-CSRF-Token to match the ace_csrf cookie.
+	// - Exempt login/register endpoints (they mint the CSRF cookie).
+	r.Use(func(c *gin.Context) {
+		m := c.Request.Method
+		if m == http.MethodGet || m == http.MethodHead || m == http.MethodOptions {
+			c.Next()
+			return
+		}
+		p := c.Request.URL.Path
+		if strings.HasSuffix(p, "/auth/login") || strings.HasSuffix(p, "/auth/register") {
+			c.Next()
+			return
+		}
+		csrfCookie, err := c.Cookie("ace_csrf")
+		csrfHeader := strings.TrimSpace(c.GetHeader("X-CSRF-Token"))
+		if err != nil || strings.TrimSpace(csrfCookie) == "" || csrfHeader == "" || csrfHeader != strings.TrimSpace(csrfCookie) {
+			c.AbortWithStatusJSON(http.StatusForbidden, gin.H{"message": "csrf"})
 			return
 		}
 		c.Next()

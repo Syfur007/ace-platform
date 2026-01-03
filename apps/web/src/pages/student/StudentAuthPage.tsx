@@ -2,6 +2,7 @@ import { useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 
 import { studentLogin, studentRegister } from '@/api/endpoints'
+import { apiFetchJson } from '@/api/http'
 import { clearAccessToken, setAccessToken } from '@/auth/token'
 
 export function StudentAuthPage() {
@@ -37,7 +38,7 @@ export function StudentAuthPage() {
     <div className="mx-auto max-w-md space-y-6">
       <header className="space-y-1">
         <h1 className="text-xl font-semibold">Student sign in</h1>
-        <p className="text-sm text-slate-600">JWT stored in localStorage (dev only).</p>
+        <p className="text-sm text-slate-600">Session cookies (HttpOnly) in dev.</p>
       </header>
 
       <div className="rounded border border-slate-200 p-4">
@@ -66,8 +67,15 @@ export function StudentAuthPage() {
           <button
             type="button"
             onClick={() => {
-              clearAccessToken('student')
-              navigate('/')
+              void (async () => {
+                try {
+                  await apiFetchJson('/student/auth/logout', { method: 'POST' })
+                } catch {
+                  // ignore
+                }
+                clearAccessToken('student')
+                navigate('/')
+              })()
             }}
             className="ml-auto rounded border border-slate-200 px-3 py-2 text-sm hover:bg-slate-50"
           >

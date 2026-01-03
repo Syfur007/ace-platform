@@ -175,7 +175,7 @@ func findInBank(bank []bankItem, id string) (bankItem, bool) {
 }
 
 func RegisterPracticeRoutes(r *gin.Engine, pool *pgxpool.Pool) {
-	r.GET("/practice-sessions", auth.RequirePortalAuth("student", "student"), func(c *gin.Context) {
+	r.GET("/practice-sessions", auth.RequirePortalAuth(pool, "student", "student"), func(c *gin.Context) {
 		userID, ok := auth.GetUserID(c)
 		if !ok {
 			c.JSON(http.StatusUnauthorized, gin.H{"message": "unauthorized"})
@@ -285,7 +285,7 @@ func RegisterPracticeRoutes(r *gin.Engine, pool *pgxpool.Pool) {
 		c.JSON(http.StatusOK, ListPracticeSessionsResponse{Items: items, Limit: limit, Offset: offset, HasMore: hasMore})
 	})
 
-	r.POST("/practice-sessions", auth.RequirePortalAuth("student", "student"), func(c *gin.Context) {
+	r.POST("/practice-sessions", auth.RequirePortalAuth(pool, "student", "student"), func(c *gin.Context) {
 		userID, ok := auth.GetUserID(c)
 		if !ok {
 			c.JSON(http.StatusUnauthorized, gin.H{"message": "unauthorized"})
@@ -361,7 +361,7 @@ func RegisterPracticeRoutes(r *gin.Engine, pool *pgxpool.Pool) {
 		})
 	})
 
-	r.GET("/practice-sessions/:sessionId", auth.RequirePortalAuth("student", "student"), func(c *gin.Context) {
+	r.GET("/practice-sessions/:sessionId", auth.RequirePortalAuth(pool, "student", "student"), func(c *gin.Context) {
 		userID, ok := auth.GetUserID(c)
 		if !ok {
 			c.JSON(http.StatusUnauthorized, gin.H{"message": "unauthorized"})
@@ -461,7 +461,7 @@ func RegisterPracticeRoutes(r *gin.Engine, pool *pgxpool.Pool) {
 		})
 	})
 
-	r.POST("/practice-sessions/:sessionId/pause", auth.RequirePortalAuth("student", "student"), func(c *gin.Context) {
+	r.POST("/practice-sessions/:sessionId/pause", auth.RequirePortalAuth(pool, "student", "student"), func(c *gin.Context) {
 		userID, ok := auth.GetUserID(c)
 		if !ok {
 			c.JSON(http.StatusUnauthorized, gin.H{"message": "unauthorized"})
@@ -566,7 +566,7 @@ func RegisterPracticeRoutes(r *gin.Engine, pool *pgxpool.Pool) {
 		})
 	})
 
-	r.POST("/practice-sessions/:sessionId/resume", auth.RequirePortalAuth("student", "student"), func(c *gin.Context) {
+	r.POST("/practice-sessions/:sessionId/resume", auth.RequirePortalAuth(pool, "student", "student"), func(c *gin.Context) {
 		userID, ok := auth.GetUserID(c)
 		if !ok {
 			c.JSON(http.StatusUnauthorized, gin.H{"message": "unauthorized"})
@@ -645,7 +645,7 @@ func RegisterPracticeRoutes(r *gin.Engine, pool *pgxpool.Pool) {
 		})
 	})
 
-	r.POST("/practice-sessions/:sessionId/answers", auth.RequirePortalAuth("student", "student"), func(c *gin.Context) {
+	r.POST("/practice-sessions/:sessionId/answers", auth.RequirePortalAuth(pool, "student", "student"), func(c *gin.Context) {
 		userID, ok := auth.GetUserID(c)
 		if !ok {
 			c.JSON(http.StatusUnauthorized, gin.H{"message": "unauthorized"})
@@ -774,7 +774,7 @@ func RegisterPracticeRoutes(r *gin.Engine, pool *pgxpool.Pool) {
 		})
 	})
 
-	r.GET("/practice-sessions/:sessionId/review", auth.RequirePortalAuth("student", "student"), func(c *gin.Context) {
+	r.GET("/practice-sessions/:sessionId/review", auth.RequirePortalAuth(pool, "student", "student"), func(c *gin.Context) {
 		userID, ok := auth.GetUserID(c)
 		if !ok {
 			c.JSON(http.StatusUnauthorized, gin.H{"message": "unauthorized"})
@@ -864,7 +864,7 @@ func RegisterPracticeRoutes(r *gin.Engine, pool *pgxpool.Pool) {
 		c.JSON(http.StatusOK, PracticeSessionReviewResponse{SessionID: sessionID, Items: items})
 	})
 
-	r.GET("/practice-sessions/:sessionId/summary", auth.RequirePortalAuth("student", "student"), func(c *gin.Context) {
+	r.GET("/practice-sessions/:sessionId/summary", auth.RequirePortalAuth(pool, "student", "student"), func(c *gin.Context) {
 		userID, ok := auth.GetUserID(c)
 		if !ok {
 			c.JSON(http.StatusUnauthorized, gin.H{"message": "unauthorized"})

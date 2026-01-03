@@ -71,7 +71,7 @@ type ListExamSessionsResponse struct {
 
 func RegisterExamRoutes(r *gin.Engine, pool *pgxpool.Pool) {
 	// Server-backed exam session state (student portal).
-	studentAuth := auth.RequirePortalAuth("student", "student")
+	studentAuth := auth.RequirePortalAuth(pool, "student", "student")
 
 	r.GET("/exam-sessions", studentAuth, func(c *gin.Context) {
 		userID, ok := auth.GetUserID(c)

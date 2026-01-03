@@ -154,7 +154,7 @@ func audit(ctx context.Context, pool *pgxpool.Pool, actorUserID string, actorRol
 }
 
 func RegisterAdminRoutes(r *gin.Engine, pool *pgxpool.Pool) {
-	adminAuth := auth.RequirePortalAuth("admin", "admin")
+	adminAuth := auth.RequirePortalAuth(pool, "admin", "admin")
 
 	// Dashboard (lifetime totals)
 	r.GET("/admin/dashboard", adminAuth, func(c *gin.Context) {
