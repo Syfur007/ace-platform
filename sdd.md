@@ -2,9 +2,9 @@ Software Design Document
 
 **Online Exam Preparation Platform**
 
-Version 1.1
+Version 1.2
 
-December 2025
+January 2026
 
 # Table of Contents
 
@@ -223,12 +223,26 @@ The platform follows a modern microservices architecture with the following laye
 
 **Technical Implementation:**
 
+### Domain Terminology (Package vs. Question Bank)
+
+To avoid ambiguity, this document uses the following domain model:
+
+- **Exam Package**: the exam a student is preparing for (e.g., IELTS, SAT, GRE). A user can be enrolled in one or more exam packages.
+- **Question Bank**: a curated collection of questions within an exam package (e.g., “GRE Quant Bank”, “GRE Verbal Bank”, or a bank per section/version).
+
+Intended relationships:
+
+- One **Exam Package** contains one or more **Question Banks**.
+- One **Question Bank** contains many questions.
+- Users can enroll in one or more **Exam Packages**; enrollment drives what content is available in Practice/Tests.
+
 ### Current MVP Implementation (Dec 2025)
 
 The current codebase implements an MVP practice workflow inside the Go API gateway and Postgres. This is intentionally a stepping stone toward a dedicated Question Service (planned).
 
 - Practice sessions are persisted in PostgreSQL and are API-backed (no longer purely client-side).
-- A small in-memory demo question bank is used as the content source for now (question service integration is planned).
+- Practice question source: currently uses a small in-memory demo question set (not the persisted Question Bank tables yet).
+- Separately, an Admin “Question Bank” workflow exists and persists content in PostgreSQL (see the `question_bank_*` tables in the current schema).
 - Two practice modes are supported:
 	- Untimed: can be paused/resumed.
 	- Ironman (Timed): server-enforced time limit and automatic force-finish when time runs out.
@@ -442,7 +456,7 @@ The MVP schema is created idempotently by the Go API gateway at startup.
 | --- | --- | --- |
 | id | TEXT | Primary key (session id) |
 | user_id | TEXT | FK to users(id) |
-| package_id | TEXT (nullable) | Package / exam grouping (MVP placeholder) |
+| package_id | TEXT (nullable) | Intended: references the user’s selected exam package. Current implementation: free-form text (not a foreign key) and not enforced against Question Bank packages. |
 | is_timed | BOOLEAN | Ironman vs Untimed |
 | started_at | TIMESTAMPTZ | Session start timestamp |
 | time_limit_seconds | INTEGER | Total allowed time for Ironman; 0 for untimed |
@@ -482,6 +496,29 @@ The MVP schema is created idempotently by the Go API gateway at startup.
 | updated_at | TIMESTAMPTZ | Updated timestamp |
 | last_heartbeat_at | TIMESTAMPTZ | Last heartbeat |
 | submitted_at | TIMESTAMPTZ (nullable) | Submit timestamp |
+
+**Additional implemented tables (Jan 2026)**
+
+The current codebase also includes the following major entity groups (implemented in PostgreSQL), which are not exhaustively listed above:
+
+- **Authentication / sessions**: `auth_sessions`, `auth_refresh_tokens`, `auth_session_limits_role`, `auth_session_limits_user`, `auth_session_groups`, `auth_session_group_memberships`, `auth_session_limits_group`.
+- **Audit trail**: `audit_log`.
+- **Exam integrity**: `exam_session_events`, `exam_session_flags`.
+- **Question Bank (admin-managed content)**: `question_bank_packages`, `question_bank_topics`, `question_bank_difficulties`, `question_bank_questions`, `question_bank_choices`, `question_bank_correct_choice`.
+
+**Important alignment note (Packages / Enrollment)**
+
+The intended product model is: **Exam Package → one-or-more Question Banks → Questions**, and users enroll into one-or-more exam packages.
+
+However, the current implementation does **not** yet include:
+
+- A user enrollment/entitlement table (e.g., `user_package_enrollments`) to represent “user is enrolled in package(s)”.
+- A first-class “question bank” entity/table under an exam package (the current Question Bank schema attaches topics/questions directly to `question_bank_packages`).
+
+Practically, this means the current implementation effectively collapses concepts:
+
+- `question_bank_packages` currently behaves like a top-level container for questions, but it does not model “one package contains multiple question banks”.
+- `practice_sessions.package_id` is not a foreign key, so practice sessions are not currently guaranteed to reference a valid package/enrollment.
 
 ### 5.1.2 Planned/Target Schema (Future)
 
@@ -670,6 +707,28 @@ The API surface is OpenAPI-first. The web app generates TypeScript types from th
 | GET | /exam-sessions/{sessionId} | Get exam session state |
 | POST | /exam-sessions/{sessionId}/heartbeat | Persist snapshot heartbeat |
 | POST | /exam-sessions/{sessionId}/submit | Submit/finalize an exam session |
+
+**Admin (implemented)**
+
+Admin endpoints are protected by the admin portal JWT (bearer token).
+
+| **Method** | **Endpoint** | **Description** |
+| --- | --- | --- |
+| GET | /admin/dashboard | Admin dashboard stats (lifetime totals) |
+| GET | /admin/users | List users (supports role filtering + includeDeleted) |
+| POST | /admin/users | Create user |
+| GET | /admin/users/{userId} | Get user |
+| PATCH | /admin/users/{userId} | Update user (email/password/role) |
+| POST | /admin/users/{userId}/restore | Restore deleted user |
+| GET | /admin/exam-sessions | List exam sessions |
+| GET | /admin/exam-sessions/{userId}/{sessionId} | Get exam session details (includes snapshot) |
+| POST | /admin/exam-sessions/{userId}/{sessionId}/force-submit | Force submit exam session |
+| POST | /admin/exam-sessions/{userId}/{sessionId}/terminate | Terminate exam session |
+| POST | /admin/exam-sessions/{userId}/{sessionId}/invalidate | Invalidate exam session |
+| POST | /admin/exam-sessions/{userId}/{sessionId}/flags | Create exam integrity flag |
+| GET | /admin/exam-sessions/{userId}/{sessionId}/events | List exam session events |
+| POST | /admin/questions/{questionId}/approve | Approve question (review workflow) |
+| POST | /admin/questions/{questionId}/request-changes | Request changes on question (review workflow) |
 
 ## 6.2 Authentication Endpoints
 
@@ -928,6 +987,21 @@ Current MVP notes (implemented):
 **7.4.9 Analytics Dashboard**
 
 - Time period selector (last 7 days, 30 days, all time)
+
+**7.4.10 Admin Portal (implemented)**
+
+- Admin Dashboard: lifetime totals (users, question bank counts, exam sessions, events, flags).
+
+- Separate admin pages (routes) with shared page component:
+	- Users: create/update/soft-delete/restore users.
+	- Question Bank: manage packages/topics/difficulties and the question review workflow.
+	- Exam Integrity: review sessions, inspect events/snapshots, and take actions (force submit/terminate/invalidate/flag).
+	- Session Management (within Users):
+		- View active + historic auth sessions for the selected user (including IP, user agent, last seen, expiry, revoked reason).
+		- Revoke one session or revoke all sessions for a user.
+		- View effective session limit and contributing overrides (role / group / user).
+		- Set/clear per-user max active sessions.
+		- Manage session groups: create groups, set group limit, add/remove users to groups.
 - Study time chart (bar graph)
 - Questions answered by topic (pie chart)
 - Accuracy trends (line graph)
@@ -988,15 +1062,31 @@ Current MVP notes (implemented):
 
 ## 8.1 Authentication Strategy
 
-- Current implementation (Dec 2025, local dev):
-	- JWT access token only (no refresh token yet)
-	- Tokens are stored in localStorage per portal (`student`, `instructor`, `admin`)
-	- Portal-specific auth routes and portal-specific route guards in the web app
-	- JWT claims include `role` and `aud` and are enforced server-side
-- Planned evolution:
-	- Access + refresh tokens (15 min / 7 days)
-	- OAuth2 social login (Google/Facebook/Apple)
-	- MFA (TOTP)
+Current implementation (Jan 2026, local dev):
+
+- Cookie-based authentication with server-side session tracking:
+	- `ace_access` (HttpOnly cookie): JWT access token (15 minutes).
+	- `ace_refresh` (HttpOnly cookie): opaque refresh token (rotated) bound to a server-side session (30 days).
+	- `ace_csrf` (non-HttpOnly cookie): CSRF double-submit token.
+- Server-side session store (Postgres):
+	- `auth_sessions`: one row per login/device, includes `expires_at`, `revoked_at`, `last_seen_at`, `ip`, `user_agent`.
+	- `auth_refresh_tokens`: hashed refresh tokens with rotation (old token revoked and linked to replacement).
+- JWT claims include `role`, `aud`, and `sid` (session id) and are enforced server-side.
+- Backwards compatibility: the API auth middleware can accept either a Bearer token (`Authorization: Bearer ...`) or the `ace_access` cookie.
+
+Session/device limits (implemented):
+
+- Default max active sessions per user is 3.
+- Overrides are supported via DB tables and enforced by revoking the oldest sessions when over limit:
+	- Per-user override: `auth_session_limits_user`
+	- Group override (most restrictive of all groups): `auth_session_limits_group` + memberships in `auth_session_group_memberships`
+	- Per-role override: `auth_session_limits_role`
+- Precedence: user override > group limit > role limit > default.
+
+Planned evolution:
+
+- OAuth2 social login (Google/Facebook/Apple)
+- MFA (TOTP)
 
 ## 8.2 Password Security
 
@@ -1025,7 +1115,7 @@ Current MVP notes (implemented):
 - Input validation and sanitization on all endpoints
 - SQL injection prevention (parameterized queries, ORM)
 - XSS prevention (Content Security Policy, output encoding)
-- CSRF protection with tokens
+- CSRF protection (implemented): double-submit cookie using `ace_csrf` and `X-CSRF-Token` on unsafe methods (login/register endpoints are exempt because they mint the CSRF cookie).
 - Rate limiting to prevent brute force attacks
 - Security headers (Helmet.js)
 - Regular security audits and penetration testing
