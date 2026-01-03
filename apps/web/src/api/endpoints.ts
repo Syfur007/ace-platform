@@ -475,6 +475,111 @@ export async function adminRestoreUser(userId: string): Promise<OkResponse> {
   return apiFetchJson<OkResponse>(`/admin/users/${encodeURIComponent(userId)}/restore`, { method: 'POST' })
 }
 
+// Admin auth sessions + limits
+
+export type AdminAuthSessionListItem = {
+  id: string
+  role: UserRole
+  audience: string
+  ip: string
+  userAgent: string
+  createdAt: string
+  lastSeenAt: string
+  expiresAt: string
+  revokedAt?: string | null
+  revokedReason: string
+}
+
+export type ListAdminAuthSessionsResponse = {
+  items: AdminAuthSessionListItem[]
+  limit: number
+  offset: number
+  hasMore: boolean
+}
+
+export async function adminListUserAuthSessions(userId: string, params?: {
+  limit?: number
+  offset?: number
+  includeRevoked?: boolean
+}): Promise<ListAdminAuthSessionsResponse> {
+  const search = new URLSearchParams()
+  if (params?.limit != null) search.set('limit', String(params.limit))
+  if (params?.offset != null) search.set('offset', String(params.offset))
+  if (params?.includeRevoked != null) search.set('includeRevoked', params.includeRevoked ? 'true' : 'false')
+  const qs = search.toString()
+  return apiFetchJson<ListAdminAuthSessionsResponse>(
+    `/admin/users/${encodeURIComponent(userId)}/auth-sessions${qs ? `?${qs}` : ''}`,
+    { method: 'GET' },
+  )
+}
+
+export async function adminRevokeUserAuthSession(userId: string, sessionId: string): Promise<OkResponse> {
+  return apiFetchJson<OkResponse>(
+    `/admin/users/${encodeURIComponent(userId)}/auth-sessions/${encodeURIComponent(sessionId)}/revoke`,
+    { method: 'POST' },
+  )
+}
+
+export async function adminRevokeAllUserAuthSessions(userId: string): Promise<OkResponse> {
+  return apiFetchJson<OkResponse>(`/admin/users/${encodeURIComponent(userId)}/auth-sessions/revoke-all`, { method: 'POST' })
+}
+
+export type AdminUserSessionLimitResponse = {
+  effectiveMaxActiveSessions: number
+  userMaxActiveSessions?: number | null
+  groupMaxActiveSessions?: number | null
+  roleMaxActiveSessions?: number | null
+}
+
+export async function adminGetUserSessionLimit(userId: string): Promise<AdminUserSessionLimitResponse> {
+  return apiFetchJson<AdminUserSessionLimitResponse>(`/admin/users/${encodeURIComponent(userId)}/session-limit`, { method: 'GET' })
+}
+
+export async function adminSetUserSessionLimit(userId: string, maxActiveSessions: number | null): Promise<OkResponse> {
+  return apiFetchJson<OkResponse>(`/admin/users/${encodeURIComponent(userId)}/session-limit`, {
+    method: 'PUT',
+    body: { maxActiveSessions },
+  })
+}
+
+export type AdminSessionGroupListItem = {
+  id: string
+  name: string
+  maxActiveSessions?: number | null
+}
+
+export type ListAdminSessionGroupsResponse = { items: AdminSessionGroupListItem[] }
+
+export async function adminListSessionGroups(): Promise<ListAdminSessionGroupsResponse> {
+  return apiFetchJson<ListAdminSessionGroupsResponse>(`/admin/session-groups`, { method: 'GET' })
+}
+
+export async function adminCreateSessionGroup(body: { name: string; maxActiveSessions: number | null }): Promise<{ id: string }> {
+  return apiFetchJson<{ id: string }>(`/admin/session-groups`, { method: 'POST', body })
+}
+
+export async function adminUpdateSessionGroup(groupId: string, body: { name?: string | null; maxActiveSessions: number }): Promise<OkResponse> {
+  return apiFetchJson<OkResponse>(`/admin/session-groups/${encodeURIComponent(groupId)}`, { method: 'PATCH', body })
+}
+
+export async function adminAddSessionGroupMember(groupId: string, userId: string): Promise<OkResponse> {
+  return apiFetchJson<OkResponse>(`/admin/session-groups/${encodeURIComponent(groupId)}/members`, {
+    method: 'POST',
+    body: { userId },
+  })
+}
+
+export async function adminRemoveSessionGroupMember(groupId: string, userId: string): Promise<OkResponse> {
+  return apiFetchJson<OkResponse>(
+    `/admin/session-groups/${encodeURIComponent(groupId)}/members/${encodeURIComponent(userId)}`,
+    { method: 'DELETE' },
+  )
+}
+
+export async function adminListUserSessionGroups(userId: string): Promise<ListAdminSessionGroupsResponse> {
+  return apiFetchJson<ListAdminSessionGroupsResponse>(`/admin/users/${encodeURIComponent(userId)}/session-groups`, { method: 'GET' })
+}
+
 // Admin exam integrity
 
 export type AdminExamSessionListItem = {

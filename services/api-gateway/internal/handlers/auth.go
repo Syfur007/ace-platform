@@ -89,6 +89,23 @@ func getSessionLimit(ctx context.Context, pool *pgxpool.Pool, userID string, rol
 		return userLimit
 	}
 
+	// Group limit: if user belongs to one or more groups with limits, apply the most restrictive.
+	var groupLimit int
+	err = pool.QueryRow(ctx, `
+		select coalesce(min(l.max_active_sessions), 0)
+		from auth_session_limits_group l
+		join auth_session_group_memberships m on m.group_id=l.group_id
+		where m.user_id=$1`, userID).Scan(&groupLimit)
+	if err == nil && groupLimit > 0 {
+		if groupLimit < 1 {
+			return defaultLimit
+		}
+		if groupLimit > 50 {
+			return 50
+		}
+		return groupLimit
+	}
+
 	var roleLimit int
 	err = pool.QueryRow(ctx, `select max_active_sessions from auth_session_limits_role where role=$1`, role).Scan(&roleLimit)
 	if err == nil {

@@ -32,6 +32,61 @@ type ListAdminUsersResponse struct {
 	HasMore bool                `json:"hasMore"`
 }
 
+type AdminAuthSessionListItem struct {
+	ID           string  `json:"id"`
+	Role         string  `json:"role"`
+	Audience     string  `json:"audience"`
+	IP           string  `json:"ip"`
+	UserAgent    string  `json:"userAgent"`
+	CreatedAt    string  `json:"createdAt"`
+	LastSeenAt   string  `json:"lastSeenAt"`
+	ExpiresAt    string  `json:"expiresAt"`
+	RevokedAt    *string `json:"revokedAt,omitempty"`
+	RevokedReason string `json:"revokedReason"`
+}
+
+type ListAdminAuthSessionsResponse struct {
+	Items   []AdminAuthSessionListItem `json:"items"`
+	Limit   int                        `json:"limit"`
+	Offset  int                        `json:"offset"`
+	HasMore bool                       `json:"hasMore"`
+}
+
+type AdminSetUserSessionLimitRequest struct {
+	MaxActiveSessions *int `json:"maxActiveSessions"`
+}
+
+type AdminUserSessionLimitResponse struct {
+	EffectiveMaxActiveSessions int  `json:"effectiveMaxActiveSessions"`
+	UserMaxActiveSessions      *int `json:"userMaxActiveSessions,omitempty"`
+	GroupMaxActiveSessions     *int `json:"groupMaxActiveSessions,omitempty"`
+	RoleMaxActiveSessions      *int `json:"roleMaxActiveSessions,omitempty"`
+}
+
+type AdminSessionGroupListItem struct {
+	ID                string `json:"id"`
+	Name              string `json:"name"`
+	MaxActiveSessions *int   `json:"maxActiveSessions,omitempty"`
+}
+
+type ListAdminSessionGroupsResponse struct {
+	Items []AdminSessionGroupListItem `json:"items"`
+}
+
+type CreateAdminSessionGroupRequest struct {
+	Name              string `json:"name"`
+	MaxActiveSessions *int   `json:"maxActiveSessions"`
+}
+
+type UpdateAdminSessionGroupRequest struct {
+	Name              *string `json:"name"`
+	MaxActiveSessions *int    `json:"maxActiveSessions"`
+}
+
+type AddAdminSessionGroupMemberRequest struct {
+	UserID string `json:"userId"`
+}
+
 type CreateAdminUserRequest struct {
 	Email    string `json:"email"`
 	Password string `json:"password"`
@@ -141,6 +196,21 @@ func isValidRole(role string) bool {
 func parseBoolQuery(c *gin.Context, key string) bool {
 	raw := strings.TrimSpace(strings.ToLower(c.Query(key)))
 	return raw == "1" || raw == "true" || raw == "yes" || raw == "y"
+}
+
+func clampMaxSessions(v int) int {
+	if v < 1 {
+		return 1
+	}
+	if v > 50 {
+		return 50
+	}
+	return v
+}
+
+func revokeAuthSession(ctx context.Context, pool *pgxpool.Pool, sessionID string, reason string) {
+	_, _ = pool.Exec(ctx, `update auth_sessions set revoked_at=now(), revoked_reason=$2 where id=$1 and revoked_at is null`, sessionID, reason)
+	_, _ = pool.Exec(ctx, `update auth_refresh_tokens set revoked_at=now() where session_id=$1 and revoked_at is null`, sessionID)
 }
 
 func audit(ctx context.Context, pool *pgxpool.Pool, actorUserID string, actorRole string, action string, targetType string, targetID string, metadata any) {
@@ -515,6 +585,348 @@ func RegisterAdminRoutes(r *gin.Engine, pool *pgxpool.Pool) {
 
 			audit(ctx, pool, actorUserID, actorRole, "user.restore", "user", userID, nil)
 			c.JSON(http.StatusOK, gin.H{"ok": true})
+		})
+
+		// Auth sessions + session limits
+		r.GET("/admin/users/:userId/auth-sessions", adminAuth, func(c *gin.Context) {
+			userID := c.Param("userId")
+			limit, offset := parseListParams(c)
+			includeRevoked := parseBoolQuery(c, "includeRevoked")
+
+			where := []string{"user_id=" + sqlParam(1)}
+			args := []any{userID}
+			if !includeRevoked {
+				where = append(where, "revoked_at is null", "expires_at > now()")
+			}
+
+			query := `select id, role, audience, ip, user_agent, created_at, last_seen_at, expires_at, revoked_at, revoked_reason
+				from auth_sessions
+				where ` + strings.Join(where, " and ") +
+				` order by created_at desc limit ` + sqlParam(len(args)+1) + ` offset ` + sqlParam(len(args)+2)
+			args = append(args, limit+1, offset)
+
+			rows, err := pool.Query(context.Background(), query, args...)
+			if err != nil {
+				c.JSON(http.StatusInternalServerError, gin.H{"message": "failed to list sessions"})
+				return
+			}
+			defer rows.Close()
+
+			items := make([]AdminAuthSessionListItem, 0, limit)
+			for rows.Next() {
+				var id, role, audience, ip, ua, revokedReason string
+				var createdAt, lastSeenAt, expiresAt time.Time
+				var revokedAt *time.Time
+				if err := rows.Scan(&id, &role, &audience, &ip, &ua, &createdAt, &lastSeenAt, &expiresAt, &revokedAt, &revokedReason); err != nil {
+					c.JSON(http.StatusInternalServerError, gin.H{"message": "failed to list sessions"})
+					return
+				}
+				var revokedAtStr *string
+				if revokedAt != nil {
+					v := revokedAt.UTC().Format(time.RFC3339)
+					revokedAtStr = &v
+				}
+				items = append(items, AdminAuthSessionListItem{
+					ID:            id,
+					Role:          role,
+					Audience:      audience,
+					IP:            ip,
+					UserAgent:     ua,
+					CreatedAt:     createdAt.UTC().Format(time.RFC3339),
+					LastSeenAt:    lastSeenAt.UTC().Format(time.RFC3339),
+					ExpiresAt:     expiresAt.UTC().Format(time.RFC3339),
+					RevokedAt:     revokedAtStr,
+					RevokedReason: revokedReason,
+				})
+				if len(items) == limit+1 {
+					break
+				}
+			}
+
+			hasMore := false
+			if len(items) > limit {
+				hasMore = true
+				items = items[:limit]
+			}
+			c.JSON(http.StatusOK, ListAdminAuthSessionsResponse{Items: items, Limit: limit, Offset: offset, HasMore: hasMore})
+		})
+
+		r.POST("/admin/users/:userId/auth-sessions/revoke-all", adminAuth, func(c *gin.Context) {
+			actorUserID, _ := auth.GetUserID(c)
+			actorRole, _ := auth.GetRole(c)
+			userID := c.Param("userId")
+
+			ctx := context.Background()
+			_, _ = pool.Exec(ctx, `update auth_sessions set revoked_at=now(), revoked_reason='admin_revoke_all' where user_id=$1 and revoked_at is null`, userID)
+			_, _ = pool.Exec(ctx, `update auth_refresh_tokens set revoked_at=now() where session_id in (select id from auth_sessions where user_id=$1) and revoked_at is null`, userID)
+
+			audit(ctx, pool, actorUserID, actorRole, "auth_sessions.revoke_all", "user", userID, nil)
+			c.JSON(http.StatusOK, gin.H{"ok": true})
+		})
+
+		r.POST("/admin/users/:userId/auth-sessions/:sessionId/revoke", adminAuth, func(c *gin.Context) {
+			actorUserID, _ := auth.GetUserID(c)
+			actorRole, _ := auth.GetRole(c)
+			userID := c.Param("userId")
+			sessionID := c.Param("sessionId")
+
+			ctx := context.Background()
+			var exists bool
+			_ = pool.QueryRow(ctx, `select true from auth_sessions where id=$1 and user_id=$2`, sessionID, userID).Scan(&exists)
+			if !exists {
+				c.JSON(http.StatusNotFound, gin.H{"message": "session not found"})
+				return
+			}
+			revokeAuthSession(ctx, pool, sessionID, "admin_revoke")
+			audit(ctx, pool, actorUserID, actorRole, "auth_sessions.revoke", "auth_session", sessionID, gin.H{"userId": userID})
+			c.JSON(http.StatusOK, gin.H{"ok": true})
+		})
+
+		r.GET("/admin/users/:userId/session-limit", adminAuth, func(c *gin.Context) {
+			userID := c.Param("userId")
+			ctx := context.Background()
+
+			// Load user's role (used for role-based default).
+			var role string
+			err := pool.QueryRow(ctx, `select role from users where id=$1`, userID).Scan(&role)
+			if err != nil {
+				c.JSON(http.StatusNotFound, gin.H{"message": "user not found"})
+				return
+			}
+
+			var userLimit *int
+			var uv int
+			if err := pool.QueryRow(ctx, `select max_active_sessions from auth_session_limits_user where user_id=$1`, userID).Scan(&uv); err == nil {
+				vv := uv
+				userLimit = &vv
+			}
+
+			var groupLimit *int
+			var gv int
+			if err := pool.QueryRow(ctx, `
+				select coalesce(min(l.max_active_sessions), 0)
+				from auth_session_limits_group l
+				join auth_session_group_memberships m on m.group_id=l.group_id
+				where m.user_id=$1`, userID).Scan(&gv); err == nil && gv > 0 {
+				vv := gv
+				groupLimit = &vv
+			}
+
+			var roleLimit *int
+			var rv int
+			if err := pool.QueryRow(ctx, `select max_active_sessions from auth_session_limits_role where role=$1`, role).Scan(&rv); err == nil {
+				vv := rv
+				roleLimit = &vv
+			}
+
+			effective := 3
+			if userLimit != nil {
+				effective = clampMaxSessions(*userLimit)
+			} else if groupLimit != nil {
+				effective = clampMaxSessions(*groupLimit)
+			} else if roleLimit != nil {
+				effective = clampMaxSessions(*roleLimit)
+			}
+
+			c.JSON(http.StatusOK, AdminUserSessionLimitResponse{
+				EffectiveMaxActiveSessions: effective,
+				UserMaxActiveSessions:      userLimit,
+				GroupMaxActiveSessions:     groupLimit,
+				RoleMaxActiveSessions:      roleLimit,
+			})
+		})
+
+		r.PUT("/admin/users/:userId/session-limit", adminAuth, func(c *gin.Context) {
+			actorUserID, _ := auth.GetUserID(c)
+			actorRole, _ := auth.GetRole(c)
+			userID := c.Param("userId")
+			var req AdminSetUserSessionLimitRequest
+			if err := c.ShouldBindJSON(&req); err != nil {
+				c.JSON(http.StatusBadRequest, gin.H{"message": "invalid json body"})
+				return
+			}
+			ctx := context.Background()
+
+			if req.MaxActiveSessions == nil {
+				_, _ = pool.Exec(ctx, `delete from auth_session_limits_user where user_id=$1`, userID)
+				audit(ctx, pool, actorUserID, actorRole, "auth_limits.user.clear", "user", userID, nil)
+				c.JSON(http.StatusOK, gin.H{"ok": true})
+				return
+			}
+			v := clampMaxSessions(*req.MaxActiveSessions)
+			_, err := pool.Exec(ctx, `insert into auth_session_limits_user (user_id, max_active_sessions) values ($1,$2)
+				on conflict (user_id) do update set max_active_sessions=excluded.max_active_sessions`, userID, v)
+			if err != nil {
+				c.JSON(http.StatusBadRequest, gin.H{"message": "failed to set user limit"})
+				return
+			}
+			audit(ctx, pool, actorUserID, actorRole, "auth_limits.user.set", "user", userID, gin.H{"maxActiveSessions": v})
+			c.JSON(http.StatusOK, gin.H{"ok": true})
+		})
+
+		// Session groups (minimal CRUD + membership)
+		r.GET("/admin/session-groups", adminAuth, func(c *gin.Context) {
+			ctx := context.Background()
+			rows, err := pool.Query(ctx, `
+				select g.id, g.name, l.max_active_sessions
+				from auth_session_groups g
+				left join auth_session_limits_group l on l.group_id=g.id
+				order by g.name asc`)
+			if err != nil {
+				c.JSON(http.StatusInternalServerError, gin.H{"message": "failed to list groups"})
+				return
+			}
+			defer rows.Close()
+
+			items := []AdminSessionGroupListItem{}
+			for rows.Next() {
+				var id, name string
+				var lim *int
+				if err := rows.Scan(&id, &name, &lim); err != nil {
+					c.JSON(http.StatusInternalServerError, gin.H{"message": "failed to list groups"})
+					return
+				}
+				items = append(items, AdminSessionGroupListItem{ID: id, Name: name, MaxActiveSessions: lim})
+			}
+			c.JSON(http.StatusOK, ListAdminSessionGroupsResponse{Items: items})
+		})
+
+		r.POST("/admin/session-groups", adminAuth, func(c *gin.Context) {
+			actorUserID, _ := auth.GetUserID(c)
+			actorRole, _ := auth.GetRole(c)
+			var req CreateAdminSessionGroupRequest
+			if err := c.ShouldBindJSON(&req); err != nil {
+				c.JSON(http.StatusBadRequest, gin.H{"message": "invalid json body"})
+				return
+			}
+			name := strings.TrimSpace(req.Name)
+			if name == "" {
+				c.JSON(http.StatusBadRequest, gin.H{"message": "name is required"})
+				return
+			}
+			ctx := context.Background()
+			groupID := util.NewID("asg")
+			_, err := pool.Exec(ctx, `insert into auth_session_groups (id, name) values ($1,$2)`, groupID, name)
+			if err != nil {
+				var pgerr *pgconn.PgError
+				if errors.As(err, &pgerr) && pgerr.Code == "23505" {
+					c.JSON(http.StatusConflict, gin.H{"message": "group name already exists"})
+					return
+				}
+				c.JSON(http.StatusBadRequest, gin.H{"message": "failed to create group"})
+				return
+			}
+			if req.MaxActiveSessions != nil {
+				v := clampMaxSessions(*req.MaxActiveSessions)
+				_, _ = pool.Exec(ctx, `insert into auth_session_limits_group (group_id, max_active_sessions) values ($1,$2)`, groupID, v)
+			}
+			audit(ctx, pool, actorUserID, actorRole, "auth_groups.create", "auth_session_group", groupID, gin.H{"name": name})
+			c.JSON(http.StatusOK, gin.H{"id": groupID})
+		})
+
+		r.PATCH("/admin/session-groups/:groupId", adminAuth, func(c *gin.Context) {
+			actorUserID, _ := auth.GetUserID(c)
+			actorRole, _ := auth.GetRole(c)
+			groupID := c.Param("groupId")
+			var req UpdateAdminSessionGroupRequest
+			if err := c.ShouldBindJSON(&req); err != nil {
+				c.JSON(http.StatusBadRequest, gin.H{"message": "invalid json body"})
+				return
+			}
+			ctx := context.Background()
+			if req.Name != nil {
+				name := strings.TrimSpace(*req.Name)
+				if name == "" {
+					c.JSON(http.StatusBadRequest, gin.H{"message": "name cannot be empty"})
+					return
+				}
+				cmd, err := pool.Exec(ctx, `update auth_session_groups set name=$2 where id=$1`, groupID, name)
+				if err != nil {
+					var pgerr *pgconn.PgError
+					if errors.As(err, &pgerr) && pgerr.Code == "23505" {
+						c.JSON(http.StatusConflict, gin.H{"message": "group name already exists"})
+						return
+					}
+					c.JSON(http.StatusBadRequest, gin.H{"message": "failed to update group"})
+					return
+				}
+				if cmd.RowsAffected() == 0 {
+					c.JSON(http.StatusNotFound, gin.H{"message": "group not found"})
+					return
+				}
+			}
+			if req.MaxActiveSessions == nil {
+				// no-op
+			} else {
+				v := clampMaxSessions(*req.MaxActiveSessions)
+				_, _ = pool.Exec(ctx, `insert into auth_session_limits_group (group_id, max_active_sessions) values ($1,$2)
+					on conflict (group_id) do update set max_active_sessions=excluded.max_active_sessions`, groupID, v)
+			}
+			audit(ctx, pool, actorUserID, actorRole, "auth_groups.update", "auth_session_group", groupID, nil)
+			c.JSON(http.StatusOK, gin.H{"ok": true})
+		})
+
+		r.POST("/admin/session-groups/:groupId/members", adminAuth, func(c *gin.Context) {
+			actorUserID, _ := auth.GetUserID(c)
+			actorRole, _ := auth.GetRole(c)
+			groupID := c.Param("groupId")
+			var req AddAdminSessionGroupMemberRequest
+			if err := c.ShouldBindJSON(&req); err != nil {
+				c.JSON(http.StatusBadRequest, gin.H{"message": "invalid json body"})
+				return
+			}
+			userID := strings.TrimSpace(req.UserID)
+			if userID == "" {
+				c.JSON(http.StatusBadRequest, gin.H{"message": "userId is required"})
+				return
+			}
+			ctx := context.Background()
+			_, err := pool.Exec(ctx, `insert into auth_session_group_memberships (group_id, user_id) values ($1,$2) on conflict do nothing`, groupID, userID)
+			if err != nil {
+				c.JSON(http.StatusBadRequest, gin.H{"message": "failed to add member"})
+				return
+			}
+			audit(ctx, pool, actorUserID, actorRole, "auth_groups.add_member", "auth_session_group", groupID, gin.H{"userId": userID})
+			c.JSON(http.StatusOK, gin.H{"ok": true})
+		})
+
+		r.DELETE("/admin/session-groups/:groupId/members/:userId", adminAuth, func(c *gin.Context) {
+			actorUserID, _ := auth.GetUserID(c)
+			actorRole, _ := auth.GetRole(c)
+			groupID := c.Param("groupId")
+			userID := c.Param("userId")
+			ctx := context.Background()
+			_, _ = pool.Exec(ctx, `delete from auth_session_group_memberships where group_id=$1 and user_id=$2`, groupID, userID)
+			audit(ctx, pool, actorUserID, actorRole, "auth_groups.remove_member", "auth_session_group", groupID, gin.H{"userId": userID})
+			c.JSON(http.StatusOK, gin.H{"ok": true})
+		})
+
+		r.GET("/admin/users/:userId/session-groups", adminAuth, func(c *gin.Context) {
+			userID := c.Param("userId")
+			ctx := context.Background()
+			rows, err := pool.Query(ctx, `
+				select g.id, g.name, l.max_active_sessions
+				from auth_session_group_memberships m
+				join auth_session_groups g on g.id=m.group_id
+				left join auth_session_limits_group l on l.group_id=g.id
+				where m.user_id=$1
+				order by g.name asc`, userID)
+			if err != nil {
+				c.JSON(http.StatusInternalServerError, gin.H{"message": "failed to list user groups"})
+				return
+			}
+			defer rows.Close()
+			items := []AdminSessionGroupListItem{}
+			for rows.Next() {
+				var id, name string
+				var lim *int
+				if err := rows.Scan(&id, &name, &lim); err != nil {
+					c.JSON(http.StatusInternalServerError, gin.H{"message": "failed to list user groups"})
+					return
+				}
+				items = append(items, AdminSessionGroupListItem{ID: id, Name: name, MaxActiveSessions: lim})
+			}
+			c.JSON(http.StatusOK, ListAdminSessionGroupsResponse{Items: items})
 		})
 	}
 

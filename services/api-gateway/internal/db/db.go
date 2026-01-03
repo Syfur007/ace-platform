@@ -102,6 +102,24 @@ func Migrate(ctx context.Context, pool *pgxpool.Pool) error {
 			user_id text primary key references users(id) on delete cascade,
 			max_active_sessions integer not null
 		);`,
+
+		// Optional: session limit groups (used to cap active devices/sessions by group membership)
+		`create table if not exists auth_session_groups (
+			id text primary key,
+			name text not null unique,
+			created_at timestamptz not null default now()
+		);`,
+		`create table if not exists auth_session_group_memberships (
+			group_id text not null references auth_session_groups(id) on delete cascade,
+			user_id text not null references users(id) on delete cascade,
+			created_at timestamptz not null default now(),
+			primary key (group_id, user_id)
+		);`,
+		`create index if not exists idx_auth_session_group_memberships_user on auth_session_group_memberships(user_id);`,
+		`create table if not exists auth_session_limits_group (
+			group_id text primary key references auth_session_groups(id) on delete cascade,
+			max_active_sessions integer not null
+		);`,
 		`create table if not exists practice_sessions (
 			id text primary key,
 			user_id text not null references users(id) on delete cascade,
