@@ -7,6 +7,7 @@ import {
   instructorListPracticeTemplates,
   instructorPublishPracticeTemplate,
   instructorUnpublishPracticeTemplate,
+  instructorUpdateExamPackage,
   instructorUpdatePracticeTemplate,
   listExamPackages,
   listQuestionBanks,
@@ -38,6 +39,12 @@ function sortTemplates(a: PracticeTemplate, b: PracticeTemplate) {
 
 export function PracticeTemplatesManager(props: { title?: string; subtitle?: string }) {
   const queryClient = useQueryClient()
+
+  const parseLines = (v: string) =>
+    v
+      .split('\n')
+      .map((s) => s.trim())
+      .filter(Boolean)
 
   const packagesQuery = useQuery({
     queryKey: ['exam-packages'],
@@ -222,6 +229,67 @@ export function PracticeTemplatesManager(props: { title?: string; subtitle?: str
 
   const canCreate = Boolean(examPackageId) && createForm.name.trim() && createForm.section.trim()
 
+  const selectedExamPackage = useMemo(() => {
+    const items = packagesQuery.data?.items ?? []
+    return items.find((p) => p.id === examPackageId) ?? null
+  }, [examPackageId, packagesQuery.data])
+
+  const [pkgSubtitle, setPkgSubtitle] = useState('')
+  const [pkgOverview, setPkgOverview] = useState('')
+  const [pkgModulesText, setPkgModulesText] = useState('')
+  const [pkgHighlightsText, setPkgHighlightsText] = useState('')
+  const [pkgModuleSectionsJson, setPkgModuleSectionsJson] = useState('[]')
+  const [pkgModuleSectionsError, setPkgModuleSectionsError] = useState('')
+
+  useEffect(() => {
+    if (!selectedExamPackage) return
+    setPkgSubtitle(String((selectedExamPackage as any).subtitle ?? ''))
+    setPkgOverview(String((selectedExamPackage as any).overview ?? ''))
+    setPkgModulesText(Array.isArray((selectedExamPackage as any).modules) ? (selectedExamPackage as any).modules.join('\n') : '')
+    setPkgHighlightsText(
+      Array.isArray((selectedExamPackage as any).highlights) ? (selectedExamPackage as any).highlights.join('\n') : '',
+    )
+    setPkgModuleSectionsJson(
+      JSON.stringify(Array.isArray((selectedExamPackage as any).moduleSections) ? (selectedExamPackage as any).moduleSections : [], null, 2),
+    )
+    setPkgModuleSectionsError('')
+  }, [selectedExamPackage?.id])
+
+  const updatePackageMutation = useMutation({
+    mutationFn: async () => {
+      if (!examPackageId) throw new Error('No exam package selected')
+
+      setPkgModuleSectionsError('')
+
+      let moduleSections: any[] = []
+      const raw = pkgModuleSectionsJson.trim()
+      if (raw) {
+        try {
+          const parsed = JSON.parse(raw)
+          if (!Array.isArray(parsed)) {
+            setPkgModuleSectionsError('Module sections must be a JSON array.')
+            throw new Error('Invalid module sections')
+          }
+          moduleSections = parsed
+        } catch {
+          setPkgModuleSectionsError('Module sections must be valid JSON.')
+          throw new Error('Invalid module sections')
+        }
+      }
+
+      return instructorUpdateExamPackage(examPackageId, {
+        subtitle: pkgSubtitle.trim() ? pkgSubtitle.trim() : null,
+        overview: pkgOverview.trim() ? pkgOverview.trim() : null,
+        modules: parseLines(pkgModulesText),
+        highlights: parseLines(pkgHighlightsText),
+        moduleSections,
+      })
+    },
+    onSuccess: async () => {
+      await queryClient.invalidateQueries({ queryKey: ['exam-packages'] })
+    },
+  })
+
   return (
     <div className="space-y-6">
       {props.title ? (
@@ -253,6 +321,73 @@ export function PracticeTemplatesManager(props: { title?: string; subtitle?: str
             {questionBankId ? 'Topics are filtered by the linked question bank.' : 'No question bank is linked to this package (topics will be unavailable).'}
           </div>
         </div>
+      </div>
+
+      <div className="rounded border border-slate-200 p-4">
+        <div className="space-y-1">
+          <div className="font-medium">Exam package content</div>
+          <div className="text-sm text-slate-600">Edits are visible to students via the package details page.</div>
+        </div>
+
+        {!examPackageId ? <div className="mt-3 text-sm text-slate-600">Select an exam package above.</div> : null}
+
+        {examPackageId ? (
+          <div className="mt-4 grid gap-2">
+            <input
+              className="w-full rounded border border-slate-200 px-3 py-2 text-sm"
+              placeholder="Subtitle (optional)"
+              value={pkgSubtitle}
+              onChange={(e) => setPkgSubtitle(e.target.value)}
+            />
+
+            <textarea
+              className="w-full rounded border border-slate-200 px-3 py-2 text-sm"
+              placeholder="Overview (optional)"
+              rows={4}
+              value={pkgOverview}
+              onChange={(e) => setPkgOverview(e.target.value)}
+            />
+
+            <textarea
+              className="w-full rounded border border-slate-200 px-3 py-2 text-sm"
+              placeholder="Modules (one per line)"
+              rows={4}
+              value={pkgModulesText}
+              onChange={(e) => setPkgModulesText(e.target.value)}
+            />
+
+            <textarea
+              className="w-full rounded border border-slate-200 px-3 py-2 text-sm"
+              placeholder="Highlights (one per line)"
+              rows={4}
+              value={pkgHighlightsText}
+              onChange={(e) => setPkgHighlightsText(e.target.value)}
+            />
+
+            <textarea
+              className="w-full rounded border border-slate-200 px-3 py-2 font-mono text-sm"
+              placeholder='Module sections JSON (e.g. [{"id":"reading","name":"Reading","description":"..."}])'
+              rows={6}
+              value={pkgModuleSectionsJson}
+              onChange={(e) => setPkgModuleSectionsJson(e.target.value)}
+            />
+            {pkgModuleSectionsError ? <div className="text-sm text-rose-700">{pkgModuleSectionsError}</div> : null}
+
+            <div className="flex flex-wrap gap-2">
+              <button
+                type="button"
+                className="rounded border border-slate-200 px-3 py-2 text-sm hover:bg-slate-50 disabled:opacity-50"
+                disabled={updatePackageMutation.isPending}
+                onClick={() => updatePackageMutation.mutate()}
+              >
+                Save
+              </button>
+            </div>
+            {updatePackageMutation.isError ? (
+              <div className="text-sm text-rose-700">Failed to update exam package.</div>
+            ) : null}
+          </div>
+        ) : null}
       </div>
 
       <div className="rounded border border-slate-200 p-4">

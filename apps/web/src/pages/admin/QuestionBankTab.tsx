@@ -9,6 +9,7 @@ import {
   adminListExamPackages,
   adminRequestQuestionChanges,
   adminUpdateExamPackage,
+  type AdminUpdateExamPackageRequest,
   instructorArchiveQuestion,
   instructorCreateQuestion,
   instructorCreateQuestionBank,
@@ -62,12 +63,30 @@ type ExamPackagesSectionProps = {
   setSelectedExamPackageId: (v: string) => void
   editExamPackageName: string
   setEditExamPackageName: (v: string) => void
+  editExamPackageSubtitle: string
+  setEditExamPackageSubtitle: (v: string) => void
+  editExamPackageOverview: string
+  setEditExamPackageOverview: (v: string) => void
+  editExamPackageModulesText: string
+  setEditExamPackageModulesText: (v: string) => void
+  editExamPackageHighlightsText: string
+  setEditExamPackageHighlightsText: (v: string) => void
+  editExamPackageModuleSectionsJson: string
+  setEditExamPackageModuleSectionsJson: (v: string) => void
+  editExamPackageModuleSectionsError: string
+  setEditExamPackageModuleSectionsError: (v: string) => void
   createExamPackageMutation: any
   updateExamPackageMutation: any
   deleteExamPackageMutation: any
 }
 
 function ExamPackagesSection(props: ExamPackagesSectionProps) {
+  const parseLines = (v: string) =>
+    v
+      .split('\n')
+      .map((s) => s.trim())
+      .filter(Boolean)
+
   return (
     <div className="space-y-2">
       <div className="font-medium">Exam Packages</div>
@@ -124,16 +143,86 @@ function ExamPackagesSection(props: ExamPackagesSectionProps) {
               value={props.editExamPackageName}
               onChange={(e) => props.setEditExamPackageName(e.target.value)}
             />
+            <input
+              className="w-full rounded border border-slate-200 px-3 py-2 text-sm"
+              placeholder="Subtitle (optional)"
+              value={props.editExamPackageSubtitle}
+              onChange={(e) => props.setEditExamPackageSubtitle(e.target.value)}
+            />
+
+            <textarea
+              className="w-full rounded border border-slate-200 px-3 py-2 text-sm"
+              placeholder="Overview (optional)"
+              rows={4}
+              value={props.editExamPackageOverview}
+              onChange={(e) => props.setEditExamPackageOverview(e.target.value)}
+            />
+
+            <textarea
+              className="w-full rounded border border-slate-200 px-3 py-2 text-sm"
+              placeholder="Modules (one per line)"
+              rows={4}
+              value={props.editExamPackageModulesText}
+              onChange={(e) => props.setEditExamPackageModulesText(e.target.value)}
+            />
+
+            <textarea
+              className="w-full rounded border border-slate-200 px-3 py-2 text-sm"
+              placeholder="Highlights (one per line)"
+              rows={4}
+              value={props.editExamPackageHighlightsText}
+              onChange={(e) => props.setEditExamPackageHighlightsText(e.target.value)}
+            />
+
+            <textarea
+              className="w-full rounded border border-slate-200 px-3 py-2 font-mono text-sm"
+              placeholder='Module sections JSON (e.g. [{"id":"reading","name":"Reading","description":"..."}])'
+              rows={6}
+              value={props.editExamPackageModuleSectionsJson}
+              onChange={(e) => props.setEditExamPackageModuleSectionsJson(e.target.value)}
+            />
+            {props.editExamPackageModuleSectionsError ? (
+              <div className="text-sm text-rose-700">{props.editExamPackageModuleSectionsError}</div>
+            ) : null}
             <div className="flex flex-wrap gap-2">
               <button
                 type="button"
                 className="rounded border border-slate-200 px-3 py-2 text-sm hover:bg-slate-50 disabled:opacity-50"
                 disabled={props.updateExamPackageMutation.isPending || props.editExamPackageName.trim() === ''}
                 onClick={() =>
-                  props.updateExamPackageMutation.mutate({
-                    examPackageId: props.selectedExamPackageId,
-                    name: props.editExamPackageName.trim(),
-                  })
+                  {
+                    props.setEditExamPackageModuleSectionsError('')
+
+                    let moduleSections: any[] = []
+                    const raw = props.editExamPackageModuleSectionsJson.trim()
+                    if (raw) {
+                      try {
+                        const parsed = JSON.parse(raw)
+                        if (!Array.isArray(parsed)) {
+                          props.setEditExamPackageModuleSectionsError('Module sections must be a JSON array.')
+                          return
+                        }
+                        moduleSections = parsed
+                      } catch {
+                        props.setEditExamPackageModuleSectionsError('Module sections must be valid JSON.')
+                        return
+                      }
+                    }
+
+                    const body: AdminUpdateExamPackageRequest = {
+                      name: props.editExamPackageName.trim(),
+                      subtitle: props.editExamPackageSubtitle.trim() ? props.editExamPackageSubtitle.trim() : null,
+                      overview: props.editExamPackageOverview.trim() ? props.editExamPackageOverview.trim() : null,
+                      modules: parseLines(props.editExamPackageModulesText),
+                      highlights: parseLines(props.editExamPackageHighlightsText),
+                      moduleSections,
+                    }
+
+                    props.updateExamPackageMutation.mutate({
+                      examPackageId: props.selectedExamPackageId,
+                      body,
+                    })
+                  }
                 }
               >
                 Save
@@ -990,6 +1079,12 @@ export function QuestionBankTab() {
   const [examPackageName, setExamPackageName] = useState('')
   const [selectedExamPackageId, setSelectedExamPackageId] = useState('')
   const [editExamPackageName, setEditExamPackageName] = useState('')
+  const [editExamPackageSubtitle, setEditExamPackageSubtitle] = useState('')
+  const [editExamPackageOverview, setEditExamPackageOverview] = useState('')
+  const [editExamPackageModulesText, setEditExamPackageModulesText] = useState('')
+  const [editExamPackageHighlightsText, setEditExamPackageHighlightsText] = useState('')
+  const [editExamPackageModuleSectionsJson, setEditExamPackageModuleSectionsJson] = useState('[]')
+  const [editExamPackageModuleSectionsError, setEditExamPackageModuleSectionsError] = useState('')
 
   const [packageName, setPackageName] = useState('')
   const [packageExamPackageId, setPackageExamPackageId] = useState('')
@@ -1049,8 +1144,8 @@ export function QuestionBankTab() {
   })
 
   const updateExamPackageMutation = useMutation({
-    mutationFn: async (input: { examPackageId: string; name: string }) =>
-      adminUpdateExamPackage(input.examPackageId, { name: input.name }),
+    mutationFn: async (input: { examPackageId: string; body: AdminUpdateExamPackageRequest }) =>
+      adminUpdateExamPackage(input.examPackageId, input.body),
     onSuccess: async () => {
       await queryClient.invalidateQueries({ queryKey: ['admin', 'exam-packages'] })
     },
@@ -1061,6 +1156,12 @@ export function QuestionBankTab() {
     onSuccess: async () => {
       setSelectedExamPackageId('')
       setEditExamPackageName('')
+      setEditExamPackageSubtitle('')
+      setEditExamPackageOverview('')
+      setEditExamPackageModulesText('')
+      setEditExamPackageHighlightsText('')
+      setEditExamPackageModuleSectionsJson('[]')
+      setEditExamPackageModuleSectionsError('')
       await queryClient.invalidateQueries({ queryKey: ['admin', 'exam-packages'] })
       await queryClient.invalidateQueries({ queryKey: ['questionBank', 'packages'] })
       await queryClient.invalidateQueries({ queryKey: ['questionBank', 'topics'] })
@@ -1119,6 +1220,12 @@ export function QuestionBankTab() {
     const ep = (examPackages.data?.items ?? []).find((p: any) => p.id === selectedExamPackageId)
     if (!ep) return
     setEditExamPackageName(String(ep.name ?? ''))
+    setEditExamPackageSubtitle(String(ep.subtitle ?? ''))
+    setEditExamPackageOverview(String(ep.overview ?? ''))
+    setEditExamPackageModulesText(Array.isArray(ep.modules) ? ep.modules.join('\n') : '')
+    setEditExamPackageHighlightsText(Array.isArray(ep.highlights) ? ep.highlights.join('\n') : '')
+    setEditExamPackageModuleSectionsJson(JSON.stringify(Array.isArray(ep.moduleSections) ? ep.moduleSections : [], null, 2))
+    setEditExamPackageModuleSectionsError('')
   }, [examPackages.data?.items, selectedExamPackageId])
 
   const difficultiesById = useMemo(() => {
@@ -1463,6 +1570,18 @@ export function QuestionBankTab() {
             setSelectedExamPackageId={setSelectedExamPackageId}
             editExamPackageName={editExamPackageName}
             setEditExamPackageName={setEditExamPackageName}
+            editExamPackageSubtitle={editExamPackageSubtitle}
+            setEditExamPackageSubtitle={setEditExamPackageSubtitle}
+            editExamPackageOverview={editExamPackageOverview}
+            setEditExamPackageOverview={setEditExamPackageOverview}
+            editExamPackageModulesText={editExamPackageModulesText}
+            setEditExamPackageModulesText={setEditExamPackageModulesText}
+            editExamPackageHighlightsText={editExamPackageHighlightsText}
+            setEditExamPackageHighlightsText={setEditExamPackageHighlightsText}
+            editExamPackageModuleSectionsJson={editExamPackageModuleSectionsJson}
+            setEditExamPackageModuleSectionsJson={setEditExamPackageModuleSectionsJson}
+            editExamPackageModuleSectionsError={editExamPackageModuleSectionsError}
+            setEditExamPackageModuleSectionsError={setEditExamPackageModuleSectionsError}
             createExamPackageMutation={createExamPackageMutation}
             updateExamPackageMutation={updateExamPackageMutation}
             deleteExamPackageMutation={deleteExamPackageMutation}

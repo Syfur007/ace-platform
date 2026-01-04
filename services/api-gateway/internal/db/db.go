@@ -72,6 +72,11 @@ func Migrate(ctx context.Context, pool *pgxpool.Pool) error {
 			id uuid primary key default gen_random_uuid(),
 			code text not null,
 			name text not null,
+			subtitle text null,
+			overview text null,
+			modules jsonb not null default '[]'::jsonb,
+			highlights jsonb not null default '[]'::jsonb,
+			module_sections jsonb not null default '[]'::jsonb,
 			is_hidden boolean not null default false,
 			created_at timestamptz not null default now(),
 			updated_at timestamptz not null default now(),
@@ -79,6 +84,11 @@ func Migrate(ctx context.Context, pool *pgxpool.Pool) error {
 			unique (name)
 		);`,
 		`alter table exam_packages add column if not exists code text;`,
+		`alter table exam_packages add column if not exists subtitle text null;`,
+		`alter table exam_packages add column if not exists overview text null;`,
+		`alter table exam_packages add column if not exists modules jsonb not null default '[]'::jsonb;`,
+		`alter table exam_packages add column if not exists highlights jsonb not null default '[]'::jsonb;`,
+		`alter table exam_packages add column if not exists module_sections jsonb not null default '[]'::jsonb;`,
 		// Migration safety: older dev DBs may have exam_packages.id as text.
 		// Convert it to uuid and remap dependent references before adding any new FKs.
 		`do $$

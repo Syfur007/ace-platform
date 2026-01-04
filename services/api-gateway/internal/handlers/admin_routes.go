@@ -193,6 +193,11 @@ type AdminExamPackageListItem struct {
 	ID        string `json:"id"`
 	Code      string `json:"code"`
 	Name      string `json:"name"`
+	Subtitle  *string `json:"subtitle"`
+	Overview  *string `json:"overview"`
+	Modules   []string `json:"modules"`
+	Highlights []string `json:"highlights"`
+	ModuleSections []ExamPackageModuleSection `json:"moduleSections"`
 	IsHidden  bool   `json:"isHidden"`
 	CreatedAt string `json:"createdAt"`
 	UpdatedAt string `json:"updatedAt"`
@@ -203,8 +208,13 @@ type ListAdminExamPackagesResponse struct {
 }
 
 type CreateAdminExamPackageRequest struct {
-	Name     string `json:"name"`
-	IsHidden *bool  `json:"isHidden"`
+	Name           string                   `json:"name"`
+	Subtitle       *string                  `json:"subtitle"`
+	Overview       *string                  `json:"overview"`
+	Modules        []string                 `json:"modules"`
+	Highlights     []string                 `json:"highlights"`
+	ModuleSections []ExamPackageModuleSection `json:"moduleSections"`
+	IsHidden       *bool                    `json:"isHidden"`
 }
 
 type CreateAdminExamPackageResponse struct {
@@ -212,8 +222,13 @@ type CreateAdminExamPackageResponse struct {
 }
 
 type UpdateAdminExamPackageRequest struct {
-	Name     *string `json:"name"`
-	IsHidden *bool   `json:"isHidden"`
+	Name           *string                    `json:"name"`
+	Subtitle       *string                    `json:"subtitle"`
+	Overview       *string                    `json:"overview"`
+	Modules        *[]string                  `json:"modules"`
+	Highlights     *[]string                  `json:"highlights"`
+	ModuleSections *[]ExamPackageModuleSection `json:"moduleSections"`
+	IsHidden       *bool                      `json:"isHidden"`
 }
 
 func isValidRole(role string) bool {
@@ -365,7 +380,21 @@ func RegisterAdminRoutes(r *gin.Engine, pool *pgxpool.Pool) {
 	// Exam packages (admin-only CRUD)
 	{
 		r.GET("/admin/exam-packages", adminAuth, func(c *gin.Context) {
-			rows, err := pool.Query(context.Background(), `select id::text, code, name, is_hidden, created_at, updated_at from exam_packages order by name asc`)
+			rows, err := pool.Query(context.Background(), `
+				select
+					id::text,
+					code,
+					name,
+					subtitle,
+					overview,
+					modules,
+					highlights,
+					module_sections,
+					is_hidden,
+					created_at,
+					updated_at
+				from exam_packages
+				order by name asc`)
 			if err != nil {
 				c.JSON(http.StatusInternalServerError, gin.H{"message": "failed to list exam packages"})
 				return
@@ -375,17 +404,52 @@ func RegisterAdminRoutes(r *gin.Engine, pool *pgxpool.Pool) {
 			items := []AdminExamPackageListItem{}
 			for rows.Next() {
 				var id, code, name string
+				var subtitle *string
+				var overview *string
+				var modulesRaw []byte
+				var highlightsRaw []byte
+				var moduleSectionsRaw []byte
 				var hidden bool
 				var createdAt time.Time
 				var updatedAt time.Time
-				if err := rows.Scan(&id, &code, &name, &hidden, &createdAt, &updatedAt); err != nil {
+				if err := rows.Scan(
+					&id,
+					&code,
+					&name,
+					&subtitle,
+					&overview,
+					&modulesRaw,
+					&highlightsRaw,
+					&moduleSectionsRaw,
+					&hidden,
+					&createdAt,
+					&updatedAt,
+				); err != nil {
 					c.JSON(http.StatusInternalServerError, gin.H{"message": "failed to list exam packages"})
 					return
+				}
+
+				modules := []string{}
+				if len(modulesRaw) > 0 {
+					_ = json.Unmarshal(modulesRaw, &modules)
+				}
+				highlights := []string{}
+				if len(highlightsRaw) > 0 {
+					_ = json.Unmarshal(highlightsRaw, &highlights)
+				}
+				moduleSections := []ExamPackageModuleSection{}
+				if len(moduleSectionsRaw) > 0 {
+					_ = json.Unmarshal(moduleSectionsRaw, &moduleSections)
 				}
 				items = append(items, AdminExamPackageListItem{
 					ID:        id,
 					Code:      code,
 					Name:      name,
+					Subtitle:  subtitle,
+					Overview:  overview,
+					Modules:   modules,
+					Highlights: highlights,
+					ModuleSections: moduleSections,
 					IsHidden:  hidden,
 					CreatedAt: createdAt.UTC().Format(time.RFC3339),
 					UpdatedAt: updatedAt.UTC().Format(time.RFC3339),
@@ -413,6 +477,22 @@ func RegisterAdminRoutes(r *gin.Engine, pool *pgxpool.Pool) {
 				hidden = *req.IsHidden
 			}
 
+			modules := req.Modules
+			if modules == nil {
+				modules = []string{}
+			}
+			modulesJSON, _ := json.Marshal(modules)
+			highlights := req.Highlights
+			if highlights == nil {
+				highlights = []string{}
+			}
+			highlightsJSON, _ := json.Marshal(highlights)
+			moduleSections := req.ModuleSections
+			if moduleSections == nil {
+				moduleSections = []ExamPackageModuleSection{}
+			}
+			moduleSectionsJSON, _ := json.Marshal(moduleSections)
+
 			base := util.SlugifyLower(name)
 			if base == "" {
 				base = "package"
@@ -422,7 +502,19 @@ func RegisterAdminRoutes(r *gin.Engine, pool *pgxpool.Pool) {
 			ctx := context.Background()
 			var id string
 			for i := 0; i < 5; i++ {
-				err := pool.QueryRow(ctx, `insert into exam_packages (code, name, is_hidden) values ($1,$2,$3) returning id::text`, code, name, hidden).Scan(&id)
+				err := pool.QueryRow(ctx, `
+					insert into exam_packages (code, name, subtitle, overview, modules, highlights, module_sections, is_hidden)
+					values ($1,$2,$3,$4,$5,$6,$7,$8)
+					returning id::text`,
+					code,
+					name,
+					req.Subtitle,
+					req.Overview,
+					modulesJSON,
+					highlightsJSON,
+					moduleSectionsJSON,
+					hidden,
+				).Scan(&id)
 				if err == nil {
 					break
 				}
@@ -474,6 +566,46 @@ func RegisterAdminRoutes(r *gin.Engine, pool *pgxpool.Pool) {
 				}
 				set = append(set, "name="+sqlParam(idx))
 				args = append(args, v)
+				idx++
+			}
+			if req.Subtitle != nil {
+				set = append(set, "subtitle="+sqlParam(idx))
+				args = append(args, strings.TrimSpace(*req.Subtitle))
+				idx++
+			}
+			if req.Overview != nil {
+				set = append(set, "overview="+sqlParam(idx))
+				args = append(args, strings.TrimSpace(*req.Overview))
+				idx++
+			}
+			if req.Modules != nil {
+				v := *req.Modules
+				if v == nil {
+					v = []string{}
+				}
+				b, _ := json.Marshal(v)
+				set = append(set, "modules="+sqlParam(idx))
+				args = append(args, b)
+				idx++
+			}
+			if req.Highlights != nil {
+				v := *req.Highlights
+				if v == nil {
+					v = []string{}
+				}
+				b, _ := json.Marshal(v)
+				set = append(set, "highlights="+sqlParam(idx))
+				args = append(args, b)
+				idx++
+			}
+			if req.ModuleSections != nil {
+				v := *req.ModuleSections
+				if v == nil {
+					v = []ExamPackageModuleSection{}
+				}
+				b, _ := json.Marshal(v)
+				set = append(set, "module_sections="+sqlParam(idx))
+				args = append(args, b)
 				idx++
 			}
 			if req.IsHidden != nil {

@@ -1633,6 +1633,33 @@ paths:
               schema:
                 $ref: '#/components/schemas/SuccessResponse'
 
+  /instructor/exam-packages/{examPackageId}:
+    patch:
+      operationId: instructorUpdateExamPackage
+      security:
+        - bearerAuth: []
+        - cookieAuth: []
+      parameters:
+        - in: path
+          name: examPackageId
+          required: true
+          schema:
+            type: string
+            format: uuid
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UpdateInstructorExamPackageRequest'
+      responses:
+        '200':
+          description: Exam package updated
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SuccessResponse'
+
   /exam-sessions/{sessionId}/heartbeat:
     post:
       operationId: heartbeat
@@ -1914,7 +1941,7 @@ components:
 
     AdminExamPackageListItem:
       type: object
-      required: [id, code, name, isHidden, createdAt, updatedAt]
+      required: [id, code, name, isHidden, modules, highlights, moduleSections, createdAt, updatedAt]
       properties:
         id:
           type: string
@@ -1922,6 +1949,24 @@ components:
           type: string
         name:
           type: string
+        subtitle:
+          type: string
+          nullable: true
+        overview:
+          type: string
+          nullable: true
+        modules:
+          type: array
+          items:
+            type: string
+        highlights:
+          type: array
+          items:
+            type: string
+        moduleSections:
+          type: array
+          items:
+            $ref: '#/components/schemas/ExamPackageModuleSection'
         isHidden:
           type: boolean
         createdAt:
@@ -1946,6 +1991,27 @@ components:
       properties:
         name:
           type: string
+        subtitle:
+          type: string
+          nullable: true
+        overview:
+          type: string
+          nullable: true
+        modules:
+          type: array
+          items:
+            type: string
+          nullable: true
+        highlights:
+          type: array
+          items:
+            type: string
+          nullable: true
+        moduleSections:
+          type: array
+          items:
+            $ref: '#/components/schemas/ExamPackageModuleSection'
+          nullable: true
         isHidden:
           type: boolean
           nullable: true
@@ -1963,9 +2029,66 @@ components:
         name:
           type: string
           nullable: true
+        subtitle:
+          type: string
+          nullable: true
+        overview:
+          type: string
+          nullable: true
+        modules:
+          type: array
+          items:
+            type: string
+          nullable: true
+        highlights:
+          type: array
+          items:
+            type: string
+          nullable: true
+        moduleSections:
+          type: array
+          items:
+            $ref: '#/components/schemas/ExamPackageModuleSection'
+          nullable: true
         isHidden:
           type: boolean
           nullable: true
+
+    UpdateInstructorExamPackageRequest:
+      type: object
+      properties:
+        subtitle:
+          type: string
+          nullable: true
+        overview:
+          type: string
+          nullable: true
+        modules:
+          type: array
+          items:
+            type: string
+          nullable: true
+        highlights:
+          type: array
+          items:
+            type: string
+          nullable: true
+        moduleSections:
+          type: array
+          items:
+            $ref: '#/components/schemas/ExamPackageModuleSection'
+          nullable: true
+
+    ExamPackageModuleSection:
+      type: object
+      required: [id, name, description]
+      properties:
+        id:
+          type: string
+        name:
+          type: string
+        description:
+          type: string
     HealthzResponse:
       type: object
       required: [status, ts]
@@ -2406,12 +2529,30 @@ components:
 
     ExamPackageListItem:
       type: object
-      required: [id, name, createdAt]
+      required: [id, name, modules, highlights, moduleSections, createdAt]
       properties:
         id:
           type: string
         name:
           type: string
+        subtitle:
+          type: string
+          nullable: true
+        overview:
+          type: string
+          nullable: true
+        modules:
+          type: array
+          items:
+            type: string
+        highlights:
+          type: array
+          items:
+            type: string
+        moduleSections:
+          type: array
+          items:
+            $ref: '#/components/schemas/ExamPackageModuleSection'
         createdAt:
           type: string
           description: RFC3339 timestamp

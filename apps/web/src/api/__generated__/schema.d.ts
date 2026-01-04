@@ -1066,6 +1066,22 @@ export interface paths {
         patch: operations["adminUpdateExamPackage"];
         trace?: never;
     };
+    "/instructor/exam-packages/{examPackageId}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch: operations["instructorUpdateExamPackage"];
+        trace?: never;
+    };
     "/exam-sessions/{sessionId}/heartbeat": {
         parameters: {
             query?: never;
@@ -1263,6 +1279,11 @@ export interface components {
             id: string;
             code: string;
             name: string;
+            subtitle?: string | null;
+            overview?: string | null;
+            modules: string[];
+            highlights: string[];
+            moduleSections: components["schemas"]["ExamPackageModuleSection"][];
             isHidden: boolean;
             /** @description RFC3339 timestamp */
             createdAt: string;
@@ -1274,6 +1295,11 @@ export interface components {
         };
         CreateAdminExamPackageRequest: {
             name: string;
+            subtitle?: string | null;
+            overview?: string | null;
+            modules?: string[] | null;
+            highlights?: string[] | null;
+            moduleSections?: components["schemas"]["ExamPackageModuleSection"][] | null;
             isHidden?: boolean | null;
         };
         CreateAdminExamPackageResponse: {
@@ -1281,7 +1307,24 @@ export interface components {
         };
         UpdateAdminExamPackageRequest: {
             name?: string | null;
+            subtitle?: string | null;
+            overview?: string | null;
+            modules?: string[] | null;
+            highlights?: string[] | null;
+            moduleSections?: components["schemas"]["ExamPackageModuleSection"][] | null;
             isHidden?: boolean | null;
+        };
+        UpdateInstructorExamPackageRequest: {
+            subtitle?: string | null;
+            overview?: string | null;
+            modules?: string[] | null;
+            highlights?: string[] | null;
+            moduleSections?: components["schemas"]["ExamPackageModuleSection"][] | null;
+        };
+        ExamPackageModuleSection: {
+            id: string;
+            name: string;
+            description: string;
         };
         HealthzResponse: {
             status: string;
@@ -1486,6 +1529,11 @@ export interface components {
         ExamPackageListItem: {
             id: string;
             name: string;
+            subtitle?: string | null;
+            overview?: string | null;
+            modules: string[];
+            highlights: string[];
+            moduleSections: components["schemas"]["ExamPackageModuleSection"][];
             /** @description RFC3339 timestamp */
             createdAt: string;
         };
@@ -3624,6 +3672,32 @@ export interface operations {
         requestBody: {
             content: {
                 "application/json": components["schemas"]["UpdateAdminExamPackageRequest"];
+            };
+        };
+        responses: {
+            /** @description Exam package updated */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SuccessResponse"];
+                };
+            };
+        };
+    };
+    instructorUpdateExamPackage: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                examPackageId: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["UpdateInstructorExamPackageRequest"];
             };
         };
         responses: {

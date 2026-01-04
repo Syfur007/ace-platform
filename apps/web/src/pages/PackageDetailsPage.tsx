@@ -3,7 +3,6 @@ import { Link, useParams } from 'react-router-dom'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 
 import { listExamPackages, studentCancelEnrollment, studentEnroll, studentListEnrollments } from '@/api/endpoints'
-import { EXAM_PACKAGES } from '@/packages/catalog'
 
 export function PackageDetailsPage() {
   const { packageId } = useParams()
@@ -40,7 +39,6 @@ export function PackageDetailsPage() {
   })
 
   const apiPkg = packagesQuery.data?.items?.find((p) => p.id === packageId) ?? null
-  const demoPkg = apiPkg ? (EXAM_PACKAGES.find((p) => p.name === apiPkg.name) ?? null) : null
 
   const enrolledIds = new Set(enrollmentsQuery.data?.examPackageIds ?? [])
   const isEnrolled = apiPkg ? enrolledIds.has(apiPkg.id) : false
@@ -68,52 +66,56 @@ export function PackageDetailsPage() {
       <div className="space-y-2">
         <div className="text-xs text-slate-500">Exam Package</div>
         <h2 className="text-2xl font-semibold">{apiPkg.name}</h2>
-        {demoPkg ? <div className="text-sm text-slate-600">{demoPkg.subtitle}</div> : null}
+        {apiPkg.subtitle ? <div className="text-sm text-slate-600">{apiPkg.subtitle}</div> : null}
       </div>
 
       <div className="grid gap-4 md:grid-cols-3">
         <section className="rounded border border-slate-200 p-4 md:col-span-2">
           <div className="font-medium">Overview</div>
 
-          {demoPkg ? (
-            <>
-              <p className="mt-2 text-sm text-slate-700">{demoPkg.overview}</p>
+          {apiPkg.overview ? <p className="mt-2 text-sm text-slate-700">{apiPkg.overview}</p> : null}
 
-              <div className="mt-4">
-                <div className="text-xs text-slate-500">Modules</div>
-                <div className="mt-2 flex flex-wrap gap-2">
-                  {demoPkg.modules.map((m) => (
-                    <span key={m} className="rounded border border-slate-200 px-2 py-1 text-xs text-slate-700">
-                      {m}
-                    </span>
-                  ))}
-                </div>
+          {(apiPkg.modules?.length ?? 0) > 0 ? (
+            <div className="mt-4">
+              <div className="text-xs text-slate-500">Modules</div>
+              <div className="mt-2 flex flex-wrap gap-2">
+                {(apiPkg.modules ?? []).map((m) => (
+                  <span key={m} className="rounded border border-slate-200 px-2 py-1 text-xs text-slate-700">
+                    {m}
+                  </span>
+                ))}
               </div>
+            </div>
+          ) : null}
 
-              <div className="mt-5">
-                <div className="text-xs text-slate-500">Module Sections</div>
-                <div className="mt-2 grid gap-3 sm:grid-cols-2">
-                  {demoPkg.moduleSections.map((m) => (
-                    <div key={m.id} className="rounded border border-slate-200 p-3">
-                      <div className="font-medium">{m.name}</div>
-                      <div className="mt-1 text-sm text-slate-600">{m.description}</div>
-                    </div>
-                  ))}
-                </div>
+          {(apiPkg.moduleSections?.length ?? 0) > 0 ? (
+            <div className="mt-5">
+              <div className="text-xs text-slate-500">Module Sections</div>
+              <div className="mt-2 grid gap-3 sm:grid-cols-2">
+                {(apiPkg.moduleSections ?? []).map((m) => (
+                  <div key={m.id} className="rounded border border-slate-200 p-3">
+                    <div className="font-medium">{m.name}</div>
+                    <div className="mt-1 text-sm text-slate-600">{m.description}</div>
+                  </div>
+                ))}
               </div>
+            </div>
+          ) : null}
 
-              <div className="mt-4">
-                <div className="text-xs text-slate-500">Highlights</div>
-                <ul className="mt-2 list-disc space-y-1 pl-5 text-sm text-slate-700">
-                  {demoPkg.highlights.map((h) => (
-                    <li key={h}>{h}</li>
-                  ))}
-                </ul>
-              </div>
-            </>
-          ) : (
+          {(apiPkg.highlights?.length ?? 0) > 0 ? (
+            <div className="mt-4">
+              <div className="text-xs text-slate-500">Highlights</div>
+              <ul className="mt-2 list-disc space-y-1 pl-5 text-sm text-slate-700">
+                {(apiPkg.highlights ?? []).map((h) => (
+                  <li key={h}>{h}</li>
+                ))}
+              </ul>
+            </div>
+          ) : null}
+
+          {!apiPkg.overview && (apiPkg.modules?.length ?? 0) === 0 && (apiPkg.highlights?.length ?? 0) === 0 ? (
             <p className="mt-2 text-sm text-slate-700">This package is available for enrollment.</p>
-          )}
+          ) : null}
         </section>
 
         <aside className="rounded border border-slate-200 p-4">

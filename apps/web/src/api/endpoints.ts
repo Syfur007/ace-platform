@@ -116,6 +116,19 @@ export async function adminUpdateExamPackage(
   })
 }
 
+export type InstructorUpdateExamPackageRequest =
+  paths['/instructor/exam-packages/{examPackageId}']['patch']['requestBody']['content']['application/json']
+
+export async function instructorUpdateExamPackage(
+  examPackageId: string,
+  body: InstructorUpdateExamPackageRequest,
+): Promise<{ success: true }> {
+  return apiFetchJson<{ success: true }>(`/instructor/exam-packages/${encodeURIComponent(examPackageId)}`, {
+    method: 'PATCH',
+    body,
+  })
+}
+
 export async function adminDeleteExamPackage(examPackageId: string): Promise<{ success: true }> {
   return apiFetchJson<{ success: true }>(`/admin/exam-packages/${encodeURIComponent(examPackageId)}`, {
     method: 'DELETE',
