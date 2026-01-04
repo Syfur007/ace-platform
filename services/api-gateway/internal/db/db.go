@@ -260,6 +260,7 @@ func Migrate(ctx context.Context, pool *pgxpool.Pool) error {
 			user_id text not null references users(id) on delete cascade,
 			id text not null,
 			status text not null default 'active',
+			exam_package_id uuid null,
 			snapshot jsonb not null default '{}'::jsonb,
 			created_at timestamptz not null default now(),
 			updated_at timestamptz not null default now(),
@@ -273,6 +274,7 @@ func Migrate(ctx context.Context, pool *pgxpool.Pool) error {
 			invalidation_reason text not null default '',
 			primary key (user_id, id)
 		);`,
+		`alter table exam_sessions add column if not exists exam_package_id uuid null;`,
 		`alter table exam_sessions add column if not exists submitted_at timestamptz null;`,
 		`alter table exam_sessions add column if not exists terminated_at timestamptz null;`,
 		`alter table exam_sessions add column if not exists terminated_by_user_id text null references users(id) on delete set null;`,
@@ -282,6 +284,7 @@ func Migrate(ctx context.Context, pool *pgxpool.Pool) error {
 		`alter table exam_sessions add column if not exists invalidation_reason text not null default '';`,
 		`create index if not exists idx_exam_sessions_last_heartbeat on exam_sessions(last_heartbeat_at desc);`,
 		`create index if not exists idx_exam_sessions_status on exam_sessions(status);`,
+		`create index if not exists idx_exam_sessions_exam_package_id on exam_sessions(exam_package_id);`,
 
 		`create table if not exists exam_session_events (
 			id bigserial primary key,

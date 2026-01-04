@@ -33,6 +33,7 @@ type OkResponse struct {
 }
 
 type HeartbeatRequest struct {
+	ExamPackageID *string         `json:"examPackageId"`
 	SessionID string          `json:"sessionId"`
 	TS        string          `json:"ts"`
 	Snapshot  json.RawMessage `json:"snapshot"`
@@ -45,6 +46,7 @@ type HeartbeatResponse struct {
 
 type ExamSessionResponse struct {
 	SessionID        string          `json:"sessionId"`
+	ExamPackageID    *string         `json:"examPackageId,omitempty"`
 	Status           ExamSessionStatus `json:"status"`
 	CreatedAt        string          `json:"createdAt"`
 	UpdatedAt        string          `json:"updatedAt"`
@@ -55,11 +57,47 @@ type ExamSessionResponse struct {
 
 type ExamSessionListItem struct {
 	SessionID       string          `json:"sessionId"`
+	ExamPackageID   *string         `json:"examPackageId,omitempty"`
 	Status          ExamSessionStatus `json:"status"`
 	CreatedAt       string          `json:"createdAt"`
 	UpdatedAt       string          `json:"updatedAt"`
 	LastHeartbeatAt string          `json:"lastHeartbeatAt"`
 	SubmittedAt     *string         `json:"submittedAt,omitempty"`
+}
+
+func resolveEnrolledExamPackageID(ctx context.Context, pool *pgxpool.Pool, userID string, requested *string) (string, int, string) {
+	// Return (packageId, httpStatus, message). httpStatus==0 means ok.
+	if requested != nil {
+		pkg := strings.TrimSpace(*requested)
+		if pkg != "" {
+			var enrolled bool
+			if err := pool.QueryRow(ctx, `select exists(select 1 from user_exam_package_enrollments where user_id=$1 and exam_package_id=$2)`, userID, pkg).Scan(&enrolled); err != nil || !enrolled {
+				return "", http.StatusForbidden, "not enrolled"
+			}
+			return pkg, 0, ""
+		}
+	}
+
+	rows, err := pool.Query(ctx, `select exam_package_id from user_exam_package_enrollments where user_id=$1 order by created_at asc`, userID)
+	if err != nil {
+		return "", http.StatusInternalServerError, "failed to resolve enrollment"
+	}
+	defer rows.Close()
+
+	ids := []string{}
+	for rows.Next() {
+		var id string
+		if err := rows.Scan(&id); err == nil {
+			ids = append(ids, id)
+		}
+	}
+	if len(ids) == 0 {
+		return "", http.StatusForbidden, "not enrolled"
+	}
+	if len(ids) > 1 {
+		return "", http.StatusBadRequest, "examPackageId is required when enrolled in multiple packages"
+	}
+	return ids[0], 0, ""
 }
 
 type ListExamSessionsResponse struct {
@@ -90,7 +128,7 @@ func RegisterExamRoutes(r *gin.Engine, pool *pgxpool.Pool) {
 		ctx := context.Background()
 
 		args := []any{userID}
-		query := `select id, status, created_at, updated_at, last_heartbeat_at, submitted_at
+			query := `select id, exam_package_id, status, created_at, updated_at, last_heartbeat_at, submitted_at
 			from exam_sessions where user_id=$1`
 		if status != "" {
 			query += " and status=$2"
@@ -116,8 +154,9 @@ func RegisterExamRoutes(r *gin.Engine, pool *pgxpool.Pool) {
 			var createdAt time.Time
 			var updatedAt time.Time
 			var lastHeartbeatAt time.Time
+			var examPackageID *string
 			var submittedAt *time.Time
-			if err := rows.Scan(&id, &st, &createdAt, &updatedAt, &lastHeartbeatAt, &submittedAt); err != nil {
+			if err := rows.Scan(&id, &examPackageID, &st, &createdAt, &updatedAt, &lastHeartbeatAt, &submittedAt); err != nil {
 				c.JSON(http.StatusInternalServerError, gin.H{"message": "failed to list sessions"})
 				return
 			}
@@ -130,6 +169,7 @@ func RegisterExamRoutes(r *gin.Engine, pool *pgxpool.Pool) {
 
 			items = append(items, ExamSessionListItem{
 				SessionID:       id,
+				ExamPackageID:   examPackageID,
 				Status:          ExamSessionStatus(st),
 				CreatedAt:       createdAt.UTC().Format(time.RFC3339),
 				UpdatedAt:       updatedAt.UTC().Format(time.RFC3339),
@@ -181,19 +221,34 @@ func RegisterExamRoutes(r *gin.Engine, pool *pgxpool.Pool) {
 			now := time.Now().UTC()
 			ctx := context.Background()
 
+			resolvedPkg, statusCode, msg := resolveEnrolledExamPackageID(ctx, pool, userID, req.ExamPackageID)
+			if statusCode != 0 {
+				c.JSON(statusCode, gin.H{"message": msg})
+				return
+			}
+
 			var existingStatus string
-			err := pool.QueryRow(ctx, `select status from exam_sessions where user_id=$1 and id=$2`, userID, sessionID).Scan(&existingStatus)
+			var existingPkg *string
+			err := pool.QueryRow(ctx, `select status, exam_package_id from exam_sessions where user_id=$1 and id=$2`, userID, sessionID).Scan(&existingStatus, &existingPkg)
 			if err == nil {
 				if existingStatus != string(ExamSessionActive) {
 					c.JSON(http.StatusConflict, gin.H{"message": "session is not active"})
 					return
 				}
+				if existingPkg != nil && *existingPkg != "" && *existingPkg != resolvedPkg {
+					c.JSON(http.StatusConflict, gin.H{"message": "examPackageId mismatch"})
+					return
+				}
 			}
 
-			_, err = pool.Exec(ctx, `insert into exam_sessions (user_id, id, status, snapshot, created_at, updated_at, last_heartbeat_at)
-				values ($1,$2,$3,$4,now(),now(),now())
-				on conflict (user_id, id) do update set snapshot=excluded.snapshot, updated_at=excluded.updated_at, last_heartbeat_at=excluded.last_heartbeat_at`,
-				userID, sessionID, string(ExamSessionActive), snapshot)
+			_, err = pool.Exec(ctx, `insert into exam_sessions (user_id, id, status, exam_package_id, snapshot, created_at, updated_at, last_heartbeat_at)
+				values ($1,$2,$3,$4,$5,now(),now(),now())
+				on conflict (user_id, id) do update set
+					exam_package_id = coalesce(exam_sessions.exam_package_id, excluded.exam_package_id),
+					snapshot=excluded.snapshot,
+					updated_at=excluded.updated_at,
+					last_heartbeat_at=excluded.last_heartbeat_at`,
+				userID, sessionID, string(ExamSessionActive), resolvedPkg, snapshot)
 		if err != nil {
 			c.JSON(http.StatusInternalServerError, gin.H{"message": "failed to persist heartbeat"})
 			return
@@ -213,15 +268,16 @@ func RegisterExamRoutes(r *gin.Engine, pool *pgxpool.Pool) {
 		ctx := context.Background()
 
 		var status string
+		var examPackageID *string
 		var snapshot []byte
 		var createdAt time.Time
 		var updatedAt time.Time
 		var lastHeartbeatAt time.Time
 		var submittedAt *time.Time
 
-		err := pool.QueryRow(ctx, `select status, snapshot, created_at, updated_at, last_heartbeat_at, submitted_at
+		err := pool.QueryRow(ctx, `select status, exam_package_id, snapshot, created_at, updated_at, last_heartbeat_at, submitted_at
 			from exam_sessions where user_id=$1 and id=$2`, userID, sessionID).
-			Scan(&status, &snapshot, &createdAt, &updatedAt, &lastHeartbeatAt, &submittedAt)
+			Scan(&status, &examPackageID, &snapshot, &createdAt, &updatedAt, &lastHeartbeatAt, &submittedAt)
 		if err != nil {
 			c.JSON(http.StatusNotFound, gin.H{"message": "session not found"})
 			return
@@ -239,6 +295,7 @@ func RegisterExamRoutes(r *gin.Engine, pool *pgxpool.Pool) {
 
 		c.JSON(http.StatusOK, ExamSessionResponse{
 			SessionID:       sessionID,
+			ExamPackageID:   examPackageID,
 			Status:          ExamSessionStatus(status),
 			CreatedAt:       createdAt.UTC().Format(time.RFC3339),
 			UpdatedAt:       updatedAt.UTC().Format(time.RFC3339),
@@ -259,6 +316,7 @@ func RegisterExamRoutes(r *gin.Engine, pool *pgxpool.Pool) {
 		ctx := context.Background()
 
 		var status string
+		var examPackageID *string
 		var snapshot []byte
 		var createdAt time.Time
 		var updatedAt time.Time
@@ -268,9 +326,9 @@ func RegisterExamRoutes(r *gin.Engine, pool *pgxpool.Pool) {
 		err := pool.QueryRow(ctx, `update exam_sessions
 			set status=$1, updated_at=now(), submitted_at=coalesce(submitted_at, now())
 			where user_id=$2 and id=$3 and status in ('active','finished')
-			returning status, snapshot, created_at, updated_at, last_heartbeat_at, submitted_at`,
+			returning status, exam_package_id, snapshot, created_at, updated_at, last_heartbeat_at, submitted_at`,
 			string(ExamSessionFinished), userID, sessionID).
-			Scan(&status, &snapshot, &createdAt, &updatedAt, &lastHeartbeatAt, &submittedAt)
+			Scan(&status, &examPackageID, &snapshot, &createdAt, &updatedAt, &lastHeartbeatAt, &submittedAt)
 		if err != nil {
 			c.JSON(http.StatusNotFound, gin.H{"message": "session not found"})
 			return
@@ -288,6 +346,7 @@ func RegisterExamRoutes(r *gin.Engine, pool *pgxpool.Pool) {
 
 		c.JSON(http.StatusOK, ExamSessionResponse{
 			SessionID:       sessionID,
+			ExamPackageID:   examPackageID,
 			Status:          ExamSessionStatus(status),
 			CreatedAt:       createdAt.UTC().Format(time.RFC3339),
 			UpdatedAt:       updatedAt.UTC().Format(time.RFC3339),

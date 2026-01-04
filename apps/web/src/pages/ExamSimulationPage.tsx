@@ -15,6 +15,13 @@ export function ExamSimulationPage() {
   const engine = useExamEngine({ sessionId: testId ?? 'unknown-session' })
   const lastIntegrityEventAtRef = useRef<Record<string, number>>({})
 
+  let storedExamPackageId: string | null = null
+  try {
+    storedExamPackageId = window.localStorage.getItem(`examSession:${engine.state.sessionId}:examPackageId`)
+  } catch {
+    storedExamPackageId = null
+  }
+
   const sessionQuery = useQuery({
     queryKey: ['exam-session', engine.state.sessionId],
     enabled: engine.state.sessionId !== 'unknown-session',
@@ -85,6 +92,7 @@ export function ExamSimulationPage() {
 
   useHeartbeatSync({
     sessionId: engine.state.sessionId,
+    examPackageId: storedExamPackageId ?? sessionQuery.data?.examPackageId ?? null,
     getSnapshot: () => engine.state,
     enabled: engine.state.sessionId !== 'unknown-session' && !isFinished,
     onAttempt: () => engine.dispatch({ type: 'markHeartbeatAttempt' }),

@@ -5,11 +5,14 @@ import type { ExamSessionSnapshot } from '@/exam/types'
 
 export function useHeartbeatSync({
   sessionId,
+  examPackageId,
   enabled,
   getSnapshot,
   onAttempt,
 }: {
   sessionId: string
+	// Optional. If omitted, backend will auto-resolve only when exactly 1 enrollment exists.
+	examPackageId?: string | null
   enabled: boolean
   getSnapshot: () => ExamSessionSnapshot
   onAttempt?: () => void
@@ -30,6 +33,7 @@ export function useHeartbeatSync({
         onAttempt?.()
         await postHeartbeat(sessionId, {
           sessionId,
+          examPackageId: examPackageId ?? null,
           ts: new Date().toISOString(),
           snapshot,
         })
@@ -45,5 +49,5 @@ export function useHeartbeatSync({
       stopped = true
       window.clearInterval(id)
     }
-  }, [enabled, sessionId])
+  }, [enabled, sessionId, examPackageId])
 }

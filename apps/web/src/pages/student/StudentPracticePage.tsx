@@ -3,13 +3,25 @@ import { Link, useNavigate } from 'react-router-dom'
 
 import { useQuery } from '@tanstack/react-query'
 
-import { createPracticeSession, listPracticeSessions } from '@/api/endpoints'
-import { EXAM_PACKAGES } from '@/packages/catalog'
+import { createPracticeSession, listExamPackages, listPracticeSessions, studentListEnrollments } from '@/api/endpoints'
 
 export function StudentPracticePage() {
   const navigate = useNavigate()
 
-  const packages = useMemo(() => EXAM_PACKAGES, [])
+  const packagesQuery = useQuery({
+    queryKey: ['exam-packages'],
+    queryFn: () => listExamPackages(),
+    refetchOnWindowFocus: false,
+  })
+
+  const enrollmentsQuery = useQuery({
+    queryKey: ['student', 'enrollments'],
+    queryFn: () => studentListEnrollments(),
+    refetchOnWindowFocus: false,
+    retry: false,
+  })
+
+  const enrolledIds = useMemo(() => enrollmentsQuery.data?.examPackageIds ?? [], [enrollmentsQuery.data])
 
   const [examPackageId, setExamPackageId] = useState<string>('')
   const [isTimed, setIsTimed] = useState(true)
@@ -27,6 +39,12 @@ export function StudentPracticePage() {
     if (isStarting) return
 
     setStartError(null)
+
+    if (!examPackageId && enrolledIds.length > 1) {
+      setStartError('Please pick a package (you are enrolled in multiple).')
+      return
+    }
+
     setIsStarting(true)
     try {
       const session = await createPracticeSession({
@@ -67,15 +85,26 @@ export function StudentPracticePage() {
                 className="rounded border border-slate-200 bg-white px-3 py-2 text-sm"
                 value={examPackageId}
                 onChange={(e) => setExamPackageId(e.target.value)}
+                disabled={packagesQuery.isLoading || packagesQuery.isError}
               >
-                <option value="">Any package</option>
-                {packages.map((p) => (
+                <option value="">Auto (requires exactly 1 enrollment)</option>
+                {(packagesQuery.data?.items ?? []).map((p) => (
                   <option key={p.id} value={p.id}>
                     {p.name}
                   </option>
                 ))}
               </select>
             </label>
+
+            {enrollmentsQuery.isError ? (
+              <div className="text-sm text-slate-600">
+                <Link className="underline" to="/student/auth">Sign in</Link> to start practice.
+              </div>
+            ) : enrolledIds.length === 0 ? (
+              <div className="text-sm text-slate-600">
+                You are not enrolled in any package. Enroll from <Link className="underline" to="/student/courses">Courses</Link>.
+              </div>
+            ) : null}
 
             <div className="grid gap-2 sm:grid-cols-2">
               <label className="grid gap-1">
@@ -132,7 +161,7 @@ export function StudentPracticePage() {
             ) : null}
 
             <div className="rounded border border-slate-200 p-3 text-xs text-slate-600">
-              Next steps: wire to API (create session → fetch questions → submit answers) and add a review mode for incorrect/flagged.
+              Sessions are API-backed. Next: add richer filters (topic/difficulty) and better review workflows (incorrect/flagged).
             </div>
           </div>
         </section>

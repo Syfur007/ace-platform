@@ -60,6 +60,23 @@ export async function listExamPackages(): Promise<ListExamPackagesResponse> {
   return apiFetchJson<ListExamPackagesResponse>('/exam-packages', { method: 'GET' })
 }
 
+export type StudentListEnrollmentsResponse =
+  paths['/student/enrollments']['get']['responses'][200]['content']['application/json']
+
+export async function studentListEnrollments(): Promise<StudentListEnrollmentsResponse> {
+  return apiFetchJson<StudentListEnrollmentsResponse>('/student/enrollments', { method: 'GET' })
+}
+
+export type StudentEnrollRequest =
+  paths['/student/enrollments']['post']['requestBody']['content']['application/json']
+
+export type StudentEnrollResponse =
+  paths['/student/enrollments']['post']['responses'][200]['content']['application/json']
+
+export async function studentEnroll(body: StudentEnrollRequest): Promise<StudentEnrollResponse> {
+  return apiFetchJson<StudentEnrollResponse>('/student/enrollments', { method: 'POST', body })
+}
+
 export type AdminListExamPackagesResponse =
   paths['/admin/exam-packages']['get']['responses'][200]['content']['application/json']
 

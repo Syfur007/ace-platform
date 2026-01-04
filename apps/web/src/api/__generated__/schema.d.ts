@@ -1193,6 +1193,7 @@ export interface components {
             ts: string;
         };
         HeartbeatRequest: {
+            examPackageId?: string | null;
             sessionId: string;
             /** @description RFC3339 timestamp */
             ts: string;
@@ -1208,6 +1209,7 @@ export interface components {
         };
         ExamSessionResponse: {
             sessionId: string;
+            examPackageId?: string | null;
             /** @enum {string} */
             status: "active" | "finished" | "terminated" | "invalid";
             /** @description RFC3339 timestamp */
@@ -1230,6 +1232,7 @@ export interface components {
         };
         ExamSessionListItem: {
             sessionId: string;
+            examPackageId?: string | null;
             /** @enum {string} */
             status: "active" | "finished" | "terminated" | "invalid";
             /** @description RFC3339 timestamp */
