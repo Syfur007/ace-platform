@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"net/http"
+	"strconv"
 	"strings"
 	"time"
 
@@ -37,6 +38,7 @@ type PracticeQuestion struct {
 
 type CreatePracticeSessionRequest struct {
 	ExamPackageID *string `json:"examPackageId"`
+	TemplateID *string `json:"templateId"`
 	Timed     bool    `json:"timed"`
 	Count     int     `json:"count"`
 }
@@ -192,6 +194,7 @@ func loadSnapshotQuestion(snapshot []practiceQuestionSnapshot, idx int) *Practic
 }
 
 func RegisterPracticeRoutes(r *gin.Engine, pool *pgxpool.Pool) {
+	registerPracticeTemplateRoutes(r, pool)
 	r.GET("/practice-sessions", auth.RequirePortalAuth(pool, "student", "student"), func(c *gin.Context) {
 		userID, ok := auth.GetUserID(c)
 		if !ok {
@@ -325,9 +328,48 @@ func RegisterPracticeRoutes(r *gin.Engine, pool *pgxpool.Pool) {
 
 		ctx := context.Background()
 
+		var templateID *string
+		var templateTopicID *string
+		var templateDifficultyID *string
+
 		// Resolve exam package selection.
 		var packageID string
-		if req.ExamPackageID != nil && strings.TrimSpace(*req.ExamPackageID) != "" {
+		if req.TemplateID != nil && strings.TrimSpace(*req.TemplateID) != "" {
+			// Template-driven session. Template must be published and user must be enrolled in its package.
+			tid := strings.TrimSpace(*req.TemplateID)
+			templateID = &tid
+
+			var enrolled bool
+			var isPublished bool
+			var isTimed bool
+			var targetCount int
+			if err := pool.QueryRow(ctx, `
+				select t.exam_package_id, t.topic_id, t.difficulty_id, t.is_published, t.is_timed, t.target_count,
+					exists(select 1 from user_exam_package_enrollments e where e.user_id=$2 and e.exam_package_id=t.exam_package_id)
+				from practice_test_templates t
+				where t.id=$1`, tid, userID).
+				Scan(&packageID, &templateTopicID, &templateDifficultyID, &isPublished, &isTimed, &targetCount, &enrolled); err != nil {
+				c.JSON(http.StatusNotFound, gin.H{"message": "template not found"})
+				return
+			}
+			if !isPublished {
+				c.JSON(http.StatusForbidden, gin.H{"message": "template is not published"})
+				return
+			}
+			if !enrolled {
+				c.JSON(http.StatusForbidden, gin.H{"message": "not enrolled"})
+				return
+			}
+
+			req.Timed = isTimed
+			count = targetCount
+			if count <= 0 {
+				count = 10
+			}
+			if count > 50 {
+				count = 50
+			}
+		} else if req.ExamPackageID != nil && strings.TrimSpace(*req.ExamPackageID) != "" {
 			packageID = strings.TrimSpace(*req.ExamPackageID)
 			// Require enrollment in the selected package.
 			var enrolled bool
@@ -362,15 +404,27 @@ func RegisterPracticeRoutes(r *gin.Engine, pool *pgxpool.Pool) {
 		}
 
 		// Select published questions from the DB-backed question bank for this exam package.
-		rows, err := pool.Query(ctx, `
+		args := []any{string(QuestionPublished), packageID}
+		query := `
 			select q.id, q.prompt, q.explanation_text, cc.choice_id
 			from question_bank_questions q
 			join question_bank_packages p on p.id=q.package_id
 			join exam_package_question_bank_packages m on m.question_bank_package_id=p.id
 			join question_bank_correct_choice cc on cc.question_id=q.id
-			where q.status=$1 and p.is_hidden=false and m.exam_package_id=$2
-			order by random()
-			limit $3`, string(QuestionPublished), packageID, count)
+			where q.status=$1 and p.is_hidden=false and m.exam_package_id=$2`
+		if templateTopicID != nil && strings.TrimSpace(*templateTopicID) != "" {
+			args = append(args, strings.TrimSpace(*templateTopicID))
+			query += " and q.topic_id=$" + strconv.Itoa(len(args))
+		}
+		if templateDifficultyID != nil && strings.TrimSpace(*templateDifficultyID) != "" {
+			args = append(args, strings.TrimSpace(*templateDifficultyID))
+			query += " and q.difficulty_id=$" + strconv.Itoa(len(args))
+		}
+		args = append(args, count)
+		query += " order by random() limit $" + strconv.Itoa(len(args))
+
+		rows, err := pool.Query(ctx, query,
+			args...)
 		if err != nil {
 			c.JSON(http.StatusInternalServerError, gin.H{"message": "failed to select questions"})
 			return
@@ -448,9 +502,9 @@ func RegisterPracticeRoutes(r *gin.Engine, pool *pgxpool.Pool) {
 		snapshotJSON, _ := json.Marshal(snapshot)
 
 		sessionID := util.NewID("ps")
-		_, err = pool.Exec(ctx, `insert into practice_sessions (id, user_id, package_id, is_timed, target_count, current_index, correct_count, status, question_order, questions_snapshot)
-			values ($1,$2,$3,$4,$5,0,0,$6,$7,$8)` ,
-			sessionID, userID, packageID, req.Timed, count, string(PracticeSessionActive), orderJSON, snapshotJSON)
+		_, err = pool.Exec(ctx, `insert into practice_sessions (id, user_id, package_id, template_id, is_timed, target_count, current_index, correct_count, status, question_order, questions_snapshot)
+			values ($1,$2,$3,$4,$5,$6,0,0,$7,$8,$9)` ,
+			sessionID, userID, packageID, templateID, req.Timed, count, string(PracticeSessionActive), orderJSON, snapshotJSON)
 		if err != nil {
 			c.JSON(http.StatusInternalServerError, gin.H{"message": "failed to create session"})
 			return

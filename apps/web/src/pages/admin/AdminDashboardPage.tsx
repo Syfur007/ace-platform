@@ -37,6 +37,9 @@ export function AdminDashboardPage() {
           <Link className="rounded border border-slate-200 px-3 py-2 text-sm hover:bg-slate-50" to="/admin/question-bank">
             Question Bank
           </Link>
+          <Link className="rounded border border-slate-200 px-3 py-2 text-sm hover:bg-slate-50" to="/admin/practice-templates">
+            Practice Templates
+          </Link>
           <Link className="rounded border border-slate-200 px-3 py-2 text-sm hover:bg-slate-50" to="/admin/users">
             Users
           </Link>

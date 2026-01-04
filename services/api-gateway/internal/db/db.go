@@ -220,10 +220,33 @@ func Migrate(ctx context.Context, pool *pgxpool.Pool) error {
 			group_id text primary key references auth_session_groups(id) on delete cascade,
 			max_active_sessions integer not null
 		);`,
+
+		// Practice test templates (catalog items configured by admin/instructors)
+		`create table if not exists practice_test_templates (
+			id uuid primary key default gen_random_uuid(),
+			exam_package_id uuid not null references exam_packages(id) on delete cascade,
+			name text not null,
+			section text not null,
+			topic_id text null references question_bank_topics(id) on delete set null,
+			difficulty_id text null references question_bank_difficulties(id) on delete set null,
+			is_timed boolean not null default false,
+			target_count integer not null,
+			sort_order integer not null default 0,
+			is_published boolean not null default false,
+			created_by_user_id text not null references users(id) on delete restrict,
+			updated_by_user_id text not null references users(id) on delete restrict,
+			created_at timestamptz not null default now(),
+			updated_at timestamptz not null default now()
+		);`,
+		`create index if not exists idx_practice_test_templates_pkg_pub on practice_test_templates(exam_package_id, is_published, sort_order, created_at desc);`,
+		`create index if not exists idx_practice_test_templates_pkg_section on practice_test_templates(exam_package_id, section, sort_order);`,
+		`create index if not exists idx_practice_test_templates_topic on practice_test_templates(topic_id);`,
+		`create index if not exists idx_practice_test_templates_difficulty on practice_test_templates(difficulty_id);`,
 		`create table if not exists practice_sessions (
 			id text primary key,
 			user_id text not null references users(id) on delete cascade,
 			package_id uuid null,
+			template_id uuid null,
 			is_timed boolean not null,
 			started_at timestamptz not null default now(),
 			time_limit_seconds integer not null default 0,
@@ -239,6 +262,7 @@ func Migrate(ctx context.Context, pool *pgxpool.Pool) error {
 			created_at timestamptz not null default now(),
 			last_activity_at timestamptz not null default now()
 		);`,
+		`alter table practice_sessions add column if not exists template_id uuid null;`,
 		`alter table practice_sessions add column if not exists last_activity_at timestamptz not null default now();`,
 		`alter table practice_sessions add column if not exists started_at timestamptz not null default now();`,
 		`alter table practice_sessions add column if not exists time_limit_seconds integer not null default 0;`,
@@ -246,6 +270,7 @@ func Migrate(ctx context.Context, pool *pgxpool.Pool) error {
 		`alter table practice_sessions add column if not exists question_timings jsonb not null default '{}'::jsonb;`,
 		`alter table practice_sessions add column if not exists questions_snapshot jsonb not null default '[]'::jsonb;`,
 		`alter table practice_sessions add column if not exists paused_at timestamptz null;`,
+		`create index if not exists idx_practice_sessions_template_id on practice_sessions(template_id);`,
 		`create table if not exists practice_answers (
 			id bigserial primary key,
 			session_id text not null references practice_sessions(id) on delete cascade,

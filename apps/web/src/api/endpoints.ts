@@ -1,4 +1,4 @@
-import type { paths } from '@/api/__generated__/schema'
+import type { components, paths } from '@/api/__generated__/schema'
 
 import { apiFetchJson } from '@/api/http'
 
@@ -212,6 +212,81 @@ export type PracticeSessionResponse =
 
 export async function createPracticeSession(body: CreatePracticeSessionRequest): Promise<PracticeSessionResponse> {
   return apiFetchJson<PracticeSessionResponse>('/practice-sessions', { method: 'POST', body })
+}
+
+export type PracticeTemplate =
+  components['schemas']['PracticeTemplate']
+
+export type ListPracticeTemplatesResponse =
+  paths['/practice-templates']['get']['responses'][200]['content']['application/json']
+
+export async function listPracticeTemplates(params?: { examPackageId?: string }): Promise<ListPracticeTemplatesResponse> {
+  const search = new URLSearchParams()
+  if (params?.examPackageId) search.set('examPackageId', params.examPackageId)
+  const qs = search.toString()
+  return apiFetchJson<ListPracticeTemplatesResponse>(`/practice-templates${qs ? `?${qs}` : ''}`, { method: 'GET' })
+}
+
+export type InstructorCreatePracticeTemplateRequest =
+  paths['/instructor/practice-templates']['post']['requestBody']['content']['application/json']
+
+export type InstructorCreatePracticeTemplateResponse =
+  paths['/instructor/practice-templates']['post']['responses'][200]['content']['application/json']
+
+export async function instructorCreatePracticeTemplate(
+  body: InstructorCreatePracticeTemplateRequest,
+): Promise<InstructorCreatePracticeTemplateResponse> {
+  return apiFetchJson<InstructorCreatePracticeTemplateResponse>('/instructor/practice-templates', { method: 'POST', body })
+}
+
+export type InstructorListPracticeTemplatesResponse =
+  paths['/instructor/practice-templates']['get']['responses'][200]['content']['application/json']
+
+export async function instructorListPracticeTemplates(params?: {
+  examPackageId?: string
+  includeUnpublished?: boolean
+}): Promise<InstructorListPracticeTemplatesResponse> {
+  const search = new URLSearchParams()
+  if (params?.examPackageId) search.set('examPackageId', params.examPackageId)
+  if (params?.includeUnpublished != null) search.set('includeUnpublished', String(params.includeUnpublished))
+  const qs = search.toString()
+  return apiFetchJson<InstructorListPracticeTemplatesResponse>(`/instructor/practice-templates${qs ? `?${qs}` : ''}`, {
+    method: 'GET',
+  })
+}
+
+export type InstructorUpdatePracticeTemplateRequest =
+  paths['/instructor/practice-templates/{templateId}']['patch']['requestBody']['content']['application/json']
+
+export type InstructorUpdatePracticeTemplateResponse =
+  paths['/instructor/practice-templates/{templateId}']['patch']['responses'][200]['content']['application/json']
+
+export async function instructorUpdatePracticeTemplate(
+  templateId: string,
+  body: InstructorUpdatePracticeTemplateRequest,
+): Promise<InstructorUpdatePracticeTemplateResponse> {
+  return apiFetchJson<InstructorUpdatePracticeTemplateResponse>(
+    `/instructor/practice-templates/${encodeURIComponent(templateId)}`,
+    { method: 'PATCH', body },
+  )
+}
+
+export async function instructorDeletePracticeTemplate(templateId: string): Promise<{ success: true }> {
+  return apiFetchJson<{ success: true }>(`/instructor/practice-templates/${encodeURIComponent(templateId)}`, {
+    method: 'DELETE',
+  })
+}
+
+export async function instructorPublishPracticeTemplate(templateId: string): Promise<PracticeTemplate> {
+  return apiFetchJson<PracticeTemplate>(`/instructor/practice-templates/${encodeURIComponent(templateId)}/publish`, {
+    method: 'POST',
+  })
+}
+
+export async function instructorUnpublishPracticeTemplate(templateId: string): Promise<PracticeTemplate> {
+  return apiFetchJson<PracticeTemplate>(`/instructor/practice-templates/${encodeURIComponent(templateId)}/unpublish`, {
+    method: 'POST',
+  })
 }
 
 export type GetPracticeSessionResponse =

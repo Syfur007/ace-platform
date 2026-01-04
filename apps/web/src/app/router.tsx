@@ -20,8 +20,10 @@ import { clearAllAccessTokens, getAuthenticatedPortal, getPortalFromPathname, no
 import { apiFetchJson } from '@/api/http'
 import { AdminDashboardPage } from '@/pages/admin/AdminDashboardPage'
 import { AdminExamIntegrityPage } from '@/pages/admin/AdminExamIntegrityPage'
+import { AdminPracticeTemplatesPage } from '@/pages/admin/AdminPracticeTemplatesPage'
 import { AdminQuestionBankPage } from '@/pages/admin/AdminQuestionBankPage'
 import { AdminUsersPage } from '@/pages/admin/AdminUsersPage'
+import { InstructorPracticeTemplatesPage } from '@/pages/instructor/InstructorPracticeTemplatesPage'
 
 function AppShell() {
   const location = useLocation()
@@ -191,9 +193,13 @@ const router = createBrowserRouter([
         path: 'instructor',
         element: (
           <RequirePortalAuth portal="instructor">
-            <InstructorDashboardPage />
+            <Outlet />
           </RequirePortalAuth>
         ),
+        children: [
+          { index: true, element: <InstructorDashboardPage /> },
+          { path: 'practice-templates', element: <InstructorPracticeTemplatesPage /> },
+        ],
       },
       { path: 'admin/auth', element: <AdminAuthPage /> },
       {
@@ -207,6 +213,7 @@ const router = createBrowserRouter([
           { index: true, element: <AdminDashboardPage /> },
           { path: 'dashboard', element: <AdminDashboardPage /> },
           { path: 'question-bank', element: <AdminQuestionBankPage /> },
+          { path: 'practice-templates', element: <AdminPracticeTemplatesPage /> },
           { path: 'users', element: <AdminUsersPage /> },
           { path: 'exam-integrity', element: <AdminExamIntegrityPage /> },
         ],

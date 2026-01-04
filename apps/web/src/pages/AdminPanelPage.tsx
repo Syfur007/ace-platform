@@ -30,6 +30,7 @@ import {
 } from '@/api/endpoints'
 import { clearAllAccessTokens } from '@/auth/token'
 import { QuestionBankTab } from '@/pages/admin/QuestionBankTab'
+import { PracticeTemplatesManager } from '@/pages/shared/PracticeTemplatesManager'
 
 function examStatusLabel(status?: string) {
   if (!status) return ''
@@ -40,7 +41,7 @@ function examStatusLabel(status?: string) {
   return status
 }
 
-export type AdminTab = 'questionBank' | 'users' | 'examIntegrity'
+export type AdminTab = 'questionBank' | 'practiceTemplates' | 'users' | 'examIntegrity'
 
 export type AdminPanelPageProps = {
   tab: AdminTab
@@ -283,7 +284,13 @@ export function AdminPanelPage(props: AdminPanelPageProps) {
       <div className="flex flex-wrap items-start justify-between gap-3">
         <div className="space-y-1">
           <h2 className="text-xl font-semibold">
-            {activeTab === 'questionBank' ? 'Question Bank' : activeTab === 'users' ? 'Users' : 'Exam Integrity'}
+            {activeTab === 'questionBank'
+              ? 'Question Bank'
+              : activeTab === 'practiceTemplates'
+                ? 'Practice Templates'
+                : activeTab === 'users'
+                  ? 'Users'
+                  : 'Exam Integrity'}
           </h2>
           <p className="text-sm text-slate-600">Admin tools.</p>
         </div>
@@ -309,6 +316,13 @@ export function AdminPanelPage(props: AdminPanelPageProps) {
       </div>
 
       {activeTab === 'questionBank' ? <QuestionBankTab /> : null}
+
+      {activeTab === 'practiceTemplates' ? (
+        <PracticeTemplatesManager
+          title="Practice Templates"
+          subtitle="Create and publish reusable practice tests for each exam package."
+        />
+      ) : null}
 
       {activeTab === 'users' ? (
         <div className="rounded border border-slate-200 p-4">

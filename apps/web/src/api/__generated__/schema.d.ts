@@ -586,6 +586,86 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/practice-templates": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["listPracticeTemplates"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/instructor/practice-templates": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["instructorListPracticeTemplates"];
+        put?: never;
+        post: operations["instructorCreatePracticeTemplate"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/instructor/practice-templates/{templateId}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        delete: operations["instructorDeletePracticeTemplate"];
+        options?: never;
+        head?: never;
+        patch: operations["instructorUpdatePracticeTemplate"];
+        trace?: never;
+    };
+    "/instructor/practice-templates/{templateId}/publish": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: operations["instructorPublishPracticeTemplate"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/instructor/practice-templates/{templateId}/unpublish": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: operations["instructorUnpublishPracticeTemplate"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/exam-sessions": {
         parameters: {
             query?: never;
@@ -1269,8 +1349,50 @@ export interface components {
         };
         CreatePracticeSessionRequest: {
             examPackageId?: string | null;
+            templateId?: string | null;
             timed: boolean;
             count: number;
+        };
+        PracticeTemplate: {
+            id: string;
+            examPackageId: string;
+            name: string;
+            section: string;
+            topicId?: string | null;
+            topicName?: string | null;
+            difficultyId?: string | null;
+            difficultyName?: string | null;
+            isTimed: boolean;
+            targetCount: number;
+            sortOrder: number;
+            isPublished: boolean;
+            /** @description RFC3339 timestamp */
+            createdAt: string;
+            /** @description RFC3339 timestamp */
+            updatedAt: string;
+        };
+        ListPracticeTemplatesResponse: {
+            items: components["schemas"]["PracticeTemplate"][];
+        };
+        CreatePracticeTemplateRequest: {
+            examPackageId: string;
+            name: string;
+            section: string;
+            topicId?: string | null;
+            difficultyId?: string | null;
+            isTimed: boolean;
+            targetCount: number;
+            /** @default 0 */
+            sortOrder: number;
+        };
+        UpdatePracticeTemplateRequest: {
+            name?: string | null;
+            section?: string | null;
+            topicId?: string | null;
+            difficultyId?: string | null;
+            isTimed?: boolean | null;
+            targetCount?: number | null;
+            sortOrder?: number | null;
         };
         PracticeQuestionChoice: {
             id: string;
@@ -2569,6 +2691,167 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["PracticeSessionResponse"];
+                };
+            };
+        };
+    };
+    listPracticeTemplates: {
+        parameters: {
+            query?: {
+                examPackageId?: string;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Practice templates (published) */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ListPracticeTemplatesResponse"];
+                };
+            };
+        };
+    };
+    instructorListPracticeTemplates: {
+        parameters: {
+            query?: {
+                examPackageId?: string;
+                includeUnpublished?: boolean;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Practice templates (instructor/admin) */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ListPracticeTemplatesResponse"];
+                };
+            };
+        };
+    };
+    instructorCreatePracticeTemplate: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["CreatePracticeTemplateRequest"];
+            };
+        };
+        responses: {
+            /** @description Created */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PracticeTemplate"];
+                };
+            };
+        };
+    };
+    instructorDeletePracticeTemplate: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                templateId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Deleted */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SuccessResponse"];
+                };
+            };
+        };
+    };
+    instructorUpdatePracticeTemplate: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                templateId: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["UpdatePracticeTemplateRequest"];
+            };
+        };
+        responses: {
+            /** @description Updated */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PracticeTemplate"];
+                };
+            };
+        };
+    };
+    instructorPublishPracticeTemplate: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                templateId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Published */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PracticeTemplate"];
+                };
+            };
+        };
+    };
+    instructorUnpublishPracticeTemplate: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                templateId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Unpublished */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PracticeTemplate"];
                 };
             };
         };

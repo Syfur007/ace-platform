@@ -797,6 +797,147 @@ paths:
               schema:
                 $ref: '#/components/schemas/PracticeSessionResponse'
 
+  /practice-templates:
+    get:
+      operationId: listPracticeTemplates
+      security:
+        - bearerAuth: []
+      parameters:
+        - in: query
+          name: examPackageId
+          required: false
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Practice templates (published)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ListPracticeTemplatesResponse'
+
+  /instructor/practice-templates:
+    get:
+      operationId: instructorListPracticeTemplates
+      security:
+        - bearerAuth: []
+      parameters:
+        - in: query
+          name: examPackageId
+          required: false
+          schema:
+            type: string
+        - in: query
+          name: includeUnpublished
+          required: false
+          schema:
+            type: boolean
+            default: true
+      responses:
+        '200':
+          description: Practice templates (instructor/admin)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ListPracticeTemplatesResponse'
+    post:
+      operationId: instructorCreatePracticeTemplate
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreatePracticeTemplateRequest'
+      responses:
+        '200':
+          description: Created
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PracticeTemplate'
+
+  /instructor/practice-templates/{templateId}:
+    patch:
+      operationId: instructorUpdatePracticeTemplate
+      security:
+        - bearerAuth: []
+      parameters:
+        - in: path
+          name: templateId
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UpdatePracticeTemplateRequest'
+      responses:
+        '200':
+          description: Updated
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PracticeTemplate'
+    delete:
+      operationId: instructorDeletePracticeTemplate
+      security:
+        - bearerAuth: []
+      parameters:
+        - in: path
+          name: templateId
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Deleted
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SuccessResponse'
+
+  /instructor/practice-templates/{templateId}/publish:
+    post:
+      operationId: instructorPublishPracticeTemplate
+      security:
+        - bearerAuth: []
+      parameters:
+        - in: path
+          name: templateId
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Published
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PracticeTemplate'
+
+  /instructor/practice-templates/{templateId}/unpublish:
+    post:
+      operationId: instructorUnpublishPracticeTemplate
+      security:
+        - bearerAuth: []
+      parameters:
+        - in: path
+          name: templateId
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Unpublished
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PracticeTemplate'
+
   /exam-sessions:
     get:
       operationId: listExamSessions
@@ -1967,12 +2108,118 @@ components:
         examPackageId:
           type: string
           nullable: true
+        templateId:
+          type: string
+          nullable: true
         timed:
           type: boolean
         count:
           type: integer
           minimum: 1
           maximum: 50
+
+    PracticeTemplate:
+      type: object
+      required: [id, examPackageId, name, section, isTimed, targetCount, sortOrder, isPublished, createdAt, updatedAt]
+      properties:
+        id:
+          type: string
+        examPackageId:
+          type: string
+        name:
+          type: string
+        section:
+          type: string
+        topicId:
+          type: string
+          nullable: true
+        topicName:
+          type: string
+          nullable: true
+        difficultyId:
+          type: string
+          nullable: true
+        difficultyName:
+          type: string
+          nullable: true
+        isTimed:
+          type: boolean
+        targetCount:
+          type: integer
+        sortOrder:
+          type: integer
+        isPublished:
+          type: boolean
+        createdAt:
+          type: string
+          description: RFC3339 timestamp
+        updatedAt:
+          type: string
+          description: RFC3339 timestamp
+
+    ListPracticeTemplatesResponse:
+      type: object
+      required: [items]
+      properties:
+        items:
+          type: array
+          items:
+            $ref: '#/components/schemas/PracticeTemplate'
+
+    CreatePracticeTemplateRequest:
+      type: object
+      required: [examPackageId, name, section, isTimed, targetCount]
+      properties:
+        examPackageId:
+          type: string
+        name:
+          type: string
+        section:
+          type: string
+        topicId:
+          type: string
+          nullable: true
+        difficultyId:
+          type: string
+          nullable: true
+        isTimed:
+          type: boolean
+        targetCount:
+          type: integer
+          minimum: 1
+          maximum: 50
+        sortOrder:
+          type: integer
+          minimum: 0
+          default: 0
+
+    UpdatePracticeTemplateRequest:
+      type: object
+      properties:
+        name:
+          type: string
+          nullable: true
+        section:
+          type: string
+          nullable: true
+        topicId:
+          type: string
+          nullable: true
+        difficultyId:
+          type: string
+          nullable: true
+        isTimed:
+          type: boolean
+          nullable: true
+        targetCount:
+          type: integer
+          nullable: true
+          minimum: 1
+          maximum: 50
+        sortOrder:
+          type: integer
+          nullable: true
+          minimum: 0
 
     PracticeQuestionChoice:
       type: object

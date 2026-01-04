@@ -1,3 +1,5 @@
+import { Link } from 'react-router-dom'
+
 import { LlmFeedbackPanel } from '@/llm/LlmFeedbackPanel'
 
 export function InstructorDashboardPage() {
@@ -6,6 +8,12 @@ export function InstructorDashboardPage() {
       <div className="space-y-1">
         <h2 className="text-xl font-semibold">Instructor / Content Creator Dashboard</h2>
         <p className="text-sm text-slate-600">Question bank management + LLM-assisted generation and feedback previews.</p>
+      </div>
+
+      <div className="flex flex-wrap gap-2">
+        <Link className="rounded border border-slate-200 px-3 py-2 text-sm hover:bg-slate-50" to="/instructor/practice-templates">
+          Practice Templates
+        </Link>
       </div>
 
       <div className="grid gap-4 md:grid-cols-2">

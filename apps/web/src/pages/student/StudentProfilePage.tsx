@@ -1,8 +1,9 @@
+import { useMemo } from 'react'
 import { Link } from 'react-router-dom'
 
 import { useQuery } from '@tanstack/react-query'
 
-import { listExamSessions, listPracticeSessions, studentGetMe } from '@/api/endpoints'
+import { listExamPackages, listExamSessions, listPracticeSessions, studentGetMe, studentListEnrollments } from '@/api/endpoints'
 
 export function StudentProfilePage() {
   const meQuery = useQuery({
@@ -10,6 +11,25 @@ export function StudentProfilePage() {
     queryFn: () => studentGetMe(),
     refetchOnWindowFocus: false,
   })
+
+  const packagesQuery = useQuery({
+    queryKey: ['exam-packages'],
+    queryFn: () => listExamPackages(),
+    refetchOnWindowFocus: false,
+  })
+
+  const enrollmentsQuery = useQuery({
+    queryKey: ['student', 'enrollments'],
+    queryFn: () => studentListEnrollments(),
+    refetchOnWindowFocus: false,
+    retry: false,
+  })
+
+  const enrolledIds = useMemo(() => new Set(enrollmentsQuery.data?.examPackageIds ?? []), [enrollmentsQuery.data])
+  const enrolledPackages = useMemo(
+    () => (packagesQuery.data?.items ?? []).filter((p) => enrolledIds.has(p.id)),
+    [packagesQuery.data, enrolledIds],
+  )
 
   const practiceHistoryQuery = useQuery({
     queryKey: ['practice-history', { limit: 10 }],
@@ -56,6 +76,47 @@ export function StudentProfilePage() {
             </div>
           </dl>
         ) : null}
+      </section>
+
+      <section className="rounded border border-slate-200 p-4">
+        <div className="flex items-center justify-between gap-3">
+          <div className="font-medium">Enrolled courses</div>
+          <Link className="text-sm text-slate-600 hover:underline" to="/student/courses">
+            Browse courses
+          </Link>
+        </div>
+
+        {enrollmentsQuery.isLoading || packagesQuery.isLoading ? (
+          <div className="mt-3 text-sm text-slate-600">Loading…</div>
+        ) : enrollmentsQuery.isError ? (
+          <div className="mt-3 text-sm text-slate-600">
+            <Link className="underline" to="/student/auth">Sign in</Link> to view enrollments.
+          </div>
+        ) : enrolledPackages.length === 0 ? (
+          <div className="mt-3 text-sm text-slate-600">
+            You are not enrolled in any course yet. Enroll from{' '}
+            <Link className="underline" to="/student/courses">Courses</Link>.
+          </div>
+        ) : (
+          <ul className="mt-3 grid gap-2 md:grid-cols-2">
+            {enrolledPackages.map((p) => (
+              <li key={p.id} className="rounded border border-slate-200 p-3">
+                <div className="flex items-center justify-between gap-3">
+                  <div className="min-w-0">
+                    <div className="text-sm font-medium truncate">{p.name}</div>
+                    <div className="mt-1 text-xs text-slate-500">Enrolled</div>
+                  </div>
+                  <Link
+                    className="rounded border border-slate-200 px-3 py-2 text-sm hover:bg-slate-50"
+                    to={`/packages/${encodeURIComponent(p.id)}`}
+                  >
+                    View
+                  </Link>
+                </div>
+              </li>
+            ))}
+          </ul>
+        )}
       </section>
 
       <section className="grid gap-4 md:grid-cols-2">
