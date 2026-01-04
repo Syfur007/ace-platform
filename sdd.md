@@ -2,7 +2,7 @@ Software Design Document
 
 **Online Exam Preparation Platform**
 
-Version 1.2
+Version 1.3
 
 January 2026
 
@@ -172,14 +172,17 @@ The platform follows a modern microservices architecture with the following laye
 
 **Technical Implementation:**
 
-- JWT-based authentication:
-	- JWT access token (HS256) issued by the Go API gateway
+- Cookie-based authentication with server-side session tracking:
+	- `ace_access` (HttpOnly cookie): short-lived JWT access token
+	- `ace_refresh` (HttpOnly cookie): refresh token bound to a server-side session
+	- `ace_csrf` (non-HttpOnly cookie): CSRF double-submit token for unsafe requests
 	- Role-based portals (Student/Instructor/Admin) with portal-specific auth routes
-	- JWT claims include `role` and `aud` (audience) and are enforced by middleware
-	- Web stores per-portal tokens in localStorage (dev simplification)
+	- JWT claims include `role`, `aud`, and `sid` and are enforced by middleware
+	- Web stores only the “active portal” hint in localStorage (not tokens)
 	- Instructor/Admin accounts are provisioned in dev via bootstrap environment variables
 - Planned evolution:
-	- JWT-based authentication with access + refresh tokens
+	- OAuth2 social login (Google/Facebook/Apple)
+	- MFA (TOTP)
 - OAuth2 integration for social logins
 - Password hashing with bcrypt (cost factor: 12)
 - Session management with Redis
@@ -213,8 +216,11 @@ The platform follows a modern microservices architecture with the following laye
 
 - 1,600+ practice questions per exam (like Magoosh)
 - Multiple question types: MCQ, multiple select, numeric entry, fill-in-blank
-- Detailed text and video explanations for each question
+- Detailed text explanations for each question
 - Question tagging by topic, difficulty, and concept
+- Randomized question selection
+- All questions are distributed across multiple question banks per exam
+- Practice session creation from predefined templates
 - Custom practice sessions by topic/difficulty
 - Timed vs. untimed practice modes
 - Similar question generation after mistakes
@@ -236,13 +242,21 @@ Intended relationships:
 - One **Question Bank** contains many questions.
 - Users can enroll in one or more **Exam Packages**; enrollment drives what content is available in Practice/Tests.
 
-### Current MVP Implementation (Dec 2025)
+### Current MVP Implementation (Jan 2026)
 
 The current codebase implements an MVP practice workflow inside the Go API gateway and Postgres. This is intentionally a stepping stone toward a dedicated Question Service (planned).
 
 - Practice sessions are persisted in PostgreSQL and are API-backed (no longer purely client-side).
-- Practice question source: currently uses a small in-memory demo question set (not the persisted Question Bank tables yet).
-- Separately, an Admin “Question Bank” workflow exists and persists content in PostgreSQL (see the `question_bank_*` tables in the current schema).
+- Practice question source: **DB-backed** question bank tables in PostgreSQL (`question_bank_questions`, `question_bank_choices`, `question_bank_correct_choice`). The practice session creator selects **published** questions mapped to the selected exam package via `exam_package_question_bank_packages`.
+- Enrollment/entitlement gating (MVP): students must be enrolled in an exam package to start practice.
+	- If `examPackageId` is provided, the API rejects session creation unless the user is enrolled in that package.
+	- If `examPackageId` is omitted, the API infers the package only when the user has exactly one enrollment; otherwise it rejects.
+- Practice test templates (catalog items) are supported:
+	- Instructors/admins create reusable templates per exam package (e.g., “IELTS Reading Test 1”, “IELTS Listening - Hard Set”).
+	- Templates define `section`, optional `topicId`/`difficultyId`, `isTimed`, `targetCount`, ordering, and publication status.
+	- Students see only **published** templates for the exam packages they are enrolled in.
+	- Students can start a practice session from a template by sending `templateId` in the create-session request; the server validates enrollment and overrides runtime settings from the template.
+- An Admin “Question Bank” workflow exists and persists content in PostgreSQL (draft/publish review workflow; choices + correct choice).
 - Two practice modes are supported:
 	- Untimed: can be paused/resumed.
 	- Ironman (Timed): server-enforced time limit and automatic force-finish when time runs out.
@@ -281,14 +295,17 @@ The current codebase implements an MVP practice workflow inside the Go API gatew
 
 **Technical Implementation:**
 
-### Current MVP Implementation (Dec 2025)
+### Current MVP Implementation (Jan 2026)
 
 The current codebase implements a minimal “test session” lifecycle inside the Go API gateway and Postgres.
 
 - Exam sessions are persisted in PostgreSQL as `exam_sessions` keyed by `(user_id, id)`.
+- Exam sessions can optionally be associated with an exam package (`exam_package_id`) and are subject to enrollment gating.
 - The web client sends periodic heartbeats containing a JSON snapshot to persist progress.
 - A "Submit Test" action is implemented to finalize a session (`status=finished`, `submitted_at` set).
 - The student Tests catalog page includes a “Previous tests” list with in-progress/review behavior.
+
+Note: the exam UI is still a “snapshot session” MVP, but it is now package-aware and can enforce enrollment during session creation.
 
 ### Planned Target Architecture (Future)
 
@@ -436,7 +453,7 @@ The current codebase implements a minimal “test session” lifecycle inside th
 
 Primary relational database for core entities.
 
-### 5.1.1 Current Implemented Schema (Dec 2025 MVP)
+### 5.1.1 Current Implemented Schema (Jan 2026 MVP)
 
 The MVP schema is created idempotently by the Go API gateway at startup.
 
@@ -456,7 +473,8 @@ The MVP schema is created idempotently by the Go API gateway at startup.
 | --- | --- | --- |
 | id | TEXT | Primary key (session id) |
 | user_id | TEXT | FK to users(id) |
-| package_id | TEXT (nullable) | Intended: references the user’s selected exam package. Current implementation: free-form text (not a foreign key) and not enforced against Question Bank packages. |
+| package_id | UUID (nullable) | References the selected exam package (`exam_packages.id`) for this session. Current implementation does not enforce a FK constraint, but the API enforces enrollment when creating sessions. |
+| template_id | UUID (nullable) | Optional link to a published practice template (`practice_test_templates.id`) when the session is started from a template. |
 | is_timed | BOOLEAN | Ironman vs Untimed |
 | started_at | TIMESTAMPTZ | Session start timestamp |
 | time_limit_seconds | INTEGER | Total allowed time for Ironman; 0 for untimed |
@@ -470,6 +488,27 @@ The MVP schema is created idempotently by the Go API gateway at startup.
 | question_order | JSONB | Ordered list of question IDs |
 | created_at | TIMESTAMPTZ | Created timestamp |
 | last_activity_at | TIMESTAMPTZ | Activity timestamp for ordering/history |
+
+**practice_test_templates**
+
+Catalog items that define reusable practice configurations per exam package.
+
+| **Column** | **Type** | **Description** |
+| --- | --- | --- |
+| id | UUID | Primary key |
+| exam_package_id | UUID | FK to exam_packages(id) |
+| name | TEXT | Display name (e.g., “Reading Test 1”) |
+| section | TEXT | Section label (e.g., Reading/Listening/Quant) |
+| topic_id | TEXT (nullable) | Optional FK to question_bank_topics(id) |
+| difficulty_id | TEXT (nullable) | Optional FK to question_bank_difficulties(id) |
+| is_timed | BOOLEAN | Template timing flag |
+| target_count | INTEGER | Template question count |
+| sort_order | INTEGER | Ordering within a package/section |
+| is_published | BOOLEAN | Published templates are visible to students |
+| created_by_user_id | TEXT | FK to users(id) |
+| updated_by_user_id | TEXT | FK to users(id) |
+| created_at | TIMESTAMPTZ | Created timestamp |
+| updated_at | TIMESTAMPTZ | Updated timestamp |
 
 **practice_answers**
 
@@ -491,11 +530,14 @@ The MVP schema is created idempotently by the Go API gateway at startup.
 | user_id | TEXT | FK to users(id) |
 | id | TEXT | Session id (composite primary key with user_id) |
 | status | TEXT | active / finished |
+| exam_package_id | UUID (nullable) | Optional selected exam package for this session (enrollment is enforced when creating sessions). |
 | snapshot | JSONB | Persisted client snapshot |
 | created_at | TIMESTAMPTZ | Created timestamp |
 | updated_at | TIMESTAMPTZ | Updated timestamp |
 | last_heartbeat_at | TIMESTAMPTZ | Last heartbeat |
 | submitted_at | TIMESTAMPTZ (nullable) | Submit timestamp |
+| terminated_at | TIMESTAMPTZ (nullable) | Admin termination timestamp |
+| invalidated_at | TIMESTAMPTZ (nullable) | Admin invalidation timestamp |
 
 **Additional implemented tables (Jan 2026)**
 
@@ -504,21 +546,27 @@ The current codebase also includes the following major entity groups (implemente
 - **Authentication / sessions**: `auth_sessions`, `auth_refresh_tokens`, `auth_session_limits_role`, `auth_session_limits_user`, `auth_session_groups`, `auth_session_group_memberships`, `auth_session_limits_group`.
 - **Audit trail**: `audit_log`.
 - **Exam integrity**: `exam_session_events`, `exam_session_flags`.
+- **Exam packages + enrollments**: `exam_packages`, `user_exam_package_enrollments`, `exam_package_question_bank_packages`.
 - **Question Bank (admin-managed content)**: `question_bank_packages`, `question_bank_topics`, `question_bank_difficulties`, `question_bank_questions`, `question_bank_choices`, `question_bank_correct_choice`.
+- **Practice template catalog**: `practice_test_templates`.
 
 **Important alignment note (Packages / Enrollment)**
 
 The intended product model is: **Exam Package → one-or-more Question Banks → Questions**, and users enroll into one-or-more exam packages.
 
-However, the current implementation does **not** yet include:
+The current implementation now includes:
 
-- A user enrollment/entitlement table (e.g., `user_package_enrollments`) to represent “user is enrolled in package(s)”.
-- A first-class “question bank” entity/table under an exam package (the current Question Bank schema attaches topics/questions directly to `question_bank_packages`).
+- `exam_packages` (UUID PK + stable `code`) and `user_exam_package_enrollments` (composite PK `(user_id, exam_package_id)`).
+- `exam_package_question_bank_packages` to map exam packages to one-or-more question bank packages.
+- Enrollment checks are enforced when creating practice sessions and exam sessions.
+- Published practice templates are restricted to enrolled packages (student catalog endpoint).
 
 Practically, this means the current implementation effectively collapses concepts:
 
 - `question_bank_packages` currently behaves like a top-level container for questions, but it does not model “one package contains multiple question banks”.
-- `practice_sessions.package_id` is not a foreign key, so practice sessions are not currently guaranteed to reference a valid package/enrollment.
+- `practice_sessions.package_id` is not a foreign key, so referential integrity is not enforced at the database layer.
+
+Student-side enrollment UI is implemented: students can enroll from the Courses page and package details, and the Practice page is driven off enrollments.
 
 ### 5.1.2 Planned/Target Schema (Future)
 
@@ -677,12 +725,12 @@ Flexible document storage for questions and activity.
 
 ## 6.1 API Architecture
 
-RESTful API design with JWT authentication.
+RESTful API design with cookie-based authentication (JWT access token in HttpOnly cookie + refresh + CSRF token for unsafe requests).
 
 - Local dev base URL: http://localhost:8080
 - Source-of-truth contract (local dev): `packages/shared-proto/openapi.yaml` (web types generated via `openapi-typescript`)
 
-### 6.1.1 Current Implemented API (Dec 2025 MVP)
+### 6.1.1 Current Implemented API (Jan 2026 MVP)
 
 The API surface is OpenAPI-first. The web app generates TypeScript types from the OpenAPI spec and uses those types for its client.
 
@@ -699,6 +747,22 @@ The API surface is OpenAPI-first. The web app generates TypeScript types from th
 | GET | /practice-sessions/{sessionId}/summary | Summary stats (correct/total/accuracy) |
 | GET | /practice-sessions/{sessionId}/review | Ordered review breakdown (finished only) |
 
+Notes:
+
+- `POST /practice-sessions` supports starting from a published template by including `templateId`. When `templateId` is present, the server applies the template settings and validates enrollment for the template’s exam package.
+
+**Practice Templates (implemented)**
+
+| **Method** | **Endpoint** | **Description** |
+| --- | --- | --- |
+| GET | /practice-templates | Student catalog: published templates for enrolled packages (optionally filter by `examPackageId`) |
+| GET | /instructor/practice-templates | Instructor/admin list (supports `includeUnpublished` and `examPackageId`) |
+| POST | /instructor/practice-templates | Create template |
+| PATCH | /instructor/practice-templates/{templateId} | Update template |
+| DELETE | /instructor/practice-templates/{templateId} | Delete template |
+| POST | /instructor/practice-templates/{templateId}/publish | Publish template |
+| POST | /instructor/practice-templates/{templateId}/unpublish | Unpublish template |
+
 **Exam Sessions (implemented)**
 
 | **Method** | **Endpoint** | **Description** |
@@ -708,9 +772,17 @@ The API surface is OpenAPI-first. The web app generates TypeScript types from th
 | POST | /exam-sessions/{sessionId}/heartbeat | Persist snapshot heartbeat |
 | POST | /exam-sessions/{sessionId}/submit | Submit/finalize an exam session |
 
+**Exam Packages + Enrollments (implemented)**
+
+| **Method** | **Endpoint** | **Description** |
+| --- | --- | --- |
+| GET | /exam-packages | List visible exam packages (reference data) |
+| GET | /student/enrollments | List current student enrollments (exam package ids) |
+| POST | /student/enrollments | Enroll student into an exam package |
+
 **Admin (implemented)**
 
-Admin endpoints are protected by the admin portal JWT (bearer token).
+Admin endpoints are protected by the admin portal auth (cookie-based in the web app; Bearer token supported for backwards compatibility).
 
 | **Method** | **Endpoint** | **Description** |
 | --- | --- | --- |
@@ -772,17 +844,22 @@ Planned (not implemented yet): logout, refresh tokens, forgot/reset password, ve
 
 ## 6.5 Practice & Questions Endpoints
 
-| **Method** | **Endpoint** | **Description** |
-| --- | --- | --- |
-| GET | /questions | Get questions (with filters) |
-| GET | /questions/{id} | Get question details |
-| POST | /questions/{id}/answer | Submit answer |
-| GET | /questions/{id}/explanation | Get explanation |
-| POST | /practice-sessions | Create practice session |
-| GET | /practice-sessions/{id} | Get session details |
-| POST | /practice-sessions/{id}/complete | Complete session |
+This section distinguishes what exists today vs what remains planned.
+
+Implemented (current MVP):
+
+- Practice sessions: see **Practice Sessions (implemented)** above.
+- Instructor/admin question bank workflows are exposed under `/instructor/questions` and `/admin/questions/*` in the OpenAPI contract.
+
+Planned (future):
+
+- Student-facing “browse/search questions” endpoints like `GET /questions` and a dedicated “submit answer” endpoint outside the practice session workflow.
 
 ## 6.6 Mock Test Endpoints
+
+Planned (future): the traditional “test catalog / test attempts / results” endpoints below.
+
+Implemented (current MVP): exam session snapshot endpoints under **Exam Sessions (implemented)** above.
 
 | **Method** | **Endpoint** | **Description** |
 | --- | --- | --- |
@@ -852,7 +929,8 @@ Planned (not implemented yet): logout, refresh tokens, forgot/reset password, ve
 
 ## 6.11 API Security
 
-- JWT authentication required for protected endpoints
+- Cookie-based authentication required for protected endpoints (access/refresh cookies); Bearer auth is supported for compatibility
+- CSRF protection for unsafe requests via double-submit token (`ace_csrf`)
 - Rate limiting: 100 requests per minute per user
 - CORS configuration for allowed origins
 - Request validation using Joi/Zod schemas
@@ -951,7 +1029,8 @@ Planned (not implemented yet): logout, refresh tokens, forgot/reset password, ve
 
 Current MVP notes (implemented):
 
-- Practice start page prompts for mode selection: Ironman (Timed) vs Untimed.
+- Practice landing page shows a per-course catalog based on student enrollments.
+- Each enrolled course section lists published Practice Templates (created by instructors/admins), and students start sessions from these templates.
 - Untimed sessions can be paused/resumed.
 - Ironman sessions show time remaining (server-enforced time limit).
 - Per-question timing is tracked and shown.
@@ -996,12 +1075,17 @@ Current MVP notes (implemented):
 	- Users: create/update/soft-delete/restore users.
 	- Question Bank: manage packages/topics/difficulties and the question review workflow.
 	- Exam Integrity: review sessions, inspect events/snapshots, and take actions (force submit/terminate/invalidate/flag).
+	- Practice Templates: create/edit/publish/unpublish/delete reusable practice tests per exam package.
 	- Session Management (within Users):
 		- View active + historic auth sessions for the selected user (including IP, user agent, last seen, expiry, revoked reason).
 		- Revoke one session or revoke all sessions for a user.
 		- View effective session limit and contributing overrides (role / group / user).
 		- Set/clear per-user max active sessions.
 		- Manage session groups: create groups, set group limit, add/remove users to groups.
+
+**Instructor Portal (implemented)**
+
+- Instructor dashboard (scaffolded) and a Practice Templates manager page to create/edit/publish/unpublish/delete reusable practice tests per exam package.
 - Study time chart (bar graph)
 - Questions answered by topic (pie chart)
 - Accuracy trends (line graph)
@@ -1029,6 +1113,10 @@ Current MVP notes (implemented):
 - Payment methods
 - Invoice history
 - Account deletion option
+
+Current MVP notes (implemented):
+
+- Student Profile shows enrolled courses and recent practice/test history.
 
 **7.4.12 Mobile App Screens**
 
@@ -1395,5 +1483,7 @@ Local development is container-first: Node.js and Go are run inside Docker conta
 | --- | --- | --- | --- |
 | 1.0 | Dec 2025 | Development Team | Initial release |
 | 1.1 | Dec 2025 | Development Team | Documented implemented practice modes (Ironman/Untimed), pause/resume gating, per-question timing + review breakdown, exam submit flow, and the MVP Postgres/OpenAPI schema/API/UI updates |
+| 1.2 | Jan 2026 | Development Team | Added exam packages + enrollments model and wired student enrollments into practice/test entitlement enforcement and UI |
+| 1.3 | Jan 2026 | Development Team | Added practice template catalog (DB + OpenAPI + handlers), template-driven practice session creation, student per-course practice catalog UI, and admin/instructor practice template management UI |
 
 **End of Document**
