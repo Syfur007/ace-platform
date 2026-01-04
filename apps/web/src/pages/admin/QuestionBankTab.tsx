@@ -5,6 +5,7 @@ import {
   adminApproveQuestion,
   adminCreateExamPackage,
   adminDeleteExamPackage,
+  adminDeleteQuestion,
   adminListExamPackages,
   adminRequestQuestionChanges,
   adminUpdateExamPackage,
@@ -39,15 +40,9 @@ type CreateQuestionFormState = {
   correctChoiceIndex: number
 }
 
-type EditQuestionFormState = {
-  questionBankId: string
-  topicId: string
-  difficultyId: string
-  prompt: string
-  explanation: string
-  choicesText: string[]
-  correctChoiceIndex: number
-}
+type QuestionFormState = CreateQuestionFormState
+
+type QuestionEditorMode = 'create' | 'edit'
 
 function compactStatusLabel(status?: string) {
   if (!status) return ''
@@ -519,124 +514,6 @@ function DifficultiesSection(props: DifficultiesSectionProps) {
   )
 }
 
-type CreateQuestionSectionProps = {
-  difficulties: any
-  visiblePackagesForSelect: any[]
-  visibleTopicsForCreate: any[]
-  createQuestion: CreateQuestionFormState
-  setCreateQuestion: (next: any) => void
-  createQuestionMutation: any
-}
-
-function CreateQuestionSection(props: CreateQuestionSectionProps) {
-  return (
-    <div className="space-y-3">
-      <div className="font-medium">Create Question</div>
-
-      <div className="grid grid-cols-1 gap-2">
-        <select
-          className="w-full rounded border border-slate-200 px-3 py-2 text-sm"
-          value={props.createQuestion.questionBankId}
-          onChange={(e) => props.setCreateQuestion((s: any) => ({ ...s, questionBankId: e.target.value, topicId: '' }))}
-        >
-          <option value="">No question bank</option>
-          {props.visiblePackagesForSelect.map((p: any) => (
-            <option key={p.id} value={p.id}>
-              {p.name}
-            </option>
-          ))}
-        </select>
-
-        <select
-          className="w-full rounded border border-slate-200 px-3 py-2 text-sm"
-          value={props.createQuestion.topicId}
-          onChange={(e) => props.setCreateQuestion((s: any) => ({ ...s, topicId: e.target.value }))}
-        >
-          <option value="">No topic</option>
-          {props.visibleTopicsForCreate.map((t: any) => (
-            <option key={t.id} value={t.id}>
-              {t.name}
-            </option>
-          ))}
-        </select>
-
-        <select
-          className="w-full rounded border border-slate-200 px-3 py-2 text-sm"
-          value={props.createQuestion.difficultyId}
-          onChange={(e) => props.setCreateQuestion((s: any) => ({ ...s, difficultyId: e.target.value }))}
-        >
-          <option value="">Select difficulty</option>
-          {(props.difficulties.data?.items ?? []).map((d: any) => (
-            <option key={d.id} value={d.id}>
-              {d.displayName}
-            </option>
-          ))}
-        </select>
-
-        <textarea
-          className="min-h-24 w-full rounded border border-slate-200 px-3 py-2 text-sm"
-          placeholder="Prompt"
-          value={props.createQuestion.prompt}
-          onChange={(e) => props.setCreateQuestion((s: any) => ({ ...s, prompt: e.target.value }))}
-        />
-        <textarea
-          className="min-h-24 w-full rounded border border-slate-200 px-3 py-2 text-sm"
-          placeholder="Explanation"
-          value={props.createQuestion.explanation}
-          onChange={(e) => props.setCreateQuestion((s: any) => ({ ...s, explanation: e.target.value }))}
-        />
-
-        <div className="space-y-2">
-          <div className="text-sm font-medium">Choices</div>
-          {props.createQuestion.choicesText.map((text, i) => (
-            <div key={i} className="flex items-center gap-2">
-              <input
-                className="h-4 w-4"
-                type="radio"
-                name="createCorrect"
-                checked={props.createQuestion.correctChoiceIndex === i}
-                onChange={() => props.setCreateQuestion((s: any) => ({ ...s, correctChoiceIndex: i }))}
-              />
-              <input
-                className="w-full rounded border border-slate-200 px-3 py-2 text-sm"
-                placeholder={`Choice ${i + 1}`}
-                value={text}
-                onChange={(e) =>
-                  props.setCreateQuestion((s: any) => {
-                    const next = [...s.choicesText]
-                    next[i] = e.target.value
-                    return { ...s, choicesText: next }
-                  })
-                }
-              />
-            </div>
-          ))}
-        </div>
-
-        <button
-          className="rounded border border-slate-200 px-3 py-2 text-sm hover:bg-slate-50 disabled:opacity-50"
-          type="button"
-          disabled={props.createQuestionMutation.isPending || props.createQuestion.prompt.trim() === '' || props.createQuestion.difficultyId.trim() === ''}
-          onClick={() =>
-            props.createQuestionMutation.mutate({
-              questionBankId: props.createQuestion.questionBankId ? props.createQuestion.questionBankId : null,
-              topicId: props.createQuestion.topicId ? props.createQuestion.topicId : null,
-              difficultyId: props.createQuestion.difficultyId,
-              prompt: props.createQuestion.prompt,
-              explanation: props.createQuestion.explanation,
-              choices: props.createQuestion.choicesText.filter((t) => t.trim() !== '').map((t) => ({ text: t })),
-              correctChoiceIndex: props.createQuestion.correctChoiceIndex,
-            })
-          }
-        >
-          Create Draft
-        </button>
-        {props.createQuestionMutation.isError && <div className="text-sm text-red-600">Failed to create question.</div>}
-      </div>
-    </div>
-  )
-}
-
 type QuestionsListSectionProps = {
   questionFilters: any
   setQuestionFilters: (updater: any) => void
@@ -646,8 +523,8 @@ type QuestionsListSectionProps = {
   questions: any
   selectedQuestionId: string
   setSelectedQuestionId: (v: string) => void
-  setEditQuestion: (v: any) => void
   difficultiesById: Map<string, string>
+  onSelectQuestion?: () => void
 }
 
 function QuestionsListSection(props: QuestionsListSectionProps) {
@@ -720,7 +597,7 @@ function QuestionsListSection(props: QuestionsListSectionProps) {
               }
               onClick={() => {
                 props.setSelectedQuestionId(q.id)
-                props.setEditQuestion(null)
+                props.onSelectQuestion?.()
               }}
             >
               <div className="truncate font-medium">{q.prompt}</div>
@@ -738,16 +615,22 @@ function QuestionsListSection(props: QuestionsListSectionProps) {
 }
 
 type QuestionEditorSectionProps = {
+  mode: QuestionEditorMode
+  setMode: (next: QuestionEditorMode) => void
   selectedQuestionId: string
+  setSelectedQuestionId: (v: string) => void
   selectedQuestion: any
   selectedQuestionStatus: string | undefined
-  editQuestion: EditQuestionFormState | null
-  setEditQuestion: (updater: any) => void
+  questionForm: QuestionFormState
+  setQuestionForm: (updater: any) => void
   topics: any
   difficulties: any
   visiblePackagesForSelect: any[]
+  visibleTopicsForSelect: any[]
   reviewRequestNote: string
   setReviewRequestNote: (v: string) => void
+  createQuestionMutation: any
+  deleteQuestionMutation: any
   statusMutation: any
   submitForReviewMutation: any
   approveQuestionMutation: any
@@ -757,16 +640,72 @@ type QuestionEditorSectionProps = {
 }
 
 function QuestionEditorSection(props: QuestionEditorSectionProps) {
+  const isEditingExisting = props.mode === 'edit' && Boolean(props.selectedQuestionId)
+
+  const trimmedChoices = props.questionForm.choicesText.map((t) => t.trim())
+  const choicesHaveBlanks = trimmedChoices.some((t) => t === '')
+  const isFormValid =
+    props.questionForm.prompt.trim() !== '' &&
+    props.questionForm.difficultyId.trim() !== '' &&
+    trimmedChoices.length >= 2 &&
+    !choicesHaveBlanks &&
+    props.questionForm.correctChoiceIndex >= 0 &&
+    props.questionForm.correctChoiceIndex < trimmedChoices.length
+
+  const canRemoveChoice = props.questionForm.choicesText.length > 2
+
   return (
     <div className="space-y-3 rounded border border-slate-200 p-3">
-      <div className="flex items-center justify-between gap-3">
+      <div className="flex items-start justify-between gap-3">
         <div>
-          <div className="font-medium">Selected Question</div>
+          <div className="font-medium">Question Editor</div>
           <div className="text-sm text-slate-600">
-            {props.selectedQuestionId ? `Status: ${compactStatusLabel(props.selectedQuestionStatus)}` : 'Pick a question.'}
+            {isEditingExisting
+              ? `Status: ${compactStatusLabel(props.selectedQuestionStatus)}`
+              : 'Creating a new question (not yet saved).'}
           </div>
         </div>
-        <div className="flex gap-2">
+
+        {isEditingExisting ? (
+          <div className="flex flex-wrap gap-2">
+            <button
+              type="button"
+              className="rounded border border-slate-200 px-3 py-2 text-sm hover:bg-slate-50"
+              onClick={() => {
+                props.setMode('create')
+                props.setSelectedQuestionId('')
+                props.setQuestionForm({
+                  questionBankId: '',
+                  topicId: '',
+                  difficultyId: props.questionForm.difficultyId,
+                  prompt: '',
+                  explanation: '',
+                  choicesText: ['', '', '', ''],
+                  correctChoiceIndex: 0,
+                })
+              }}
+            >
+              Create question
+            </button>
+
+            <button
+              type="button"
+              className="rounded border border-slate-200 px-3 py-2 text-sm text-red-600 hover:bg-slate-50 disabled:opacity-50"
+              disabled={!props.selectedQuestionId || props.deleteQuestionMutation.isPending}
+              onClick={() => {
+                if (!props.selectedQuestionId) return
+                if (!confirm('Delete this question? This cannot be undone.')) return
+                props.deleteQuestionMutation.mutate(props.selectedQuestionId)
+              }}
+            >
+              Delete
+            </button>
+          </div>
+        ) : null}
+      </div>
+
+      {isEditingExisting ? (
+        <div className="mt-1 flex flex-wrap gap-2">
           <button
             className="rounded border border-slate-200 px-3 py-2 text-sm hover:bg-slate-50 disabled:opacity-50"
             type="button"
@@ -792,182 +731,244 @@ function QuestionEditorSection(props: QuestionEditorSectionProps) {
             Archive
           </button>
         </div>
+      ) : null}
+
+      <div className="grid grid-cols-1 gap-2">
+        <select
+          className="w-full rounded border border-slate-200 px-3 py-2 text-sm"
+          value={props.questionForm.questionBankId}
+          onChange={(e) => props.setQuestionForm((s: any) => ({ ...s, questionBankId: e.target.value, topicId: '' }))}
+        >
+          <option value="">No question bank</option>
+          {props.visiblePackagesForSelect.map((p: any) => (
+            <option key={p.id} value={p.id}>
+              {p.name}
+            </option>
+          ))}
+        </select>
+
+        <select
+          className="w-full rounded border border-slate-200 px-3 py-2 text-sm"
+          value={props.questionForm.topicId}
+          onChange={(e) => props.setQuestionForm((s: any) => ({ ...s, topicId: e.target.value }))}
+        >
+          <option value="">No topic</option>
+          {props.visibleTopicsForSelect.map((t: any) => (
+            <option key={t.id} value={t.id}>
+              {t.name}
+            </option>
+          ))}
+        </select>
+
+        <select
+          className="w-full rounded border border-slate-200 px-3 py-2 text-sm"
+          value={props.questionForm.difficultyId}
+          onChange={(e) => props.setQuestionForm((s: any) => ({ ...s, difficultyId: e.target.value }))}
+        >
+          <option value="">Select difficulty</option>
+          {(props.difficulties.data?.items ?? []).map((d: any) => (
+            <option key={d.id} value={d.id}>
+              {d.displayName}
+            </option>
+          ))}
+        </select>
+
+        <textarea
+          className="min-h-24 w-full rounded border border-slate-200 px-3 py-2 text-sm"
+          placeholder="Prompt"
+          value={props.questionForm.prompt}
+          onChange={(e) => props.setQuestionForm((s: any) => ({ ...s, prompt: e.target.value }))}
+        />
+        <textarea
+          className="min-h-24 w-full rounded border border-slate-200 px-3 py-2 text-sm"
+          placeholder="Explanation"
+          value={props.questionForm.explanation}
+          onChange={(e) => props.setQuestionForm((s: any) => ({ ...s, explanation: e.target.value }))}
+        />
+
+        <div className="space-y-2">
+          <div className="text-sm font-medium">Choices</div>
+          {props.questionForm.choicesText.map((text, i) => (
+            <div key={i} className="flex items-center gap-2">
+              <input
+                className="h-4 w-4"
+                type="radio"
+                name="questionCorrect"
+                checked={props.questionForm.correctChoiceIndex === i}
+                onChange={() => props.setQuestionForm((s: any) => ({ ...s, correctChoiceIndex: i }))}
+              />
+              <input
+                className="w-full rounded border border-slate-200 px-3 py-2 text-sm"
+                placeholder={`Option ${i + 1}`}
+                value={text}
+                onChange={(e) =>
+                  props.setQuestionForm((s: any) => {
+                    const next = [...s.choicesText]
+                    next[i] = e.target.value
+                    return { ...s, choicesText: next }
+                  })
+                }
+              />
+              <button
+                type="button"
+                className="rounded border border-slate-200 px-3 py-2 text-sm hover:bg-slate-50 disabled:opacity-50"
+                disabled={!canRemoveChoice}
+                onClick={() =>
+                  props.setQuestionForm((s: any) => {
+                    if (s.choicesText.length <= 2) return s
+                    const nextChoices = s.choicesText.filter((_: any, idx: number) => idx !== i)
+                    let nextCorrect = s.correctChoiceIndex
+                    if (i === nextCorrect) nextCorrect = 0
+                    if (i < nextCorrect) nextCorrect = Math.max(0, nextCorrect - 1)
+                    nextCorrect = Math.min(nextCorrect, Math.max(0, nextChoices.length - 1))
+                    return { ...s, choicesText: nextChoices, correctChoiceIndex: nextCorrect }
+                  })
+                }
+              >
+                ×
+              </button>
+            </div>
+          ))}
+          <button
+            type="button"
+            className="w-fit rounded border border-slate-200 px-3 py-2 text-sm hover:bg-slate-50"
+            onClick={() => props.setQuestionForm((s: any) => ({ ...s, choicesText: [...s.choicesText, ''] }))}
+          >
+            Add option
+          </button>
+
+          {!isFormValid ? <div className="text-sm text-slate-600">Fill prompt, difficulty, and all options.</div> : null}
+        </div>
       </div>
 
-      <div className="mt-2 grid gap-2">
-        <div className="text-sm font-medium">Review workflow</div>
+      {!isEditingExisting ? (
         <div className="flex flex-wrap gap-2">
           <button
-            type="button"
             className="rounded border border-slate-200 px-3 py-2 text-sm hover:bg-slate-50 disabled:opacity-50"
-            disabled={!props.selectedQuestionId || props.submitForReviewMutation.isPending}
-            onClick={() => props.selectedQuestionId && props.submitForReviewMutation.mutate(props.selectedQuestionId)}
-          >
-            Submit for review
-          </button>
-          <button
             type="button"
-            className="rounded border border-slate-200 px-3 py-2 text-sm hover:bg-slate-50 disabled:opacity-50"
-            disabled={!props.selectedQuestionId || props.approveQuestionMutation.isPending}
-            onClick={() => props.selectedQuestionId && props.approveQuestionMutation.mutate(props.selectedQuestionId)}
-          >
-            Approve
-          </button>
-        </div>
-
-        <div className="grid gap-2">
-          <input
-            className="w-full rounded border border-slate-200 px-3 py-2 text-sm"
-            placeholder="Request changes note (optional)"
-            value={props.reviewRequestNote}
-            onChange={(e) => props.setReviewRequestNote(e.target.value)}
-          />
-          <button
-            type="button"
-            className="rounded border border-slate-200 px-3 py-2 text-sm hover:bg-slate-50 disabled:opacity-50"
-            disabled={!props.selectedQuestionId || props.requestChangesMutation.isPending}
+            disabled={props.createQuestionMutation.isPending || !isFormValid}
             onClick={() =>
-              props.selectedQuestionId && props.requestChangesMutation.mutate({ questionId: props.selectedQuestionId, note: props.reviewRequestNote })
+              props.createQuestionMutation.mutate({
+                questionBankId: props.questionForm.questionBankId ? props.questionForm.questionBankId : null,
+                topicId: props.questionForm.topicId ? props.questionForm.topicId : null,
+                difficultyId: props.questionForm.difficultyId,
+                prompt: props.questionForm.prompt,
+                explanation: props.questionForm.explanation,
+                choices: trimmedChoices.map((t) => ({ text: t })),
+                correctChoiceIndex: props.questionForm.correctChoiceIndex,
+              })
             }
           >
-            Request changes
+            Create Draft
+          </button>
+
+          <button
+            className="rounded border border-slate-200 px-3 py-2 text-sm hover:bg-slate-50 disabled:opacity-50"
+            type="button"
+            disabled={props.createQuestionMutation.isPending || !isFormValid}
+            onClick={() =>
+              props.createQuestionMutation.mutate({
+                questionBankId: props.questionForm.questionBankId ? props.questionForm.questionBankId : null,
+                topicId: props.questionForm.topicId ? props.questionForm.topicId : null,
+                difficultyId: props.questionForm.difficultyId,
+                prompt: props.questionForm.prompt,
+                explanation: props.questionForm.explanation,
+                choices: trimmedChoices.map((t) => ({ text: t })),
+                correctChoiceIndex: props.questionForm.correctChoiceIndex,
+                publishAfterCreate: true,
+              })
+            }
+          >
+            Create & Publish
           </button>
         </div>
+      ) : (
+        <button
+          className="rounded border border-slate-200 px-3 py-2 text-sm hover:bg-slate-50 disabled:opacity-50"
+          type="button"
+          disabled={!props.selectedQuestionId || props.updateQuestionMutation.isPending || props.replaceChoicesMutation.isPending || !isFormValid}
+          onClick={async () => {
+            if (!props.selectedQuestionId) return
+            await props.updateQuestionMutation.mutateAsync({
+              questionId: props.selectedQuestionId,
+              body: {
+                questionBankId: props.questionForm.questionBankId ? props.questionForm.questionBankId : null,
+                topicId: props.questionForm.topicId ? props.questionForm.topicId : null,
+                difficultyId: props.questionForm.difficultyId,
+                prompt: props.questionForm.prompt,
+                explanation: props.questionForm.explanation,
+              },
+            })
+            await props.replaceChoicesMutation.mutateAsync({
+              questionId: props.selectedQuestionId,
+              body: {
+                choices: trimmedChoices.map((t) => ({ text: t })),
+                correctChoiceIndex: props.questionForm.correctChoiceIndex,
+              },
+            })
+          }}
+        >
+          Save
+        </button>
+      )}
 
-        {props.submitForReviewMutation.isError || props.approveQuestionMutation.isError || props.requestChangesMutation.isError ? (
-          <div className="text-sm text-red-600">Review action failed (check state/permissions).</div>
-        ) : null}
-      </div>
+      {props.createQuestionMutation.isError ? <div className="text-sm text-red-600">Failed to create question.</div> : null}
+      {props.deleteQuestionMutation.isError ? <div className="text-sm text-red-600">Failed to delete question.</div> : null}
 
-      {props.selectedQuestion.isLoading && <div className="text-sm text-slate-600">Loading…</div>}
-      {props.selectedQuestion.isError && <div className="text-sm text-red-600">Failed to load question.</div>}
+      {isEditingExisting ? (
+        <>
+          <div className="mt-2 grid gap-2">
+            <div className="text-sm font-medium">Review workflow</div>
+            <div className="flex flex-wrap gap-2">
+              <button
+                type="button"
+                className="rounded border border-slate-200 px-3 py-2 text-sm hover:bg-slate-50 disabled:opacity-50"
+                disabled={!props.selectedQuestionId || props.submitForReviewMutation.isPending}
+                onClick={() => props.selectedQuestionId && props.submitForReviewMutation.mutate(props.selectedQuestionId)}
+              >
+                Submit for review
+              </button>
+              <button
+                type="button"
+                className="rounded border border-slate-200 px-3 py-2 text-sm hover:bg-slate-50 disabled:opacity-50"
+                disabled={!props.selectedQuestionId || props.approveQuestionMutation.isPending}
+                onClick={() => props.selectedQuestionId && props.approveQuestionMutation.mutate(props.selectedQuestionId)}
+              >
+                Approve
+              </button>
+            </div>
 
-      {props.editQuestion && (
-        <div className="space-y-3">
-          <select
-            className="w-full rounded border border-slate-200 px-3 py-2 text-sm"
-            value={props.editQuestion.questionBankId}
-            onChange={(e) => props.setEditQuestion((s: any) => (s ? { ...s, questionBankId: e.target.value, topicId: '' } : s))}
-          >
-            <option value="">No question bank</option>
-            {props.visiblePackagesForSelect.map((p: any) => (
-              <option key={p.id} value={p.id}>
-                {p.name}
-              </option>
-            ))}
-          </select>
+            <div className="grid gap-2">
+              <input
+                className="w-full rounded border border-slate-200 px-3 py-2 text-sm"
+                placeholder="Request changes note (optional)"
+                value={props.reviewRequestNote}
+                onChange={(e) => props.setReviewRequestNote(e.target.value)}
+              />
+              <button
+                type="button"
+                className="rounded border border-slate-200 px-3 py-2 text-sm hover:bg-slate-50 disabled:opacity-50"
+                disabled={!props.selectedQuestionId || props.requestChangesMutation.isPending}
+                onClick={() =>
+                  props.selectedQuestionId && props.requestChangesMutation.mutate({ questionId: props.selectedQuestionId, note: props.reviewRequestNote })
+                }
+              >
+                Request changes
+              </button>
+            </div>
 
-          <select
-            className="w-full rounded border border-slate-200 px-3 py-2 text-sm"
-            value={props.editQuestion.topicId}
-            onChange={(e) => props.setEditQuestion((s: any) => (s ? { ...s, topicId: e.target.value } : s))}
-          >
-            <option value="">No topic</option>
-            {(props.topics.data?.items ?? [])
-              .filter((t: any) => !t.isHidden)
-              .filter((t: any) => (props.editQuestion?.questionBankId ? t.questionBankId === props.editQuestion.questionBankId : true))
-              .map((t: any) => (
-                <option key={t.id} value={t.id}>
-                  {t.name}
-                </option>
-              ))}
-          </select>
-
-          <select
-            className="w-full rounded border border-slate-200 px-3 py-2 text-sm"
-            value={props.editQuestion.difficultyId}
-            onChange={(e) => props.setEditQuestion((s: any) => (s ? { ...s, difficultyId: e.target.value } : s))}
-          >
-            <option value="">Select difficulty</option>
-            {(props.difficulties.data?.items ?? []).map((d: any) => (
-              <option key={d.id} value={d.id}>
-                {d.displayName}
-              </option>
-            ))}
-          </select>
-
-          <textarea
-            className="min-h-24 w-full rounded border border-slate-200 px-3 py-2 text-sm"
-            value={props.editQuestion.prompt}
-            onChange={(e) => props.setEditQuestion((s: any) => (s ? { ...s, prompt: e.target.value } : s))}
-          />
-          <textarea
-            className="min-h-24 w-full rounded border border-slate-200 px-3 py-2 text-sm"
-            value={props.editQuestion.explanation}
-            onChange={(e) => props.setEditQuestion((s: any) => (s ? { ...s, explanation: e.target.value } : s))}
-          />
-
-          <div className="space-y-2">
-            <div className="text-sm font-medium">Choices</div>
-            {props.editQuestion.choicesText.map((text, i) => (
-              <div key={i} className="flex items-center gap-2">
-                <input
-                  className="h-4 w-4"
-                  type="radio"
-                  name="editCorrect"
-                  checked={props.editQuestion!.correctChoiceIndex === i}
-                  onChange={() => props.setEditQuestion((s: any) => (s ? { ...s, correctChoiceIndex: i } : s))}
-                />
-                <input
-                  className="w-full rounded border border-slate-200 px-3 py-2 text-sm"
-                  value={text}
-                  onChange={(e) =>
-                    props.setEditQuestion((s: any) => {
-                      if (!s) return s
-                      const next = [...s.choicesText]
-                      next[i] = e.target.value
-                      return { ...s, choicesText: next }
-                    })
-                  }
-                />
-              </div>
-            ))}
+            {props.submitForReviewMutation.isError || props.approveQuestionMutation.isError || props.requestChangesMutation.isError ? (
+              <div className="text-sm text-red-600">Review action failed (check state/permissions).</div>
+            ) : null}
           </div>
 
-          <div className="flex flex-wrap gap-2">
-            <button
-              className="rounded border border-slate-200 px-3 py-2 text-sm hover:bg-slate-50 disabled:opacity-50"
-              type="button"
-              disabled={!props.selectedQuestionId || props.updateQuestionMutation.isPending}
-              onClick={() => {
-                if (!props.selectedQuestionId || !props.editQuestion) return
-                props.updateQuestionMutation.mutate({
-                  questionId: props.selectedQuestionId,
-                  body: {
-                    questionBankId: props.editQuestion.questionBankId ? props.editQuestion.questionBankId : null,
-                    topicId: props.editQuestion.topicId ? props.editQuestion.topicId : null,
-                    difficultyId: props.editQuestion.difficultyId,
-                    prompt: props.editQuestion.prompt,
-                    explanation: props.editQuestion.explanation,
-                  },
-                })
-              }}
-            >
-              Save Fields
-            </button>
-            <button
-              className="rounded border border-slate-200 px-3 py-2 text-sm hover:bg-slate-50 disabled:opacity-50"
-              type="button"
-              disabled={!props.selectedQuestionId || props.replaceChoicesMutation.isPending}
-              onClick={() => {
-                if (!props.selectedQuestionId || !props.editQuestion) return
-                props.replaceChoicesMutation.mutate({
-                  questionId: props.selectedQuestionId,
-                  body: {
-                    choices: props.editQuestion.choicesText.filter((t) => t.trim() !== '').map((t) => ({ text: t })),
-                    correctChoiceIndex: props.editQuestion.correctChoiceIndex,
-                  },
-                })
-              }}
-            >
-              Save Choices
-            </button>
-          </div>
+          {props.selectedQuestion.isLoading && <div className="text-sm text-slate-600">Loading…</div>}
+          {props.selectedQuestion.isError && <div className="text-sm text-red-600">Failed to load question.</div>}
+        </>
+      ) : null}
 
-          {(props.updateQuestionMutation.isError || props.replaceChoicesMutation.isError || props.statusMutation.isError) && (
-            <div className="text-sm text-red-600">Update failed (check permissions / validation).</div>
-          )}
-        </div>
+      {(props.updateQuestionMutation.isError || props.replaceChoicesMutation.isError || props.statusMutation.isError) && (
+        <div className="text-sm text-red-600">Update failed (check permissions / validation).</div>
       )}
     </div>
   )
@@ -1014,7 +1015,8 @@ export function QuestionBankTab() {
     difficultyId: string
   }>({ status: 'draft', questionBankId: '', topicId: '', difficultyId: '' })
 
-  const [createQuestion, setCreateQuestion] = useState<CreateQuestionFormState>({
+  const [questionEditorMode, setQuestionEditorMode] = useState<QuestionEditorMode>('create')
+  const [questionForm, setQuestionForm] = useState<QuestionFormState>({
     questionBankId: '',
     topicId: '',
     difficultyId: '',
@@ -1025,7 +1027,6 @@ export function QuestionBankTab() {
   })
 
   const [selectedQuestionId, setSelectedQuestionId] = useState<string>('')
-  const [editQuestion, setEditQuestion] = useState<EditQuestionFormState | null>(null)
 
   const [reviewRequestNote, setReviewRequestNote] = useState('')
 
@@ -1102,11 +1103,11 @@ export function QuestionBankTab() {
     return items
   }, [topics.data?.items, questionFilters.questionBankId])
 
-  const visibleTopicsForCreate = useMemo(() => {
+  const visibleTopicsForEditor = useMemo(() => {
     const items = (topics.data?.items ?? []).filter((t: any) => !t.isHidden)
-    if (createQuestion.questionBankId) return items.filter((t: any) => t.questionBankId === createQuestion.questionBankId)
+    if (questionForm.questionBankId) return items.filter((t: any) => t.questionBankId === questionForm.questionBankId)
     return items
-  }, [topics.data?.items, createQuestion.questionBankId])
+  }, [topics.data?.items, questionForm.questionBankId])
 
   const visiblePackagesForSelect = useMemo(() => {
     return (packages.data?.items ?? []).filter((p: any) => !p.isHidden)
@@ -1144,35 +1145,53 @@ export function QuestionBankTab() {
   })
 
   const createQuestionMutation = useMutation({
-    mutationFn: instructorCreateQuestion,
-    onSuccess: async (data: any) => {
-      setCreateQuestion({
+    mutationFn: async (input: any) => {
+      const { publishAfterCreate, ...body } = input ?? {}
+      return instructorCreateQuestion(body)
+    },
+    onSuccess: async (data: any, vars: any) => {
+      await queryClient.invalidateQueries({ queryKey: ['questionBank', 'questions'] })
+      setSelectedQuestionId(data.id)
+      setQuestionEditorMode('edit')
+
+      if (vars?.publishAfterCreate) {
+        statusMutation.mutate({ action: 'publish', questionId: data.id })
+      }
+    },
+  })
+
+  const deleteQuestionMutation = useMutation({
+    mutationFn: adminDeleteQuestion,
+    onSuccess: async () => {
+      setSelectedQuestionId('')
+      setQuestionEditorMode('create')
+      setQuestionForm((s) => ({
         questionBankId: '',
         topicId: '',
-        difficultyId: '',
+        difficultyId: s.difficultyId,
         prompt: '',
         explanation: '',
         choicesText: ['', '', '', ''],
         correctChoiceIndex: 0,
-      })
+      }))
       await queryClient.invalidateQueries({ queryKey: ['questionBank', 'questions'] })
-      setSelectedQuestionId(data.id)
+      await queryClient.invalidateQueries({ queryKey: ['questionBank', 'question'] })
     },
   })
 
   const updateQuestionMutation = useMutation({
     mutationFn: async (input: { questionId: string; body: any }) => instructorUpdateQuestion(input.questionId, input.body),
-    onSuccess: async () => {
+    onSuccess: async (_data: any, vars: any) => {
       await queryClient.invalidateQueries({ queryKey: ['questionBank', 'questions'] })
-      await queryClient.invalidateQueries({ queryKey: ['questionBank', 'question', selectedQuestionId] })
+      await queryClient.invalidateQueries({ queryKey: ['questionBank', 'question', vars?.questionId] })
     },
   })
 
   const replaceChoicesMutation = useMutation({
     mutationFn: async (input: { questionId: string; body: any }) => instructorReplaceChoices(input.questionId, input.body),
-    onSuccess: async () => {
+    onSuccess: async (_data: any, vars: any) => {
       await queryClient.invalidateQueries({ queryKey: ['questionBank', 'questions'] })
-      await queryClient.invalidateQueries({ queryKey: ['questionBank', 'question', selectedQuestionId] })
+      await queryClient.invalidateQueries({ queryKey: ['questionBank', 'question', vars?.questionId] })
     },
   })
 
@@ -1182,9 +1201,9 @@ export function QuestionBankTab() {
       if (input.action === 'archive') return instructorArchiveQuestion(input.questionId)
       return instructorDraftQuestion(input.questionId)
     },
-    onSuccess: async () => {
+    onSuccess: async (_data: any, vars: any) => {
       await queryClient.invalidateQueries({ queryKey: ['questionBank', 'questions'] })
-      await queryClient.invalidateQueries({ queryKey: ['questionBank', 'question', selectedQuestionId] })
+      await queryClient.invalidateQueries({ queryKey: ['questionBank', 'question', vars?.questionId] })
     },
   })
 
@@ -1264,11 +1283,11 @@ export function QuestionBankTab() {
   })
 
   useEffect(() => {
-    if (createQuestion.difficultyId) return
+    if (questionForm.difficultyId) return
     const first = (difficulties.data?.items ?? [])[0]
     if (!first) return
-    setCreateQuestion((s) => (s.difficultyId ? s : { ...s, difficultyId: first.id }))
-  }, [difficulties.data?.items, createQuestion.difficultyId])
+    setQuestionForm((s) => (s.difficultyId ? s : { ...s, difficultyId: first.id }))
+  }, [difficulties.data?.items, questionForm.difficultyId])
 
   useEffect(() => {
     const pkg = (packages.data?.items ?? []).find((p: any) => p.id === selectedPackageId)
@@ -1303,15 +1322,18 @@ export function QuestionBankTab() {
     if (!selectedQuestion.data) return
     const q = selectedQuestion.data
     const correctIndex = Math.max(0, q.choices.findIndex((c: any) => c.id === q.correctChoiceId))
-    setEditQuestion({
+    const choicesText = q.choices.map((c: any) => c.text)
+    while (choicesText.length < 4) choicesText.push('')
+    setQuestionForm({
       questionBankId: q.questionBankId ?? '',
       topicId: q.topicId ?? '',
       difficultyId: q.difficultyId,
       prompt: q.prompt,
       explanation: q.explanation,
-      choicesText: q.choices.map((c: any) => c.text),
-      correctChoiceIndex: correctIndex,
+      choicesText,
+      correctChoiceIndex: Math.min(Math.max(0, correctIndex), Math.max(0, choicesText.length - 1)),
     })
+    setQuestionEditorMode('edit')
   }, [selectedQuestionId, selectedQuestion.data])
 
   const selectedQuestionStatus = selectedQuestion.data?.status
@@ -1397,41 +1419,39 @@ export function QuestionBankTab() {
             questions={questions}
             selectedQuestionId={selectedQuestionId}
             setSelectedQuestionId={setSelectedQuestionId}
-            setEditQuestion={setEditQuestion}
             difficultiesById={difficultiesById}
+            onSelectQuestion={() => {
+              setQuestionEditorMode('edit')
+              setActiveSection('questionEditor')
+            }}
           />
         ) : null}
 
         {activeSection === 'questionEditor' ? (
-          <div className="space-y-6">
-            <CreateQuestionSection
-              difficulties={difficulties}
-              visiblePackagesForSelect={visiblePackagesForSelect}
-              visibleTopicsForCreate={visibleTopicsForCreate}
-              createQuestion={createQuestion}
-              setCreateQuestion={setCreateQuestion}
-              createQuestionMutation={createQuestionMutation}
-            />
-
-            <QuestionEditorSection
-              selectedQuestionId={selectedQuestionId}
-              selectedQuestion={selectedQuestion}
-              selectedQuestionStatus={selectedQuestionStatus}
-              editQuestion={editQuestion}
-              setEditQuestion={setEditQuestion}
-              topics={topics}
-              difficulties={difficulties}
-              visiblePackagesForSelect={visiblePackagesForSelect}
-              reviewRequestNote={reviewRequestNote}
-              setReviewRequestNote={setReviewRequestNote}
-              statusMutation={statusMutation}
-              submitForReviewMutation={submitForReviewMutation}
-              approveQuestionMutation={approveQuestionMutation}
-              requestChangesMutation={requestChangesMutation}
-              updateQuestionMutation={updateQuestionMutation}
-              replaceChoicesMutation={replaceChoicesMutation}
-            />
-          </div>
+          <QuestionEditorSection
+            mode={questionEditorMode}
+            setMode={setQuestionEditorMode}
+            selectedQuestionId={selectedQuestionId}
+            setSelectedQuestionId={setSelectedQuestionId}
+            selectedQuestion={selectedQuestion}
+            selectedQuestionStatus={selectedQuestionStatus}
+            questionForm={questionForm}
+            setQuestionForm={setQuestionForm}
+            topics={topics}
+            difficulties={difficulties}
+            visiblePackagesForSelect={visiblePackagesForSelect}
+            visibleTopicsForSelect={visibleTopicsForEditor}
+            reviewRequestNote={reviewRequestNote}
+            setReviewRequestNote={setReviewRequestNote}
+            createQuestionMutation={createQuestionMutation}
+            deleteQuestionMutation={deleteQuestionMutation}
+            statusMutation={statusMutation}
+            submitForReviewMutation={submitForReviewMutation}
+            approveQuestionMutation={approveQuestionMutation}
+            requestChangesMutation={requestChangesMutation}
+            updateQuestionMutation={updateQuestionMutation}
+            replaceChoicesMutation={replaceChoicesMutation}
+          />
         ) : null}
 
         {activeSection === 'examPackages' ? (

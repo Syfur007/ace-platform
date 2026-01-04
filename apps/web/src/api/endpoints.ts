@@ -452,6 +452,14 @@ export async function adminRequestQuestionChanges(
   })
 }
 
+export async function adminDeleteQuestion(questionId: string): Promise<OkResponse> {
+  return apiFetchJson<OkResponse>(`/admin/questions/${encodeURIComponent(questionId)}`, { method: 'DELETE' })
+}
+
+export async function instructorDeleteQuestion(questionId: string): Promise<OkResponse> {
+  return apiFetchJson<OkResponse>(`/instructor/questions/${encodeURIComponent(questionId)}`, { method: 'DELETE' })
+}
+
 // Admin IAM
 
 export type AdminUserListItem = {

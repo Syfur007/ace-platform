@@ -1185,6 +1185,60 @@ func RegisterQuestionRoutes(r *gin.Engine, pool *pgxpool.Pool) {
 			c.JSON(http.StatusOK, gin.H{"ok": true})
 		})
 
+		deleteQuestion := func(scope string) gin.HandlerFunc {
+			return func(c *gin.Context) {
+				qid := strings.TrimSpace(c.Param("questionId"))
+				if qid == "" {
+					c.JSON(http.StatusBadRequest, gin.H{"message": "questionId is required"})
+					return
+				}
+
+				userID, ok := auth.GetUserID(c)
+				if !ok {
+					c.JSON(http.StatusUnauthorized, gin.H{"message": "unauthorized"})
+					return
+				}
+
+				role, _ := auth.GetRole(c)
+				isAdmin := role == "admin" || scope == "admin"
+
+				ctx := context.Background()
+				tx, err := pool.BeginTx(ctx, pgx.TxOptions{})
+				if err != nil {
+					c.JSON(http.StatusInternalServerError, gin.H{"message": "failed to delete question"})
+					return
+				}
+				defer func() { _ = tx.Rollback(ctx) }()
+
+				// Delete dependent records first.
+				_, _ = tx.Exec(ctx, `delete from question_bank_correct_choice where question_id=$1`, qid)
+				_, _ = tx.Exec(ctx, `delete from question_bank_choices where question_id=$1`, qid)
+
+				query := `delete from question_bank_questions where id=$1`
+				args := []any{qid}
+				if !isAdmin {
+					query += ` and created_by_user_id=$2`
+					args = append(args, userID)
+				}
+				cmd, err := tx.Exec(ctx, query, args...)
+				if err != nil {
+					c.JSON(http.StatusInternalServerError, gin.H{"message": "failed to delete question"})
+					return
+				}
+				if cmd.RowsAffected() == 0 {
+					c.JSON(http.StatusNotFound, gin.H{"message": "question not found"})
+					return
+				}
+
+				if err := tx.Commit(ctx); err != nil {
+					c.JSON(http.StatusInternalServerError, gin.H{"message": "failed to delete question"})
+					return
+				}
+
+				c.JSON(http.StatusOK, gin.H{"ok": true})
+			}
+		}
+
 		setStatus := func(status QuestionStatus) gin.HandlerFunc {
 			return func(c *gin.Context) {
 				userID, ok := auth.GetUserID(c)
@@ -1245,6 +1299,9 @@ func RegisterQuestionRoutes(r *gin.Engine, pool *pgxpool.Pool) {
 		}
 
 		requireAdmin := auth.RequirePortalAuth(pool, "admin", "admin")
+
+		r.DELETE("/admin/questions/:questionId", requireAdmin, deleteQuestion("admin"))
+		r.DELETE("/instructor/questions/:questionId", requireInstructorOrAdmin, deleteQuestion("instructor"))
 
 		r.POST("/admin/questions/:questionId/approve", requireAdmin, func(c *gin.Context) {
 			userID, ok := auth.GetUserID(c)
