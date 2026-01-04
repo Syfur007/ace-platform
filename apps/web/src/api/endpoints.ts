@@ -53,6 +53,48 @@ export async function getHealthz(): Promise<HealthzResponse> {
   return apiFetchJson<HealthzResponse>('/healthz', { method: 'GET' })
 }
 
+export type ListExamPackagesResponse =
+  paths['/exam-packages']['get']['responses'][200]['content']['application/json']
+
+export async function listExamPackages(): Promise<ListExamPackagesResponse> {
+  return apiFetchJson<ListExamPackagesResponse>('/exam-packages', { method: 'GET' })
+}
+
+export type AdminListExamPackagesResponse =
+  paths['/admin/exam-packages']['get']['responses'][200]['content']['application/json']
+
+export async function adminListExamPackages(): Promise<AdminListExamPackagesResponse> {
+  return apiFetchJson<AdminListExamPackagesResponse>('/admin/exam-packages', { method: 'GET' })
+}
+
+export type AdminCreateExamPackageRequest =
+  paths['/admin/exam-packages']['post']['requestBody']['content']['application/json']
+export type AdminCreateExamPackageResponse =
+  paths['/admin/exam-packages']['post']['responses'][200]['content']['application/json']
+
+export async function adminCreateExamPackage(body: AdminCreateExamPackageRequest): Promise<AdminCreateExamPackageResponse> {
+  return apiFetchJson<AdminCreateExamPackageResponse>('/admin/exam-packages', { method: 'POST', body })
+}
+
+export type AdminUpdateExamPackageRequest =
+  paths['/admin/exam-packages/{examPackageId}']['patch']['requestBody']['content']['application/json']
+
+export async function adminUpdateExamPackage(
+  examPackageId: string,
+  body: AdminUpdateExamPackageRequest,
+): Promise<{ success: true }> {
+  return apiFetchJson<{ success: true }>(`/admin/exam-packages/${encodeURIComponent(examPackageId)}`, {
+    method: 'PATCH',
+    body,
+  })
+}
+
+export async function adminDeleteExamPackage(examPackageId: string): Promise<{ success: true }> {
+  return apiFetchJson<{ success: true }>(`/admin/exam-packages/${encodeURIComponent(examPackageId)}`, {
+    method: 'DELETE',
+  })
+}
+
 export type ListPracticeSessionsResponse =
   paths['/practice-sessions']['get']['responses'][200]['content']['application/json']
 
@@ -196,19 +238,19 @@ export async function getPracticeSessionReview(sessionId: string): Promise<Pract
   })
 }
 
-export type ListQuestionPackagesResponse =
-  paths['/question-packages']['get']['responses'][200]['content']['application/json']
+export type ListQuestionBanksResponse =
+  paths['/question-banks']['get']['responses'][200]['content']['application/json']
 
-export async function listQuestionPackages(): Promise<ListQuestionPackagesResponse> {
-  return apiFetchJson<ListQuestionPackagesResponse>('/question-packages', { method: 'GET' })
+export async function listQuestionBanks(): Promise<ListQuestionBanksResponse> {
+  return apiFetchJson<ListQuestionBanksResponse>('/question-banks', { method: 'GET' })
 }
 
 export type ListQuestionTopicsResponse =
   paths['/question-topics']['get']['responses'][200]['content']['application/json']
 
-export async function listQuestionTopics(params?: { packageId?: string }): Promise<ListQuestionTopicsResponse> {
+export async function listQuestionTopics(params?: { questionBankId?: string }): Promise<ListQuestionTopicsResponse> {
   const search = new URLSearchParams()
-  if (params?.packageId) search.set('packageId', params.packageId)
+  if (params?.questionBankId) search.set('questionBankId', params.questionBankId)
   const qs = search.toString()
   return apiFetchJson<ListQuestionTopicsResponse>(`/question-topics${qs ? `?${qs}` : ''}`, { method: 'GET' })
 }
@@ -220,41 +262,39 @@ export async function listQuestionDifficulties(): Promise<ListQuestionDifficulti
   return apiFetchJson<ListQuestionDifficultiesResponse>('/question-difficulties', { method: 'GET' })
 }
 
-export type InstructorCreateQuestionPackageRequest =
-  paths['/instructor/question-packages']['post']['requestBody']['content']['application/json']
-export type InstructorCreateQuestionPackageResponse =
-  paths['/instructor/question-packages']['post']['responses'][200]['content']['application/json']
+export type InstructorCreateQuestionBankRequest =
+  paths['/instructor/question-banks']['post']['requestBody']['content']['application/json']
+export type InstructorCreateQuestionBankResponse =
+  paths['/instructor/question-banks']['post']['responses'][200]['content']['application/json']
 
-export async function instructorCreateQuestionPackage(
-  body: InstructorCreateQuestionPackageRequest,
-): Promise<InstructorCreateQuestionPackageResponse> {
-  return apiFetchJson<InstructorCreateQuestionPackageResponse>('/instructor/question-packages', { method: 'POST', body })
+export async function instructorCreateQuestionBank(
+  body: InstructorCreateQuestionBankRequest,
+): Promise<InstructorCreateQuestionBankResponse> {
+  return apiFetchJson<InstructorCreateQuestionBankResponse>('/instructor/question-banks', { method: 'POST', body })
 }
 
-export type InstructorListQuestionPackagesResponse =
-  paths['/instructor/question-packages']['get']['responses'][200]['content']['application/json']
+export type InstructorListQuestionBanksResponse =
+  paths['/instructor/question-banks']['get']['responses'][200]['content']['application/json']
 
-export async function instructorListQuestionPackages(): Promise<InstructorListQuestionPackagesResponse> {
-  return apiFetchJson<InstructorListQuestionPackagesResponse>('/instructor/question-packages', { method: 'GET' })
+export async function instructorListQuestionBanks(): Promise<InstructorListQuestionBanksResponse> {
+  return apiFetchJson<InstructorListQuestionBanksResponse>('/instructor/question-banks', { method: 'GET' })
 }
 
-export type InstructorUpdateQuestionPackageRequest = {
-  name?: string
-  isHidden?: boolean
-}
+export type InstructorUpdateQuestionBankRequest =
+  paths['/instructor/question-banks/{questionBankId}']['patch']['requestBody']['content']['application/json']
 
-export async function instructorUpdateQuestionPackage(
-  packageId: string,
-  body: InstructorUpdateQuestionPackageRequest,
+export async function instructorUpdateQuestionBank(
+  questionBankId: string,
+  body: InstructorUpdateQuestionBankRequest,
 ): Promise<{ success: true }> {
-  return apiFetchJson<{ success: true }>(`/instructor/question-packages/${encodeURIComponent(packageId)}`, {
+  return apiFetchJson<{ success: true }>(`/instructor/question-banks/${encodeURIComponent(questionBankId)}`, {
     method: 'PATCH',
     body,
   })
 }
 
-export async function instructorDeleteQuestionPackage(packageId: string): Promise<{ success: true }> {
-  return apiFetchJson<{ success: true }>(`/instructor/question-packages/${encodeURIComponent(packageId)}`, {
+export async function instructorDeleteQuestionBank(questionBankId: string): Promise<{ success: true }> {
+  return apiFetchJson<{ success: true }>(`/instructor/question-banks/${encodeURIComponent(questionBankId)}`, {
     method: 'DELETE',
   })
 }
@@ -273,9 +313,11 @@ export async function instructorCreateQuestionTopic(
 export type InstructorListQuestionTopicsResponse =
   paths['/instructor/question-topics']['get']['responses'][200]['content']['application/json']
 
-export async function instructorListQuestionTopics(params?: { packageId?: string }): Promise<InstructorListQuestionTopicsResponse> {
+export async function instructorListQuestionTopics(
+  params?: { questionBankId?: string },
+): Promise<InstructorListQuestionTopicsResponse> {
   const search = new URLSearchParams()
-  if (params?.packageId) search.set('packageId', params.packageId)
+  if (params?.questionBankId) search.set('questionBankId', params.questionBankId)
   const qs = search.toString()
   return apiFetchJson<InstructorListQuestionTopicsResponse>(`/instructor/question-topics${qs ? `?${qs}` : ''}`, {
     method: 'GET',
@@ -341,7 +383,7 @@ export async function instructorListQuestions(params?: {
   limit?: number
   offset?: number
   status?: InstructorQuestionStatus
-  packageId?: string
+  questionBankId?: string
   topicId?: string
   difficultyId?: string
 }): Promise<InstructorListQuestionsResponse> {
@@ -349,7 +391,7 @@ export async function instructorListQuestions(params?: {
   if (params?.limit != null) search.set('limit', String(params.limit))
   if (params?.offset != null) search.set('offset', String(params.offset))
   if (params?.status) search.set('status', params.status)
-  if (params?.packageId) search.set('packageId', params.packageId)
+  if (params?.questionBankId) search.set('questionBankId', params.questionBankId)
   if (params?.topicId) search.set('topicId', params.topicId)
   if (params?.difficultyId) search.set('difficultyId', params.difficultyId)
   const qs = search.toString()

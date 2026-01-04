@@ -20,6 +20,22 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/exam-packages": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["listExamPackages"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/auth/register": {
         parameters: {
             query?: never;
@@ -65,6 +81,57 @@ export interface paths {
         get: operations["me"];
         put?: never;
         post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/auth/refresh": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** @deprecated */
+        post: operations["refresh"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/auth/logout": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** @deprecated */
+        post: operations["logout"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/auth/logout-all": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** @deprecated */
+        post: operations["logoutAll"];
         delete?: never;
         options?: never;
         head?: never;
@@ -119,6 +186,70 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/student/auth/refresh": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: operations["studentRefresh"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/student/auth/logout": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: operations["studentLogout"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/student/auth/logout-all": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: operations["studentLogoutAll"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/student/enrollments": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["studentListEnrollments"];
+        put?: never;
+        post: operations["studentEnroll"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/instructor/auth/login": {
         parameters: {
             query?: never;
@@ -151,6 +282,54 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/instructor/auth/refresh": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: operations["instructorRefresh"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/instructor/auth/logout": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: operations["instructorLogout"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/instructor/auth/logout-all": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: operations["instructorLogoutAll"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/admin/auth/login": {
         parameters: {
             query?: never;
@@ -175,6 +354,214 @@ export interface paths {
             cookie?: never;
         };
         get: operations["adminMe"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/admin/auth/refresh": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: operations["adminRefresh"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/admin/auth/logout": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: operations["adminLogout"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/admin/auth/logout-all": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: operations["adminLogoutAll"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/admin/users": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["adminListUsers"];
+        put?: never;
+        post: operations["adminCreateUser"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/admin/users/{userId}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["adminGetUser"];
+        put?: never;
+        post?: never;
+        delete: operations["adminDeleteUser"];
+        options?: never;
+        head?: never;
+        patch: operations["adminUpdateUser"];
+        trace?: never;
+    };
+    "/admin/users/{userId}/restore": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: operations["adminRestoreUser"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/admin/exam-sessions": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["adminListExamSessions"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/admin/exam-sessions/{userId}/{sessionId}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["adminGetExamSession"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/admin/exam-sessions/{userId}/{sessionId}/force-submit": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: operations["adminForceSubmitExamSession"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/admin/exam-sessions/{userId}/{sessionId}/terminate": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: operations["adminTerminateExamSession"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/admin/exam-sessions/{userId}/{sessionId}/invalidate": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: operations["adminInvalidateExamSession"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/admin/exam-sessions/{userId}/{sessionId}/flags": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: operations["adminCreateExamFlag"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/admin/exam-sessions/{userId}/{sessionId}/events": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["adminListExamEvents"];
         put?: never;
         post?: never;
         delete?: never;
@@ -247,14 +634,14 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
-    "/question-packages": {
+    "/question-banks": {
         parameters: {
             query?: never;
             header?: never;
             path?: never;
             cookie?: never;
         };
-        get: operations["listQuestionPackages"];
+        get: operations["listQuestionBanks"];
         put?: never;
         post?: never;
         delete?: never;
@@ -295,20 +682,68 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
-    "/instructor/question-packages": {
+    "/instructor/question-difficulties": {
         parameters: {
             query?: never;
             header?: never;
             path?: never;
             cookie?: never;
         };
-        get: operations["instructorListQuestionPackages"];
+        get: operations["instructorListQuestionDifficulties"];
         put?: never;
-        post: operations["instructorCreateQuestionPackage"];
+        post?: never;
         delete?: never;
         options?: never;
         head?: never;
         patch?: never;
+        trace?: never;
+    };
+    "/instructor/question-difficulties/{difficultyId}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch: operations["instructorUpdateQuestionDifficulty"];
+        trace?: never;
+    };
+    "/instructor/question-banks": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["instructorListQuestionBanks"];
+        put?: never;
+        post: operations["instructorCreateQuestionBank"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/instructor/question-banks/{questionBankId}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        delete: operations["instructorDeleteQuestionBank"];
+        options?: never;
+        head?: never;
+        patch: operations["instructorUpdateQuestionBank"];
         trace?: never;
     };
     "/instructor/question-topics": {
@@ -325,6 +760,22 @@ export interface paths {
         options?: never;
         head?: never;
         patch?: never;
+        trace?: never;
+    };
+    "/instructor/question-topics/{topicId}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        delete: operations["instructorDeleteQuestionTopic"];
+        options?: never;
+        head?: never;
+        patch: operations["instructorUpdateQuestionTopic"];
         trace?: never;
     };
     "/instructor/questions": {
@@ -423,6 +874,102 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/instructor/questions/{questionId}/submit-for-review": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: operations["instructorSubmitQuestionForReview"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/admin/questions/{questionId}/approve": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: operations["adminApproveQuestion"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/admin/questions/{questionId}/request-changes": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: operations["adminRequestQuestionChanges"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/admin/dashboard": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["adminGetDashboardStats"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/admin/exam-packages": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["adminListExamPackages"];
+        put?: never;
+        post: operations["adminCreateExamPackage"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/admin/exam-packages/{examPackageId}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        delete: operations["adminDeleteExamPackage"];
+        options?: never;
+        head?: never;
+        patch: operations["adminUpdateExamPackage"];
+        trace?: never;
+    };
     "/exam-sessions/{sessionId}/heartbeat": {
         parameters: {
             query?: never;
@@ -465,6 +1012,22 @@ export interface paths {
         get?: never;
         put?: never;
         post: operations["submitExamSession"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/exam-sessions/{sessionId}/events": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: operations["recordExamEvent"];
         delete?: never;
         options?: never;
         head?: never;
@@ -571,6 +1134,59 @@ export interface paths {
 export type webhooks = Record<string, never>;
 export interface components {
     schemas: {
+        AdminDashboardStatsResponse: {
+            /** Format: date-time */
+            ts: string;
+            users: {
+                total: number;
+                active: number;
+                deleted: number;
+                byRole: {
+                    [key: string]: number;
+                };
+            };
+            questionBank: {
+                packages: number;
+                topics: number;
+                questions: number;
+                byStatus: {
+                    [key: string]: number;
+                };
+            };
+            exams: {
+                sessions: number;
+                submitted: number;
+                byStatus: {
+                    [key: string]: number;
+                };
+                events: number;
+                flags: number;
+            };
+        };
+        AdminExamPackageListItem: {
+            id: string;
+            code: string;
+            name: string;
+            isHidden: boolean;
+            /** @description RFC3339 timestamp */
+            createdAt: string;
+            /** @description RFC3339 timestamp */
+            updatedAt: string;
+        };
+        ListAdminExamPackagesResponse: {
+            items: components["schemas"]["AdminExamPackageListItem"][];
+        };
+        CreateAdminExamPackageRequest: {
+            name: string;
+            isHidden?: boolean | null;
+        };
+        CreateAdminExamPackageResponse: {
+            id: string;
+        };
+        UpdateAdminExamPackageRequest: {
+            name?: string | null;
+            isHidden?: boolean | null;
+        };
         HealthzResponse: {
             status: string;
             /** @description RFC3339 timestamp */
@@ -593,7 +1209,7 @@ export interface components {
         ExamSessionResponse: {
             sessionId: string;
             /** @enum {string} */
-            status: "active" | "finished";
+            status: "active" | "finished" | "terminated" | "invalid";
             /** @description RFC3339 timestamp */
             submittedAt?: string | null;
             /** @description RFC3339 timestamp */
@@ -615,7 +1231,7 @@ export interface components {
         ExamSessionListItem: {
             sessionId: string;
             /** @enum {string} */
-            status: "active" | "finished";
+            status: "active" | "finished" | "terminated" | "invalid";
             /** @description RFC3339 timestamp */
             submittedAt?: string | null;
             /** @description RFC3339 timestamp */
@@ -639,7 +1255,7 @@ export interface components {
             createdAt: string;
             /** @description RFC3339 timestamp */
             lastActivityAt: string;
-            packageId?: string | null;
+            examPackageId?: string | null;
             isTimed: boolean;
             timeLimitSeconds?: number | null;
             timeRemainingSeconds?: number | null;
@@ -649,7 +1265,7 @@ export interface components {
             accuracy?: number;
         };
         CreatePracticeSessionRequest: {
-            packageId?: string | null;
+            examPackageId?: string | null;
             timed: boolean;
             count: number;
         };
@@ -670,7 +1286,7 @@ export interface components {
             createdAt: string;
             /** @description RFC3339 timestamp */
             startedAt: string;
-            packageId?: string | null;
+            examPackageId?: string | null;
             isTimed: boolean;
             timeLimitSeconds?: number | null;
             /** @description RFC3339 timestamp */
@@ -723,6 +1339,24 @@ export interface components {
         OkResponse: {
             ok: boolean;
         };
+        SuccessResponse: {
+            success: boolean;
+        };
+        ExamPackageListItem: {
+            id: string;
+            name: string;
+            /** @description RFC3339 timestamp */
+            createdAt: string;
+        };
+        ListExamPackagesResponse: {
+            items: components["schemas"]["ExamPackageListItem"][];
+        };
+        EnrollmentListResponse: {
+            examPackageIds: string[];
+        };
+        EnrollRequest: {
+            examPackageId: string;
+        };
         QuestionDifficulty: {
             id: string;
             displayName: string;
@@ -730,28 +1364,43 @@ export interface components {
         ListQuestionDifficultiesResponse: {
             items: components["schemas"]["QuestionDifficulty"][];
         };
-        QuestionPackage: {
+        QuestionBank: {
             id: string;
             name: string;
+            examPackageId?: string | null;
+            isHidden: boolean;
             /** @description RFC3339 timestamp */
             createdAt: string;
         };
         QuestionTopic: {
             id: string;
-            packageId?: string | null;
+            questionBankId?: string | null;
             name: string;
+            isHidden: boolean;
             /** @description RFC3339 timestamp */
             createdAt: string;
         };
-        ListQuestionPackagesResponse: {
-            items: components["schemas"]["QuestionPackage"][];
+        UpdateQuestionBankRequest: {
+            name?: string;
+            examPackageId?: string | null;
+            isHidden?: boolean;
+        };
+        UpdateQuestionTopicRequest: {
+            name?: string;
+            isHidden?: boolean;
+        };
+        UpdateQuestionDifficultyRequest: {
+            displayName: string;
+        };
+        ListQuestionBanksResponse: {
+            items: components["schemas"]["QuestionBank"][];
         };
         ListQuestionTopicsResponse: {
             items: components["schemas"]["QuestionTopic"][];
         };
         PublicQuestionListItem: {
             id: string;
-            packageId?: string | null;
+            questionBankId?: string | null;
             topicId?: string | null;
             difficultyId: string;
             prompt: string;
@@ -764,27 +1413,28 @@ export interface components {
         };
         PublicQuestionResponse: {
             id: string;
-            packageId?: string | null;
+            questionBankId?: string | null;
             topicId?: string | null;
             difficultyId: string;
             prompt: string;
             choices: components["schemas"]["PracticeQuestionChoice"][];
         };
-        CreateQuestionPackageRequest: {
+        CreateQuestionBankRequest: {
             name: string;
+            examPackageId: string;
         };
-        CreateQuestionPackageResponse: {
+        CreateQuestionBankResponse: {
             id: string;
         };
         CreateQuestionTopicRequest: {
-            packageId?: string | null;
+            questionBankId?: string | null;
             name: string;
         };
         CreateQuestionTopicResponse: {
             id: string;
         };
         CreateQuestionRequest: {
-            packageId?: string | null;
+            questionBankId?: string | null;
             topicId?: string | null;
             difficultyId: string;
             prompt: string;
@@ -795,7 +1445,7 @@ export interface components {
             correctChoiceIndex: number;
         };
         UpdateQuestionRequest: {
-            packageId?: string | null;
+            questionBankId?: string | null;
             topicId?: string | null;
             difficultyId?: string | null;
             prompt?: string | null;
@@ -809,13 +1459,13 @@ export interface components {
         };
         InstructorQuestionResponse: {
             id: string;
-            packageId?: string | null;
+            questionBankId?: string | null;
             topicId?: string | null;
             difficultyId: string;
             prompt: string;
             explanation: string;
             /** @enum {string} */
-            status: "draft" | "published" | "archived";
+            status: "draft" | "in_review" | "needs_changes" | "published" | "archived";
             correctChoiceId: string;
             choices: components["schemas"]["PracticeQuestionChoice"][];
             createdByUserId: string;
@@ -837,13 +1487,128 @@ export interface components {
             /** @description RFC3339 timestamp */
             createdAt: string;
         };
+        ExamEventRequest: {
+            eventType: string;
+            /** @description RFC3339 timestamp */
+            ts?: string | null;
+            payload?: {
+                [key: string]: unknown;
+            } | null;
+        };
+        AdminUser: {
+            id: string;
+            email: string;
+            /** @enum {string} */
+            role: "student" | "instructor" | "admin";
+            /** @description RFC3339 timestamp */
+            createdAt: string;
+            /** @description RFC3339 timestamp */
+            updatedAt: string;
+            /** @description RFC3339 timestamp */
+            deletedAt?: string | null;
+        };
+        AdminUserListItem: components["schemas"]["AdminUser"];
+        ListAdminUsersResponse: {
+            items: components["schemas"]["AdminUserListItem"][];
+            limit: number;
+            offset: number;
+            hasMore: boolean;
+        };
+        CreateAdminUserRequest: {
+            email: string;
+            password: string;
+            /** @enum {string} */
+            role: "student" | "instructor" | "admin";
+        };
+        UpdateAdminUserRequest: {
+            email?: string | null;
+            password?: string | null;
+            /** @enum {string|null} */
+            role?: "student" | "instructor" | "admin" | null;
+        };
+        AdminExamSessionListItem: {
+            userId: string;
+            userEmail: string;
+            sessionId: string;
+            /** @enum {string} */
+            status: "active" | "finished" | "terminated" | "invalid";
+            /** @description RFC3339 timestamp */
+            createdAt: string;
+            /** @description RFC3339 timestamp */
+            updatedAt: string;
+            /** @description RFC3339 timestamp */
+            lastHeartbeatAt: string;
+            /** @description RFC3339 timestamp */
+            submittedAt?: string | null;
+            /** @description RFC3339 timestamp */
+            terminatedAt?: string | null;
+            /** @description RFC3339 timestamp */
+            invalidatedAt?: string | null;
+        };
+        ListAdminExamSessionsResponse: {
+            items: components["schemas"]["AdminExamSessionListItem"][];
+            limit: number;
+            offset: number;
+            hasMore: boolean;
+        };
+        AdminExamSessionResponse: {
+            userId: string;
+            userEmail: string;
+            sessionId: string;
+            /** @enum {string} */
+            status: "active" | "finished" | "terminated" | "invalid";
+            /** @description RFC3339 timestamp */
+            createdAt: string;
+            /** @description RFC3339 timestamp */
+            updatedAt: string;
+            /** @description RFC3339 timestamp */
+            lastHeartbeatAt: string;
+            /** @description RFC3339 timestamp */
+            submittedAt?: string | null;
+            /** @description RFC3339 timestamp */
+            terminatedAt?: string | null;
+            terminatedByUserId?: string | null;
+            terminationReason: string;
+            /** @description RFC3339 timestamp */
+            invalidatedAt?: string | null;
+            invalidatedByUserId?: string | null;
+            invalidationReason: string;
+            snapshot: {
+                [key: string]: unknown;
+            };
+        };
+        AdminExamActionRequest: {
+            reason?: string;
+        };
+        AdminFlagRequest: {
+            flagType: string;
+            note?: string;
+        };
+        AdminExamEventListItem: {
+            id: number;
+            eventType: string;
+            payload: {
+                [key: string]: unknown;
+            };
+            /** @description RFC3339 timestamp */
+            createdAt: string;
+        };
+        ListAdminExamEventsResponse: {
+            items: components["schemas"]["AdminExamEventListItem"][];
+            limit: number;
+            offset: number;
+            hasMore: boolean;
+        };
         AuthResponse: {
             accessToken: string;
             user: components["schemas"]["User"];
         };
     };
     responses: never;
-    parameters: never;
+    parameters: {
+        /** @description Double-submit CSRF token. Must match the ace_csrf cookie. */
+        CsrfToken: string;
+    };
     requestBodies: never;
     headers: never;
     pathItems: never;
@@ -866,6 +1631,26 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["HealthzResponse"];
+                };
+            };
+        };
+    };
+    listExamPackages: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Exam packages */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ListExamPackagesResponse"];
                 };
             };
         };
@@ -938,6 +1723,75 @@ export interface operations {
             };
         };
     };
+    refresh: {
+        parameters: {
+            query?: never;
+            header: {
+                /** @description Double-submit CSRF token. Must match the ace_csrf cookie. */
+                "X-CSRF-Token": components["parameters"]["CsrfToken"];
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Refreshed session (sets auth cookies) */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AuthResponse"];
+                };
+            };
+        };
+    };
+    logout: {
+        parameters: {
+            query?: never;
+            header: {
+                /** @description Double-submit CSRF token. Must match the ace_csrf cookie. */
+                "X-CSRF-Token": components["parameters"]["CsrfToken"];
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Logged out (clears auth cookies) */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["OkResponse"];
+                };
+            };
+        };
+    };
+    logoutAll: {
+        parameters: {
+            query?: never;
+            header: {
+                /** @description Double-submit CSRF token. Must match the ace_csrf cookie. */
+                "X-CSRF-Token": components["parameters"]["CsrfToken"];
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Logged out of all sessions (clears auth cookies) */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["OkResponse"];
+                };
+            };
+        };
+    };
     studentRegister: {
         parameters: {
             query?: never;
@@ -1006,6 +1860,122 @@ export interface operations {
             };
         };
     };
+    studentRefresh: {
+        parameters: {
+            query?: never;
+            header: {
+                /** @description Double-submit CSRF token. Must match the ace_csrf cookie. */
+                "X-CSRF-Token": components["parameters"]["CsrfToken"];
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Refreshed session (sets auth cookies) */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AuthResponse"];
+                };
+            };
+        };
+    };
+    studentLogout: {
+        parameters: {
+            query?: never;
+            header: {
+                /** @description Double-submit CSRF token. Must match the ace_csrf cookie. */
+                "X-CSRF-Token": components["parameters"]["CsrfToken"];
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Logged out (clears auth cookies) */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["OkResponse"];
+                };
+            };
+        };
+    };
+    studentLogoutAll: {
+        parameters: {
+            query?: never;
+            header: {
+                /** @description Double-submit CSRF token. Must match the ace_csrf cookie. */
+                "X-CSRF-Token": components["parameters"]["CsrfToken"];
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Logged out of all sessions (clears auth cookies) */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["OkResponse"];
+                };
+            };
+        };
+    };
+    studentListEnrollments: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Student enrollments */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["EnrollmentListResponse"];
+                };
+            };
+        };
+    };
+    studentEnroll: {
+        parameters: {
+            query?: never;
+            header: {
+                /** @description Double-submit CSRF token. Must match the ace_csrf cookie. */
+                "X-CSRF-Token": components["parameters"]["CsrfToken"];
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["EnrollRequest"];
+            };
+        };
+        responses: {
+            /** @description Enrolled */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SuccessResponse"];
+                };
+            };
+        };
+    };
     instructorLogin: {
         parameters: {
             query?: never;
@@ -1050,6 +2020,75 @@ export interface operations {
             };
         };
     };
+    instructorRefresh: {
+        parameters: {
+            query?: never;
+            header: {
+                /** @description Double-submit CSRF token. Must match the ace_csrf cookie. */
+                "X-CSRF-Token": components["parameters"]["CsrfToken"];
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Refreshed session (sets auth cookies) */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AuthResponse"];
+                };
+            };
+        };
+    };
+    instructorLogout: {
+        parameters: {
+            query?: never;
+            header: {
+                /** @description Double-submit CSRF token. Must match the ace_csrf cookie. */
+                "X-CSRF-Token": components["parameters"]["CsrfToken"];
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Logged out (clears auth cookies) */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["OkResponse"];
+                };
+            };
+        };
+    };
+    instructorLogoutAll: {
+        parameters: {
+            query?: never;
+            header: {
+                /** @description Double-submit CSRF token. Must match the ace_csrf cookie. */
+                "X-CSRF-Token": components["parameters"]["CsrfToken"];
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Logged out of all sessions (clears auth cookies) */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["OkResponse"];
+                };
+            };
+        };
+    };
     adminLogin: {
         parameters: {
             query?: never;
@@ -1090,6 +2129,395 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["User"];
+                };
+            };
+        };
+    };
+    adminRefresh: {
+        parameters: {
+            query?: never;
+            header: {
+                /** @description Double-submit CSRF token. Must match the ace_csrf cookie. */
+                "X-CSRF-Token": components["parameters"]["CsrfToken"];
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Refreshed session (sets auth cookies) */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AuthResponse"];
+                };
+            };
+        };
+    };
+    adminLogout: {
+        parameters: {
+            query?: never;
+            header: {
+                /** @description Double-submit CSRF token. Must match the ace_csrf cookie. */
+                "X-CSRF-Token": components["parameters"]["CsrfToken"];
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Logged out (clears auth cookies) */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["OkResponse"];
+                };
+            };
+        };
+    };
+    adminLogoutAll: {
+        parameters: {
+            query?: never;
+            header: {
+                /** @description Double-submit CSRF token. Must match the ace_csrf cookie. */
+                "X-CSRF-Token": components["parameters"]["CsrfToken"];
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Logged out of all sessions (clears auth cookies) */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["OkResponse"];
+                };
+            };
+        };
+    };
+    adminListUsers: {
+        parameters: {
+            query?: {
+                limit?: number;
+                offset?: number;
+                role?: "student" | "instructor" | "admin";
+                includeDeleted?: boolean;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Users */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ListAdminUsersResponse"];
+                };
+            };
+        };
+    };
+    adminCreateUser: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["CreateAdminUserRequest"];
+            };
+        };
+        responses: {
+            /** @description User created */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        id: string;
+                    };
+                };
+            };
+        };
+    };
+    adminGetUser: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                userId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description User */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AdminUser"];
+                };
+            };
+        };
+    };
+    adminDeleteUser: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                userId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Deleted (soft) */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["OkResponse"];
+                };
+            };
+        };
+    };
+    adminUpdateUser: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                userId: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["UpdateAdminUserRequest"];
+            };
+        };
+        responses: {
+            /** @description Updated */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["OkResponse"];
+                };
+            };
+        };
+    };
+    adminRestoreUser: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                userId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Restored */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["OkResponse"];
+                };
+            };
+        };
+    };
+    adminListExamSessions: {
+        parameters: {
+            query?: {
+                limit?: number;
+                offset?: number;
+                status?: "active" | "finished" | "terminated" | "invalid";
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Exam sessions (admin) */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ListAdminExamSessionsResponse"];
+                };
+            };
+        };
+    };
+    adminGetExamSession: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                userId: string;
+                sessionId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Exam session detail */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AdminExamSessionResponse"];
+                };
+            };
+        };
+    };
+    adminForceSubmitExamSession: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                userId: string;
+                sessionId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["OkResponse"];
+                };
+            };
+        };
+    };
+    adminTerminateExamSession: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                userId: string;
+                sessionId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: {
+            content: {
+                "application/json": components["schemas"]["AdminExamActionRequest"];
+            };
+        };
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["OkResponse"];
+                };
+            };
+        };
+    };
+    adminInvalidateExamSession: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                userId: string;
+                sessionId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: {
+            content: {
+                "application/json": components["schemas"]["AdminExamActionRequest"];
+            };
+        };
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["OkResponse"];
+                };
+            };
+        };
+    };
+    adminCreateExamFlag: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                userId: string;
+                sessionId: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["AdminFlagRequest"];
+            };
+        };
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["OkResponse"];
+                };
+            };
+        };
+    };
+    adminListExamEvents: {
+        parameters: {
+            query?: {
+                limit?: number;
+                offset?: number;
+            };
+            header?: never;
+            path: {
+                userId: string;
+                sessionId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Events */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ListAdminExamEventsResponse"];
                 };
             };
         };
@@ -1147,7 +2575,7 @@ export interface operations {
             query?: {
                 limit?: number;
                 offset?: number;
-                status?: "active" | "finished";
+                status?: "active" | "finished" | "terminated" | "invalid";
             };
             header?: never;
             path?: never;
@@ -1171,7 +2599,7 @@ export interface operations {
             query?: {
                 limit?: number;
                 offset?: number;
-                packageId?: string;
+                questionBankId?: string;
                 topicId?: string;
                 difficultyId?: string;
             };
@@ -1214,7 +2642,7 @@ export interface operations {
             };
         };
     };
-    listQuestionPackages: {
+    listQuestionBanks: {
         parameters: {
             query?: never;
             header?: never;
@@ -1223,13 +2651,13 @@ export interface operations {
         };
         requestBody?: never;
         responses: {
-            /** @description Question packages */
+            /** @description Question banks */
             200: {
                 headers: {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": components["schemas"]["ListQuestionPackagesResponse"];
+                    "application/json": components["schemas"]["ListQuestionBanksResponse"];
                 };
             };
         };
@@ -1237,7 +2665,7 @@ export interface operations {
     listQuestionTopics: {
         parameters: {
             query?: {
-                packageId?: string;
+                questionBankId?: string;
             };
             header?: never;
             path?: never;
@@ -1276,7 +2704,7 @@ export interface operations {
             };
         };
     };
-    instructorListQuestionPackages: {
+    instructorListQuestionDifficulties: {
         parameters: {
             query?: never;
             header?: never;
@@ -1285,18 +2713,64 @@ export interface operations {
         };
         requestBody?: never;
         responses: {
-            /** @description Question packages */
+            /** @description Question difficulties */
             200: {
                 headers: {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": components["schemas"]["ListQuestionPackagesResponse"];
+                    "application/json": components["schemas"]["ListQuestionDifficultiesResponse"];
                 };
             };
         };
     };
-    instructorCreateQuestionPackage: {
+    instructorUpdateQuestionDifficulty: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                difficultyId: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["UpdateQuestionDifficultyRequest"];
+            };
+        };
+        responses: {
+            /** @description Difficulty updated */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SuccessResponse"];
+                };
+            };
+        };
+    };
+    instructorListQuestionBanks: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Question banks */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ListQuestionBanksResponse"];
+                };
+            };
+        };
+    };
+    instructorCreateQuestionBank: {
         parameters: {
             query?: never;
             header?: never;
@@ -1305,17 +2779,65 @@ export interface operations {
         };
         requestBody: {
             content: {
-                "application/json": components["schemas"]["CreateQuestionPackageRequest"];
+                "application/json": components["schemas"]["CreateQuestionBankRequest"];
             };
         };
         responses: {
-            /** @description Package created */
+            /** @description Question bank created */
             200: {
                 headers: {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": components["schemas"]["CreateQuestionPackageResponse"];
+                    "application/json": components["schemas"]["CreateQuestionBankResponse"];
+                };
+            };
+        };
+    };
+    instructorDeleteQuestionBank: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                questionBankId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Question bank deleted */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SuccessResponse"];
+                };
+            };
+        };
+    };
+    instructorUpdateQuestionBank: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                questionBankId: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["UpdateQuestionBankRequest"];
+            };
+        };
+        responses: {
+            /** @description Question bank updated */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SuccessResponse"];
                 };
             };
         };
@@ -1323,7 +2845,7 @@ export interface operations {
     instructorListQuestionTopics: {
         parameters: {
             query?: {
-                packageId?: string;
+                questionBankId?: string;
             };
             header?: never;
             path?: never;
@@ -1366,13 +2888,61 @@ export interface operations {
             };
         };
     };
+    instructorDeleteQuestionTopic: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                topicId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Topic deleted */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SuccessResponse"];
+                };
+            };
+        };
+    };
+    instructorUpdateQuestionTopic: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                topicId: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["UpdateQuestionTopicRequest"];
+            };
+        };
+        responses: {
+            /** @description Topic updated */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SuccessResponse"];
+                };
+            };
+        };
+    };
     instructorListQuestions: {
         parameters: {
             query?: {
                 limit?: number;
                 offset?: number;
-                status?: "draft" | "published" | "archived";
-                packageId?: string;
+                status?: "draft" | "in_review" | "needs_changes" | "published" | "archived";
+                questionBankId?: string;
                 topicId?: string;
                 difficultyId?: string;
             };
@@ -1557,6 +3127,190 @@ export interface operations {
             };
         };
     };
+    instructorSubmitQuestionForReview: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                questionId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Updated */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["OkResponse"];
+                };
+            };
+        };
+    };
+    adminApproveQuestion: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                questionId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Approved */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["OkResponse"];
+                };
+            };
+        };
+    };
+    adminRequestQuestionChanges: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                questionId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: {
+            content: {
+                "application/json": {
+                    note?: string;
+                };
+            };
+        };
+        responses: {
+            /** @description Updated */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["OkResponse"];
+                };
+            };
+        };
+    };
+    adminGetDashboardStats: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Admin dashboard stats (lifetime totals) */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AdminDashboardStatsResponse"];
+                };
+            };
+        };
+    };
+    adminListExamPackages: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Exam packages (admin) */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ListAdminExamPackagesResponse"];
+                };
+            };
+        };
+    };
+    adminCreateExamPackage: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["CreateAdminExamPackageRequest"];
+            };
+        };
+        responses: {
+            /** @description Exam package created */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CreateAdminExamPackageResponse"];
+                };
+            };
+        };
+    };
+    adminDeleteExamPackage: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                examPackageId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Exam package deleted */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SuccessResponse"];
+                };
+            };
+        };
+    };
+    adminUpdateExamPackage: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                examPackageId: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["UpdateAdminExamPackageRequest"];
+            };
+        };
+        responses: {
+            /** @description Exam package updated */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SuccessResponse"];
+                };
+            };
+        };
+    };
     heartbeat: {
         parameters: {
             query?: never;
@@ -1623,6 +3377,32 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["ExamSessionResponse"];
+                };
+            };
+        };
+    };
+    recordExamEvent: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                sessionId: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ExamEventRequest"];
+            };
+        };
+        responses: {
+            /** @description Recorded */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["OkResponse"];
                 };
             };
         };

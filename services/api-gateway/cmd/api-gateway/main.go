@@ -97,6 +97,7 @@ func main() {
 	})
 
 	handlers.RegisterAuthRoutes(r, pool)
+	handlers.RegisterEnrollmentRoutes(r, pool)
 	handlers.RegisterPracticeRoutes(r, pool)
 	handlers.RegisterExamRoutes(r, pool)
 	handlers.RegisterQuestionRoutes(r, pool)

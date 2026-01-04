@@ -189,6 +189,33 @@ type AdminDashboardStatsResponse struct {
 	Exams        AdminDashboardExamStats        `json:"exams"`
 }
 
+type AdminExamPackageListItem struct {
+	ID        string `json:"id"`
+	Code      string `json:"code"`
+	Name      string `json:"name"`
+	IsHidden  bool   `json:"isHidden"`
+	CreatedAt string `json:"createdAt"`
+	UpdatedAt string `json:"updatedAt"`
+}
+
+type ListAdminExamPackagesResponse struct {
+	Items []AdminExamPackageListItem `json:"items"`
+}
+
+type CreateAdminExamPackageRequest struct {
+	Name     string `json:"name"`
+	IsHidden *bool  `json:"isHidden"`
+}
+
+type CreateAdminExamPackageResponse struct {
+	ID string `json:"id"`
+}
+
+type UpdateAdminExamPackageRequest struct {
+	Name     *string `json:"name"`
+	IsHidden *bool   `json:"isHidden"`
+}
+
 func isValidRole(role string) bool {
 	return role == "student" || role == "instructor" || role == "admin"
 }
@@ -334,6 +361,168 @@ func RegisterAdminRoutes(r *gin.Engine, pool *pgxpool.Pool) {
 			},
 		})
 	})
+
+	// Exam packages (admin-only CRUD)
+	{
+		r.GET("/admin/exam-packages", adminAuth, func(c *gin.Context) {
+			rows, err := pool.Query(context.Background(), `select id::text, code, name, is_hidden, created_at, updated_at from exam_packages order by name asc`)
+			if err != nil {
+				c.JSON(http.StatusInternalServerError, gin.H{"message": "failed to list exam packages"})
+				return
+			}
+			defer rows.Close()
+
+			items := []AdminExamPackageListItem{}
+			for rows.Next() {
+				var id, code, name string
+				var hidden bool
+				var createdAt time.Time
+				var updatedAt time.Time
+				if err := rows.Scan(&id, &code, &name, &hidden, &createdAt, &updatedAt); err != nil {
+					c.JSON(http.StatusInternalServerError, gin.H{"message": "failed to list exam packages"})
+					return
+				}
+				items = append(items, AdminExamPackageListItem{
+					ID:        id,
+					Code:      code,
+					Name:      name,
+					IsHidden:  hidden,
+					CreatedAt: createdAt.UTC().Format(time.RFC3339),
+					UpdatedAt: updatedAt.UTC().Format(time.RFC3339),
+				})
+			}
+			c.JSON(http.StatusOK, ListAdminExamPackagesResponse{Items: items})
+		})
+
+		r.POST("/admin/exam-packages", adminAuth, func(c *gin.Context) {
+			actorUserID, _ := auth.GetUserID(c)
+			actorRole, _ := auth.GetRole(c)
+
+			var req CreateAdminExamPackageRequest
+			if err := c.ShouldBindJSON(&req); err != nil {
+				c.JSON(http.StatusBadRequest, gin.H{"message": "invalid json body"})
+				return
+			}
+			name := strings.TrimSpace(req.Name)
+			if name == "" {
+				c.JSON(http.StatusBadRequest, gin.H{"message": "name is required"})
+				return
+			}
+			hidden := false
+			if req.IsHidden != nil {
+				hidden = *req.IsHidden
+			}
+
+			base := util.SlugifyLower(name)
+			if base == "" {
+				base = "package"
+			}
+			code := base
+
+			ctx := context.Background()
+			var id string
+			for i := 0; i < 5; i++ {
+				err := pool.QueryRow(ctx, `insert into exam_packages (code, name, is_hidden) values ($1,$2,$3) returning id::text`, code, name, hidden).Scan(&id)
+				if err == nil {
+					break
+				}
+				if pgErr, ok := err.(*pgconn.PgError); ok && pgErr.Code == "23505" {
+					// code collision
+					suffix := util.NewID("")
+					if len(suffix) > 6 {
+						suffix = suffix[:6]
+					}
+					code = base + "-" + suffix
+					continue
+				}
+				c.JSON(http.StatusBadRequest, gin.H{"message": "failed to create exam package"})
+				return
+			}
+			if strings.TrimSpace(id) == "" {
+				c.JSON(http.StatusInternalServerError, gin.H{"message": "failed to create exam package"})
+				return
+			}
+
+			audit(ctx, pool, actorUserID, actorRole, "admin.exam_packages.create", "exam_package", id, gin.H{"name": name, "code": code, "isHidden": hidden})
+			c.JSON(http.StatusOK, CreateAdminExamPackageResponse{ID: id})
+		})
+
+		r.PATCH("/admin/exam-packages/:examPackageId", adminAuth, func(c *gin.Context) {
+			actorUserID, _ := auth.GetUserID(c)
+			actorRole, _ := auth.GetRole(c)
+
+			examPackageID := strings.TrimSpace(c.Param("examPackageId"))
+			if examPackageID == "" {
+				c.JSON(http.StatusBadRequest, gin.H{"message": "examPackageId is required"})
+				return
+			}
+
+			var req UpdateAdminExamPackageRequest
+			if err := c.ShouldBindJSON(&req); err != nil {
+				c.JSON(http.StatusBadRequest, gin.H{"message": "invalid json body"})
+				return
+			}
+
+			set := []string{"updated_at=now()"}
+			args := []any{}
+			idx := 1
+			if req.Name != nil {
+				v := strings.TrimSpace(*req.Name)
+				if v == "" {
+					c.JSON(http.StatusBadRequest, gin.H{"message": "name cannot be empty"})
+					return
+				}
+				set = append(set, "name="+sqlParam(idx))
+				args = append(args, v)
+				idx++
+			}
+			if req.IsHidden != nil {
+				set = append(set, "is_hidden="+sqlParam(idx))
+				args = append(args, *req.IsHidden)
+				idx++
+			}
+			if len(set) == 1 {
+				c.JSON(http.StatusBadRequest, gin.H{"message": "no fields to update"})
+				return
+			}
+			args = append(args, examPackageID)
+
+			ct, err := pool.Exec(context.Background(), "update exam_packages set "+strings.Join(set, ", ")+" where id="+sqlParam(idx), args...)
+			if err != nil {
+				c.JSON(http.StatusBadRequest, gin.H{"message": "failed to update exam package"})
+				return
+			}
+			if ct.RowsAffected() == 0 {
+				c.JSON(http.StatusNotFound, gin.H{"message": "exam package not found"})
+				return
+			}
+			audit(context.Background(), pool, actorUserID, actorRole, "admin.exam_packages.update", "exam_package", examPackageID, req)
+			c.JSON(http.StatusOK, gin.H{"success": true})
+		})
+
+		r.DELETE("/admin/exam-packages/:examPackageId", adminAuth, func(c *gin.Context) {
+			actorUserID, _ := auth.GetUserID(c)
+			actorRole, _ := auth.GetRole(c)
+
+			examPackageID := strings.TrimSpace(c.Param("examPackageId"))
+			if examPackageID == "" {
+				c.JSON(http.StatusBadRequest, gin.H{"message": "examPackageId is required"})
+				return
+			}
+
+			ct, err := pool.Exec(context.Background(), `delete from exam_packages where id=$1`, examPackageID)
+			if err != nil {
+				c.JSON(http.StatusConflict, gin.H{"message": "failed to delete exam package"})
+				return
+			}
+			if ct.RowsAffected() == 0 {
+				c.JSON(http.StatusNotFound, gin.H{"message": "exam package not found"})
+				return
+			}
+			audit(context.Background(), pool, actorUserID, actorRole, "admin.exam_packages.delete", "exam_package", examPackageID, nil)
+			c.JSON(http.StatusOK, gin.H{"success": true})
+		})
+	}
 
 	// IAM
 	{

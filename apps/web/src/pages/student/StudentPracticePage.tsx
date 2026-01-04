@@ -11,7 +11,7 @@ export function StudentPracticePage() {
 
   const packages = useMemo(() => EXAM_PACKAGES, [])
 
-  const [packageId, setPackageId] = useState<string>('')
+  const [examPackageId, setExamPackageId] = useState<string>('')
   const [isTimed, setIsTimed] = useState(true)
   const [questionCount, setQuestionCount] = useState(10)
   const [isStarting, setIsStarting] = useState(false)
@@ -30,7 +30,7 @@ export function StudentPracticePage() {
     setIsStarting(true)
     try {
       const session = await createPracticeSession({
-        packageId: packageId || null,
+        examPackageId: examPackageId || null,
         timed: isTimed,
         count: questionCount,
       })
@@ -65,8 +65,8 @@ export function StudentPracticePage() {
               <span className="text-xs text-slate-600">Package (optional)</span>
               <select
                 className="rounded border border-slate-200 bg-white px-3 py-2 text-sm"
-                value={packageId}
-                onChange={(e) => setPackageId(e.target.value)}
+                value={examPackageId}
+                onChange={(e) => setExamPackageId(e.target.value)}
               >
                 <option value="">Any package</option>
                 {packages.map((p) => (

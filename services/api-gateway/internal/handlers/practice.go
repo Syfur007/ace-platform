@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"net/http"
+	"strings"
 	"time"
 
 	"github.com/gin-gonic/gin"
@@ -35,7 +36,7 @@ type PracticeQuestion struct {
 }
 
 type CreatePracticeSessionRequest struct {
-	PackageID *string `json:"packageId"`
+	ExamPackageID *string `json:"examPackageId"`
 	Timed     bool    `json:"timed"`
 	Count     int     `json:"count"`
 }
@@ -45,7 +46,7 @@ type PracticeSessionResponse struct {
 	Status       PracticeSessionStatus `json:"status"`
 	CreatedAt    string               `json:"createdAt"`
 	StartedAt    string               `json:"startedAt"`
-	PackageID    *string              `json:"packageId"`
+	ExamPackageID    *string              `json:"examPackageId"`
 	IsTimed      bool                 `json:"isTimed"`
 	TimeLimitSeconds *int             `json:"timeLimitSeconds,omitempty"`
 	CurrentQuestionStartedAt *string  `json:"currentQuestionStartedAt,omitempty"`
@@ -96,7 +97,7 @@ type PracticeSessionListItem struct {
 	Status       PracticeSessionStatus `json:"status"`
 	CreatedAt    string               `json:"createdAt"`
 	LastActivityAt string             `json:"lastActivityAt"`
-	PackageID    *string              `json:"packageId"`
+	ExamPackageID    *string              `json:"examPackageId"`
 	IsTimed      bool                 `json:"isTimed"`
 	TimeLimitSeconds *int             `json:"timeLimitSeconds,omitempty"`
 	TimeRemainingSeconds *int         `json:"timeRemainingSeconds,omitempty"`
@@ -110,6 +111,14 @@ type ListPracticeSessionsResponse struct {
 	Limit   int                       `json:"limit"`
 	Offset  int                       `json:"offset"`
 	HasMore bool                      `json:"hasMore"`
+}
+
+type practiceQuestionSnapshot struct {
+	ID             string                  `json:"id"`
+	Prompt         string                  `json:"prompt"`
+	Choices        []PracticeQuestionChoice `json:"choices"`
+	CorrectChoiceID string                 `json:"correctChoiceId"`
+	Explanation    string                  `json:"explanation"`
 }
 
 type bankItem struct {
@@ -172,6 +181,14 @@ func findInBank(bank []bankItem, id string) (bankItem, bool) {
 		}
 	}
 	return bankItem{}, false
+}
+
+func loadSnapshotQuestion(snapshot []practiceQuestionSnapshot, idx int) *PracticeQuestion {
+	if idx < 0 || idx >= len(snapshot) {
+		return nil
+	}
+	q := snapshot[idx]
+	return &PracticeQuestion{ID: q.ID, Prompt: q.Prompt, Choices: q.Choices}
 }
 
 func RegisterPracticeRoutes(r *gin.Engine, pool *pgxpool.Pool) {
@@ -263,7 +280,7 @@ func RegisterPracticeRoutes(r *gin.Engine, pool *pgxpool.Pool) {
 				Status:       PracticeSessionStatus(st),
 				CreatedAt:    createdAt.UTC().Format(time.RFC3339),
 				LastActivityAt: lastActivityAt.UTC().Format(time.RFC3339),
-				PackageID:    packageID,
+				ExamPackageID:    packageID,
 				IsTimed:      isTimed,
 				TimeLimitSeconds: timeLimitPtr,
 				TimeRemainingSeconds: timeRemainingPtr,
@@ -306,22 +323,134 @@ func RegisterPracticeRoutes(r *gin.Engine, pool *pgxpool.Pool) {
 			count = 50
 		}
 
-		bank := demoBank()
-		if count > len(bank) {
-			count = len(bank)
+		ctx := context.Background()
+
+		// Resolve exam package selection.
+		var packageID string
+		if req.ExamPackageID != nil && strings.TrimSpace(*req.ExamPackageID) != "" {
+			packageID = strings.TrimSpace(*req.ExamPackageID)
+			// Require enrollment in the selected package.
+			var enrolled bool
+			if err := pool.QueryRow(ctx, `select exists(select 1 from user_exam_package_enrollments where user_id=$1 and exam_package_id=$2)`, userID, packageID).Scan(&enrolled); err != nil || !enrolled {
+				c.JSON(http.StatusForbidden, gin.H{"message": "not enrolled"})
+				return
+			}
+		} else {
+			// If package isn't specified, infer only when user has exactly 1 enrollment.
+			rows, err := pool.Query(ctx, `select exam_package_id from user_exam_package_enrollments where user_id=$1 order by created_at asc`, userID)
+			if err != nil {
+				c.JSON(http.StatusInternalServerError, gin.H{"message": "failed to resolve enrollment"})
+				return
+			}
+			defer rows.Close()
+			ids := []string{}
+			for rows.Next() {
+				var id string
+				if err := rows.Scan(&id); err == nil {
+					ids = append(ids, id)
+				}
+			}
+			if len(ids) == 0 {
+				c.JSON(http.StatusForbidden, gin.H{"message": "not enrolled"})
+				return
+			}
+			if len(ids) > 1 {
+				c.JSON(http.StatusBadRequest, gin.H{"message": "examPackageId is required when enrolled in multiple packages"})
+				return
+			}
+			packageID = ids[0]
 		}
 
+		// Select published questions from the DB-backed question bank for this exam package.
+		rows, err := pool.Query(ctx, `
+			select q.id, q.prompt, q.explanation_text, cc.choice_id
+			from question_bank_questions q
+			join question_bank_packages p on p.id=q.package_id
+			join exam_package_question_bank_packages m on m.question_bank_package_id=p.id
+			join question_bank_correct_choice cc on cc.question_id=q.id
+			where q.status=$1 and p.is_hidden=false and m.exam_package_id=$2
+			order by random()
+			limit $3`, string(QuestionPublished), packageID, count)
+		if err != nil {
+			c.JSON(http.StatusInternalServerError, gin.H{"message": "failed to select questions"})
+			return
+		}
+		defer rows.Close()
+
+		type picked struct {
+			ID        string
+			Prompt    string
+			Explain   string
+			CorrectID string
+		}
+		pickedQs := make([]picked, 0, count)
+		for rows.Next() {
+			var p picked
+			if err := rows.Scan(&p.ID, &p.Prompt, &p.Explain, &p.CorrectID); err != nil {
+				c.JSON(http.StatusInternalServerError, gin.H{"message": "failed to select questions"})
+				return
+			}
+			pickedQs = append(pickedQs, p)
+		}
+		if len(pickedQs) == 0 {
+			c.JSON(http.StatusBadRequest, gin.H{"message": "no published questions available for this package"})
+			return
+		}
+		if count > len(pickedQs) {
+			count = len(pickedQs)
+		}
+
+		// Load choices for all selected questions.
+		qIDs := make([]string, 0, len(pickedQs))
+		for _, q := range pickedQs {
+			qIDs = append(qIDs, q.ID)
+		}
+		choicesRows, err := pool.Query(ctx, `
+			select question_id, id, text
+			from question_bank_choices
+			where question_id = any($1)
+			order by question_id asc, order_index asc`, qIDs)
+		if err != nil {
+			c.JSON(http.StatusInternalServerError, gin.H{"message": "failed to load choices"})
+			return
+		}
+		defer choicesRows.Close()
+
+		choicesByQ := map[string][]PracticeQuestionChoice{}
+		for choicesRows.Next() {
+			var qid, cid, text string
+			if err := choicesRows.Scan(&qid, &cid, &text); err != nil {
+				c.JSON(http.StatusInternalServerError, gin.H{"message": "failed to load choices"})
+				return
+			}
+			choicesByQ[qid] = append(choicesByQ[qid], PracticeQuestionChoice{ID: cid, Text: text})
+		}
+
+		snapshot := make([]practiceQuestionSnapshot, 0, count)
 		order := make([]string, 0, count)
 		for i := 0; i < count; i++ {
-			order = append(order, bank[i].q.ID)
+			q := pickedQs[i]
+			chs := choicesByQ[q.ID]
+			if len(chs) < 2 {
+				c.JSON(http.StatusInternalServerError, gin.H{"message": "question has insufficient choices"})
+				return
+			}
+			snapshot = append(snapshot, practiceQuestionSnapshot{
+				ID:              q.ID,
+				Prompt:          q.Prompt,
+				Choices:         chs,
+				CorrectChoiceID: q.CorrectID,
+				Explanation:     q.Explain,
+			})
+			order = append(order, q.ID)
 		}
 		orderJSON, _ := json.Marshal(order)
+		snapshotJSON, _ := json.Marshal(snapshot)
 
 		sessionID := util.NewID("ps")
-		ctx := context.Background()
-		_, err := pool.Exec(ctx, `insert into practice_sessions (id, user_id, package_id, is_timed, target_count, current_index, correct_count, status, question_order)
-			values ($1,$2,$3,$4,$5,0,0,$6,$7)` ,
-			sessionID, userID, req.PackageID, req.Timed, count, string(PracticeSessionActive), orderJSON)
+		_, err = pool.Exec(ctx, `insert into practice_sessions (id, user_id, package_id, is_timed, target_count, current_index, correct_count, status, question_order, questions_snapshot)
+			values ($1,$2,$3,$4,$5,0,0,$6,$7,$8)` ,
+			sessionID, userID, packageID, req.Timed, count, string(PracticeSessionActive), orderJSON, snapshotJSON)
 		if err != nil {
 			c.JSON(http.StatusInternalServerError, gin.H{"message": "failed to create session"})
 			return
@@ -342,13 +471,14 @@ func RegisterPracticeRoutes(r *gin.Engine, pool *pgxpool.Pool) {
 			sessionID, userID)
 		startedAt := now.Format(time.RFC3339)
 		currentQuestionStartedAt = &startedAt
+		pkgPtr := &packageID
 
 		c.JSON(http.StatusOK, PracticeSessionResponse{
 			SessionID:    sessionID,
 			Status:       PracticeSessionActive,
 			CreatedAt:    now.Format(time.RFC3339),
 			StartedAt:    now.Format(time.RFC3339),
-			PackageID:    req.PackageID,
+			ExamPackageID:    pkgPtr,
 			IsTimed:      req.Timed,
 			TimeLimitSeconds: timeLimitSeconds,
 			CurrentQuestionStartedAt: currentQuestionStartedAt,
@@ -357,7 +487,7 @@ func RegisterPracticeRoutes(r *gin.Engine, pool *pgxpool.Pool) {
 			CurrentIndex: 0,
 			Total:        count,
 			CorrectCount: 0,
-			Question:     &bank[0].q,
+			Question:     loadSnapshotQuestion(snapshot, 0),
 		})
 	})
 
@@ -381,12 +511,13 @@ func RegisterPracticeRoutes(r *gin.Engine, pool *pgxpool.Pool) {
 		var currentIndex int
 		var correctCount int
 		var orderRaw []byte
+		var snapshotRaw []byte
 		var currentQuestionStartedAt time.Time
 		var questionTimingsRaw []byte
 
-		err := pool.QueryRow(ctx, `select status, created_at, started_at, package_id, is_timed, time_limit_seconds, target_count, current_index, correct_count, question_order, current_question_started_at, question_timings
+		err := pool.QueryRow(ctx, `select status, created_at, started_at, package_id, is_timed, time_limit_seconds, target_count, current_index, correct_count, question_order, questions_snapshot, current_question_started_at, question_timings
 			from practice_sessions where id=$1 and user_id=$2`, sessionID, userID).
-			Scan(&status, &createdAt, &startedAt, &packageID, &isTimed, &timeLimitSeconds, &targetCount, &currentIndex, &correctCount, &orderRaw, &currentQuestionStartedAt, &questionTimingsRaw)
+			Scan(&status, &createdAt, &startedAt, &packageID, &isTimed, &timeLimitSeconds, &targetCount, &currentIndex, &correctCount, &orderRaw, &snapshotRaw, &currentQuestionStartedAt, &questionTimingsRaw)
 		if err != nil {
 			c.JSON(http.StatusNotFound, gin.H{"message": "session not found"})
 			return
@@ -424,12 +555,12 @@ func RegisterPracticeRoutes(r *gin.Engine, pool *pgxpool.Pool) {
 			}
 		}
 
+		var snapshot []practiceQuestionSnapshot
+		_ = json.Unmarshal(snapshotRaw, &snapshot)
+
 		var question *PracticeQuestion
-		if status == string(PracticeSessionActive) && currentIndex >= 0 && currentIndex < len(order) {
-			bank := demoBank()
-			if item, ok := findInBank(bank, order[currentIndex]); ok {
-				question = &item.q
-			}
+		if status == string(PracticeSessionActive) {
+			question = loadSnapshotQuestion(snapshot, currentIndex)
 		}
 
 		var timeLimitPtr *int
@@ -448,7 +579,7 @@ func RegisterPracticeRoutes(r *gin.Engine, pool *pgxpool.Pool) {
 			Status:       PracticeSessionStatus(status),
 			CreatedAt:    createdAt.UTC().Format(time.RFC3339),
 			StartedAt:    startedAt.UTC().Format(time.RFC3339),
-			PackageID:    packageID,
+			ExamPackageID:    packageID,
 			IsTimed:      isTimed,
 			TimeLimitSeconds: timeLimitPtr,
 			CurrentQuestionStartedAt: currentQuestionStartedAtPtr,
@@ -554,7 +685,7 @@ func RegisterPracticeRoutes(r *gin.Engine, pool *pgxpool.Pool) {
 			Status:       PracticeSessionStatus(status),
 			CreatedAt:    createdAt.UTC().Format(time.RFC3339),
 			StartedAt:    startedAt.UTC().Format(time.RFC3339),
-			PackageID:    packageID,
+			ExamPackageID:    packageID,
 			IsTimed:      isTimed,
 			TargetCount:  targetCount,
 			CurrentIndex: currentIndex,
@@ -586,12 +717,13 @@ func RegisterPracticeRoutes(r *gin.Engine, pool *pgxpool.Pool) {
 		var currentIndex int
 		var correctCount int
 		var orderRaw []byte
+		var snapshotRaw []byte
 		var currentQuestionStartedAt time.Time
 		var questionTimingsRaw []byte
 
-		err := pool.QueryRow(ctx, `select status, created_at, started_at, package_id, is_timed, time_limit_seconds, target_count, current_index, correct_count, question_order, current_question_started_at, question_timings
+		err := pool.QueryRow(ctx, `select status, created_at, started_at, package_id, is_timed, time_limit_seconds, target_count, current_index, correct_count, question_order, questions_snapshot, current_question_started_at, question_timings
 			from practice_sessions where id=$1 and user_id=$2`, sessionID, userID).
-			Scan(&status, &createdAt, &startedAt, &packageID, &isTimed, &timeLimitSeconds, &targetCount, &currentIndex, &correctCount, &orderRaw, &currentQuestionStartedAt, &questionTimingsRaw)
+			Scan(&status, &createdAt, &startedAt, &packageID, &isTimed, &timeLimitSeconds, &targetCount, &currentIndex, &correctCount, &orderRaw, &snapshotRaw, &currentQuestionStartedAt, &questionTimingsRaw)
 		if err != nil {
 			c.JSON(http.StatusNotFound, gin.H{"message": "session not found"})
 			return
@@ -617,15 +749,9 @@ func RegisterPracticeRoutes(r *gin.Engine, pool *pgxpool.Pool) {
 			return
 		}
 
-		var order []string
-		_ = json.Unmarshal(orderRaw, &order)
-		var question *PracticeQuestion
-		if currentIndex >= 0 && currentIndex < len(order) {
-			bank := demoBank()
-			if item, ok := findInBank(bank, order[currentIndex]); ok {
-				question = &item.q
-			}
-		}
+		var snapshot []practiceQuestionSnapshot
+		_ = json.Unmarshal(snapshotRaw, &snapshot)
+		question := loadSnapshotQuestion(snapshot, currentIndex)
 
 		now := time.Now().UTC()
 		v := now.Format(time.RFC3339)
@@ -634,7 +760,7 @@ func RegisterPracticeRoutes(r *gin.Engine, pool *pgxpool.Pool) {
 			Status:       PracticeSessionActive,
 			CreatedAt:    createdAt.UTC().Format(time.RFC3339),
 			StartedAt:    startedAt.UTC().Format(time.RFC3339),
-			PackageID:    packageID,
+			ExamPackageID:    packageID,
 			IsTimed:      isTimed,
 			TargetCount:  targetCount,
 			CurrentIndex: currentIndex,
@@ -668,12 +794,13 @@ func RegisterPracticeRoutes(r *gin.Engine, pool *pgxpool.Pool) {
 		var currentIndex int
 		var correctCount int
 		var orderRaw []byte
+		var snapshotRaw []byte
 		var currentQuestionStartedAt time.Time
 		var questionTimingsRaw []byte
 
-		err := pool.QueryRow(ctx, `select status, is_timed, started_at, time_limit_seconds, target_count, current_index, correct_count, question_order, current_question_started_at, question_timings
+		err := pool.QueryRow(ctx, `select status, is_timed, started_at, time_limit_seconds, target_count, current_index, correct_count, question_order, questions_snapshot, current_question_started_at, question_timings
 			from practice_sessions where id=$1 and user_id=$2`, sessionID, userID).
-			Scan(&status, &isTimed, &startedAt, &timeLimitSeconds, &targetCount, &currentIndex, &correctCount, &orderRaw, &currentQuestionStartedAt, &questionTimingsRaw)
+			Scan(&status, &isTimed, &startedAt, &timeLimitSeconds, &targetCount, &currentIndex, &correctCount, &orderRaw, &snapshotRaw, &currentQuestionStartedAt, &questionTimingsRaw)
 		if err != nil {
 			c.JSON(http.StatusNotFound, gin.H{"message": "session not found"})
 			return
@@ -723,14 +850,31 @@ func RegisterPracticeRoutes(r *gin.Engine, pool *pgxpool.Pool) {
 			return
 		}
 
-		bank := demoBank()
-		item, ok := findInBank(bank, expectedQuestionID)
-		if !ok {
+		var snapshot []practiceQuestionSnapshot
+		_ = json.Unmarshal(snapshotRaw, &snapshot)
+		if currentIndex < 0 || currentIndex >= len(snapshot) {
 			c.JSON(http.StatusBadRequest, gin.H{"message": "unknown question"})
 			return
 		}
+		q := snapshot[currentIndex]
+		if q.ID != expectedQuestionID {
+			c.JSON(http.StatusBadRequest, gin.H{"message": "questionId mismatch"})
+			return
+		}
+		// Validate choice belongs to the snapshotted question.
+		choiceOK := false
+		for _, ch := range q.Choices {
+			if ch.ID == req.ChoiceID {
+				choiceOK = true
+				break
+			}
+		}
+		if !choiceOK {
+			c.JSON(http.StatusBadRequest, gin.H{"message": "invalid choice"})
+			return
+		}
 
-		isCorrect := req.ChoiceID == item.correctID
+		isCorrect := req.ChoiceID == q.CorrectChoiceID
 		newCorrect := correctCount
 		if isCorrect {
 			newCorrect++
@@ -764,12 +908,12 @@ func RegisterPracticeRoutes(r *gin.Engine, pool *pgxpool.Pool) {
 		}
 
 		_, _ = pool.Exec(ctx, `insert into practice_answers (session_id, user_id, question_id, choice_id, correct, explanation, ts) values ($1,$2,$3,$4,$5,$6,now())`,
-			sessionID, userID, req.QuestionID, req.ChoiceID, isCorrect, item.explanation)
+			sessionID, userID, req.QuestionID, req.ChoiceID, isCorrect, q.Explanation)
 
 		c.JSON(http.StatusOK, SubmitPracticeAnswerResponse{
 			Correct:     isCorrect,
 			// Explanations are available after submitting an answer.
-			Explanation: item.explanation,
+			Explanation: q.Explanation,
 			Done:        newStatus == string(PracticeSessionFinished),
 		})
 	})
@@ -787,8 +931,9 @@ func RegisterPracticeRoutes(r *gin.Engine, pool *pgxpool.Pool) {
 		var status string
 		var orderRaw []byte
 		var questionTimingsRaw []byte
-		err := pool.QueryRow(ctx, `select status, question_order, question_timings from practice_sessions where id=$1 and user_id=$2`, sessionID, userID).
-			Scan(&status, &orderRaw, &questionTimingsRaw)
+		var snapshotRaw []byte
+		err := pool.QueryRow(ctx, `select status, question_order, questions_snapshot, question_timings from practice_sessions where id=$1 and user_id=$2`, sessionID, userID).
+			Scan(&status, &orderRaw, &snapshotRaw, &questionTimingsRaw)
 		if err != nil {
 			c.JSON(http.StatusNotFound, gin.H{"message": "session not found"})
 			return
@@ -806,6 +951,13 @@ func RegisterPracticeRoutes(r *gin.Engine, pool *pgxpool.Pool) {
 		}
 		if questionTimings == nil {
 			questionTimings = map[string]int{}
+		}
+
+		var snapshot []practiceQuestionSnapshot
+		_ = json.Unmarshal(snapshotRaw, &snapshot)
+		snapByID := map[string]practiceQuestionSnapshot{}
+		for _, s := range snapshot {
+			snapByID[s.ID] = s
 		}
 
 		type answerRow struct {
@@ -830,10 +982,9 @@ func RegisterPracticeRoutes(r *gin.Engine, pool *pgxpool.Pool) {
 			answers[r.QuestionID] = r
 		}
 
-		bank := demoBank()
 		items := make([]PracticeSessionReviewItem, 0, len(order))
 		for i, qid := range order {
-			item, ok := findInBank(bank, qid)
+			s, ok := snapByID[qid]
 			if !ok {
 				c.JSON(http.StatusInternalServerError, gin.H{"message": "unknown question in session"})
 				return
@@ -852,12 +1003,12 @@ func RegisterPracticeRoutes(r *gin.Engine, pool *pgxpool.Pool) {
 
 			items = append(items, PracticeSessionReviewItem{
 				Index:            i,
-				Question:         item.q,
+				Question:         PracticeQuestion{ID: s.ID, Prompt: s.Prompt, Choices: s.Choices},
 				SelectedChoiceID: selectedChoiceID,
 				Correct:          correctPtr,
 				Explanation:      explanationPtr,
 				TimeTakenSeconds: questionTimings[qid],
-				CorrectChoiceID:  item.correctID,
+				CorrectChoiceID:  s.CorrectChoiceID,
 			})
 		}
 

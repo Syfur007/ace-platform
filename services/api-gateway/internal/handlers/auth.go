@@ -200,6 +200,14 @@ func handleRegister(r *gin.Engine, pool *pgxpool.Pool, path string, role string,
 			return
 		}
 
+		// Best-effort: enroll new students into available exam packages.
+		// This keeps practice usable while a dedicated enrollment UI is built.
+		if role == roleStudent {
+			_, _ = pool.Exec(ctx, `insert into user_exam_package_enrollments (user_id, exam_package_id)
+				select $1, id from exam_packages where is_hidden=false
+				on conflict do nothing`, userID)
+		}
+
 		var createdAt time.Time
 		_ = pool.QueryRow(ctx, `select created_at from users where id=$1`, userID).Scan(&createdAt)
 

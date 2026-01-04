@@ -50,6 +50,8 @@ func Connect(ctx context.Context) (*pgxpool.Pool, error) {
 func Migrate(ctx context.Context, pool *pgxpool.Pool) error {
 	// Idempotent schema init (MVP). Replace with a real migrations tool later.
 	statements := []string{
+		// UUID support (for exam package IDs)
+		`create extension if not exists pgcrypto;`,
 		`create table if not exists users (
 			id text primary key,
 			email text not null unique,
@@ -64,6 +66,104 @@ func Migrate(ctx context.Context, pool *pgxpool.Pool) error {
 		`alter table users add column if not exists deleted_at timestamptz null;`,
 		`create index if not exists idx_users_role on users(role);`,
 		`create index if not exists idx_users_deleted_at on users(deleted_at);`,
+
+		// Exam packages + enrollments (domain model)
+		`create table if not exists exam_packages (
+			id uuid primary key default gen_random_uuid(),
+			code text not null,
+			name text not null,
+			is_hidden boolean not null default false,
+			created_at timestamptz not null default now(),
+			updated_at timestamptz not null default now(),
+			unique (code),
+			unique (name)
+		);`,
+		`alter table exam_packages add column if not exists code text;`,
+		// Migration safety: older dev DBs may have exam_packages.id as text.
+		// Convert it to uuid and remap dependent references before adding any new FKs.
+		`do $$
+		declare
+			id_type text;
+			r record;
+		begin
+			select data_type into id_type
+			from information_schema.columns
+			where table_schema='public' and table_name='exam_packages' and column_name='id';
+
+			if id_type is not null and id_type <> 'uuid' then
+				-- Ensure code exists and is populated (legacy: id was often 'gre', 'sat', etc.).
+				if not exists (
+					select 1 from information_schema.columns
+					where table_schema='public' and table_name='exam_packages' and column_name='code'
+				) then
+					alter table exam_packages add column code text;
+				end if;
+
+				update exam_packages
+				set code = coalesce(nullif(code, ''), nullif(id::text, ''), lower(regexp_replace(name, '[^a-zA-Z0-9]+', '-', 'g')))
+				where code is null or code = '';
+
+				-- Create a new uuid column and backfill.
+				if not exists (
+					select 1 from information_schema.columns
+					where table_schema='public' and table_name='exam_packages' and column_name='id_new'
+				) then
+					alter table exam_packages add column id_new uuid;
+				end if;
+
+				update exam_packages
+				set id_new = case
+					when id::text ~* '^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$' then id::uuid
+					else gen_random_uuid()
+				end
+				where id_new is null;
+
+				-- Drop all dependent foreign keys referencing exam_packages (names can vary across dev DBs).
+				for r in (
+					select conrelid::regclass as table_name, conname
+					from pg_constraint
+					where contype='f' and confrelid='public.exam_packages'::regclass
+				) loop
+					execute format('alter table %s drop constraint if exists %I', r.table_name, r.conname);
+				end loop;
+
+				-- Remap any legacy references to the new UUIDs (stored as text for now; later casts handle the type).
+				if to_regclass('public.user_exam_package_enrollments') is not null then
+					update user_exam_package_enrollments e
+					set exam_package_id = ep.id_new::text
+					from exam_packages ep
+					where e.exam_package_id is not null
+						and (e.exam_package_id::text = ep.code or e.exam_package_id::text = ep.id::text);
+				end if;
+				if to_regclass('public.practice_sessions') is not null then
+					update practice_sessions ps
+					set package_id = ep.id_new::text
+					from exam_packages ep
+					where ps.package_id is not null
+						and (ps.package_id::text = ep.code or ps.package_id::text = ep.id::text);
+				end if;
+
+				-- Swap primary key column.
+				alter table exam_packages drop constraint if exists exam_packages_pkey;
+				alter table exam_packages drop column id;
+				alter table exam_packages rename column id_new to id;
+				alter table exam_packages add primary key (id);
+			end if;
+		end $$;`,
+		`create unique index if not exists idx_exam_packages_code_unique on exam_packages(code);`,
+		`do $$ begin
+			-- Ensure code is non-null for existing rows.
+			update exam_packages set code=lower(regexp_replace(name, '[^a-zA-Z0-9]+', '-', 'g')) where code is null;
+		end $$;`,
+		`alter table exam_packages alter column code set not null;`,
+		`create index if not exists idx_exam_packages_hidden on exam_packages(is_hidden);`,
+		`create table if not exists user_exam_package_enrollments (
+			user_id text not null references users(id) on delete cascade,
+			exam_package_id uuid not null references exam_packages(id) on delete restrict,
+			created_at timestamptz not null default now(),
+			primary key (user_id, exam_package_id)
+		);`,
+		`create index if not exists idx_user_exam_package_enrollments_pkg on user_exam_package_enrollments(exam_package_id);`,
 
 		// Auth sessions + refresh tokens (cookie-based auth)
 		`create table if not exists auth_sessions (
@@ -123,7 +223,7 @@ func Migrate(ctx context.Context, pool *pgxpool.Pool) error {
 		`create table if not exists practice_sessions (
 			id text primary key,
 			user_id text not null references users(id) on delete cascade,
-			package_id text null,
+			package_id uuid null,
 			is_timed boolean not null,
 			started_at timestamptz not null default now(),
 			time_limit_seconds integer not null default 0,
@@ -131,6 +231,7 @@ func Migrate(ctx context.Context, pool *pgxpool.Pool) error {
 			current_index integer not null default 0,
 			current_question_started_at timestamptz not null default now(),
 			question_timings jsonb not null default '{}'::jsonb,
+			questions_snapshot jsonb not null default '[]'::jsonb,
 			correct_count integer not null default 0,
 			status text not null,
 			paused_at timestamptz null,
@@ -143,6 +244,7 @@ func Migrate(ctx context.Context, pool *pgxpool.Pool) error {
 		`alter table practice_sessions add column if not exists time_limit_seconds integer not null default 0;`,
 		`alter table practice_sessions add column if not exists current_question_started_at timestamptz not null default now();`,
 		`alter table practice_sessions add column if not exists question_timings jsonb not null default '{}'::jsonb;`,
+		`alter table practice_sessions add column if not exists questions_snapshot jsonb not null default '[]'::jsonb;`,
 		`alter table practice_sessions add column if not exists paused_at timestamptz null;`,
 		`create table if not exists practice_answers (
 			id bigserial primary key,
@@ -222,13 +324,27 @@ func Migrate(ctx context.Context, pool *pgxpool.Pool) error {
 		`create table if not exists question_bank_packages (
 			id text primary key,
 			name text not null unique,
+			-- Legacy: previously referenced exam packages by a string id (e.g. 'gre').
+			-- Kept for migration safety / backfill into exam_package_question_bank_packages.
+			exam_package_id text null,
 			created_by_user_id text not null references users(id) on delete restrict,
 			is_hidden boolean not null default false,
 			created_at timestamptz not null default now()
 		);`,
+		`alter table question_bank_packages add column if not exists exam_package_id text null;`,
+		`create index if not exists idx_question_bank_packages_exam_package_id on question_bank_packages(exam_package_id);`,
 		`alter table question_bank_packages add column if not exists created_by_user_id text not null references users(id) on delete restrict;`,
 		`alter table question_bank_packages add column if not exists is_hidden boolean not null default false;`,
 		`alter table question_bank_packages add column if not exists updated_at timestamptz not null default now();`,
+
+		// Exam package → question bank packages mapping (allows 1:N or N:N)
+		`create table if not exists exam_package_question_bank_packages (
+			exam_package_id uuid not null references exam_packages(id) on delete cascade,
+			question_bank_package_id text not null references question_bank_packages(id) on delete cascade,
+			created_at timestamptz not null default now(),
+			primary key (exam_package_id, question_bank_package_id)
+		);`,
+		`create index if not exists idx_exam_pkg_qbp_qbp on exam_package_question_bank_packages(question_bank_package_id);`,
 
 		`create table if not exists question_bank_topics (
 			id text primary key,
@@ -298,6 +414,114 @@ func Migrate(ctx context.Context, pool *pgxpool.Pool) error {
 		('medium', 'Medium', 2),
 		('hard', 'Hard', 3)
 		on conflict (id) do nothing`)
+
+	// Seed exam packages (idempotent).
+	// - id is generated UUID
+	// - code is a stable identifier used for legacy backfill (e.g. old question banks stored 'gre')
+	_, _ = pool.Exec(ctx, `insert into exam_packages (code, name) values
+		('gre', 'GRE'),
+		('ielts', 'IELTS'),
+		('sat', 'SAT')
+		on conflict (code) do update set name=excluded.name`)
+
+	// Backfill mapping from legacy question_bank_packages.exam_package_id (idempotent).
+	// Legacy value matches exam_packages.code.
+	_, _ = pool.Exec(ctx, `insert into exam_package_question_bank_packages (exam_package_id, question_bank_package_id)
+		select ep.id, qbp.id
+		from question_bank_packages qbp
+		join exam_packages ep on ep.code = qbp.exam_package_id
+		where qbp.exam_package_id is not null and qbp.exam_package_id <> ''
+		on conflict (exam_package_id, question_bank_package_id) do nothing`)
+
+	// Best-effort cleanup so FK constraints can be added safely.
+	// If practice_sessions.package_id was previously text (e.g. 'gre'), map it to UUID via exam_packages.code.
+	_, _ = pool.Exec(ctx, `do $$
+	begin
+		if to_regclass('public.practice_sessions') is not null then
+			-- Map legacy codes to UUIDs (store as text temporarily so we can cast).
+			update practice_sessions ps
+			set package_id = ep.id::text
+			from exam_packages ep
+			where ps.package_id is not null and ps.package_id::text = ep.code;
+
+			-- Null out obviously-non-UUID values before attempting a type change.
+			update practice_sessions set package_id=null where package_id is not null and package_id::text !~* '^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$';
+			begin
+				alter table practice_sessions alter column package_id type uuid using package_id::uuid;
+			exception when others then
+				-- If this fails (e.g. already uuid), ignore.
+			end;
+		end if;
+	end $$;`)
+
+	// If user_exam_package_enrollments.exam_package_id was previously text (e.g. 'gre'), map it to UUID via exam_packages.code.
+	_, _ = pool.Exec(ctx, `do $$
+	begin
+		if to_regclass('public.user_exam_package_enrollments') is not null then
+			-- Only attempt if the column exists.
+			if exists (
+				select 1 from information_schema.columns
+				where table_schema='public' and table_name='user_exam_package_enrollments' and column_name='exam_package_id'
+			) then
+				-- Map legacy codes to UUIDs (store as text temporarily so we can cast).
+				update user_exam_package_enrollments e
+				set exam_package_id = ep.id::text
+				from exam_packages ep
+				where e.exam_package_id is not null and e.exam_package_id::text = ep.code;
+
+				-- Drop rows that still don't map cleanly.
+				delete from user_exam_package_enrollments where exam_package_id is not null and exam_package_id::text !~* '^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$';
+				begin
+					alter table user_exam_package_enrollments alter column exam_package_id type uuid using exam_package_id::uuid;
+				exception when others then
+					-- If this fails (e.g. already uuid), ignore.
+				end;
+			end if;
+		end if;
+	end $$;`)
+
+	// Re-add FK from enrollments -> exam_packages if it was dropped by a legacy migration.
+	_, _ = pool.Exec(ctx, `do $$
+	begin
+		if to_regclass('public.user_exam_package_enrollments') is null then
+			return;
+		end if;
+		-- Only add if there's no existing FK to exam_packages.
+		if not exists (
+			select 1
+			from pg_constraint
+			where conrelid='public.user_exam_package_enrollments'::regclass
+				and contype='f'
+				and confrelid='public.exam_packages'::regclass
+		) then
+			begin
+				alter table user_exam_package_enrollments
+					add constraint fk_user_exam_package_enrollments_exam_package
+					foreign key (exam_package_id) references exam_packages(id) on delete restrict;
+			exception when others then
+				-- If the column type isn't uuid yet or the constraint exists under another name, ignore.
+			end;
+		end if;
+	end $$;`)
+
+	_, _ = pool.Exec(ctx, `update practice_sessions set package_id=null where package_id is not null and package_id not in (select id from exam_packages)`)
+	_, _ = pool.Exec(ctx, `update practice_sessions ps set package_id=null where package_id is not null and not exists (
+		select 1 from user_exam_package_enrollments e where e.user_id=ps.user_id and e.exam_package_id=ps.package_id
+	)`) 
+
+	// Foreign keys / constraints (idempotent via pg_constraint guard)
+	_, _ = pool.Exec(ctx, `do $$ begin
+		if not exists (select 1 from pg_constraint where conname='fk_practice_sessions_exam_package') then
+			alter table practice_sessions add constraint fk_practice_sessions_exam_package
+				foreign key (package_id) references exam_packages(id) on delete set null;
+		end if;
+	end $$;`)
+	_, _ = pool.Exec(ctx, `do $$ begin
+		if not exists (select 1 from pg_constraint where conname='fk_practice_sessions_enrollment') then
+			alter table practice_sessions add constraint fk_practice_sessions_enrollment
+				foreign key (user_id, package_id) references user_exam_package_enrollments(user_id, exam_package_id) on delete restrict;
+		end if;
+	end $$;`)
 
 	if err := bootstrapUserFromEnv(ctx, pool, "admin", "BOOTSTRAP_ADMIN_EMAIL", "BOOTSTRAP_ADMIN_PASSWORD"); err != nil {
 		return err

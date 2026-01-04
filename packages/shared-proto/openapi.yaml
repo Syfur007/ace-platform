@@ -16,6 +16,17 @@ paths:
               schema:
                 $ref: '#/components/schemas/HealthzResponse'
 
+  /exam-packages:
+    get:
+      operationId: listExamPackages
+      responses:
+        '200':
+          description: Exam packages
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ListExamPackagesResponse'
+
   /auth/register:
     post:
       deprecated: true
@@ -201,6 +212,40 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/OkResponse'
+
+  /student/enrollments:
+    get:
+      operationId: studentListEnrollments
+      security:
+        - bearerAuth: []
+        - cookieAuth: []
+      responses:
+        '200':
+          description: Student enrollments
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/EnrollmentListResponse'
+    post:
+      operationId: studentEnroll
+      security:
+        - bearerAuth: []
+        - cookieAuth: []
+      parameters:
+        - $ref: '#/components/parameters/CsrfToken'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/EnrollRequest'
+      responses:
+        '200':
+          description: Enrolled
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SuccessResponse'
 
   /instructor/auth/login:
     post:
@@ -809,7 +854,7 @@ paths:
             minimum: 0
             default: 0
         - in: query
-          name: packageId
+          name: questionBankId
           required: false
           schema:
             type: string
@@ -850,18 +895,18 @@ paths:
               schema:
                 $ref: '#/components/schemas/PublicQuestionResponse'
 
-  /question-packages:
+  /question-banks:
     get:
-      operationId: listQuestionPackages
+      operationId: listQuestionBanks
       security:
         - bearerAuth: []
       responses:
         '200':
-          description: Question packages
+          description: Question banks
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/ListQuestionPackagesResponse'
+                $ref: '#/components/schemas/ListQuestionBanksResponse'
 
   /question-topics:
     get:
@@ -870,7 +915,7 @@ paths:
         - bearerAuth: []
       parameters:
         - in: query
-          name: packageId
+          name: questionBankId
           required: false
           schema:
             type: string
@@ -933,20 +978,20 @@ paths:
               schema:
                 $ref: '#/components/schemas/SuccessResponse'
 
-  /instructor/question-packages:
+  /instructor/question-banks:
     get:
-      operationId: instructorListQuestionPackages
+      operationId: instructorListQuestionBanks
       security:
         - bearerAuth: []
       responses:
         '200':
-          description: Question packages
+          description: Question banks
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/ListQuestionPackagesResponse'
+                $ref: '#/components/schemas/ListQuestionBanksResponse'
     post:
-      operationId: instructorCreateQuestionPackage
+      operationId: instructorCreateQuestionBank
       security:
         - bearerAuth: []
       requestBody:
@@ -954,23 +999,23 @@ paths:
         content:
           application/json:
             schema:
-              $ref: '#/components/schemas/CreateQuestionPackageRequest'
+              $ref: '#/components/schemas/CreateQuestionBankRequest'
       responses:
         '200':
-          description: Package created
+          description: Question bank created
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/CreateQuestionPackageResponse'
+                $ref: '#/components/schemas/CreateQuestionBankResponse'
 
-  /instructor/question-packages/{packageId}:
+  /instructor/question-banks/{questionBankId}:
     patch:
-      operationId: instructorUpdateQuestionPackage
+      operationId: instructorUpdateQuestionBank
       security:
         - bearerAuth: []
       parameters:
         - in: path
-          name: packageId
+          name: questionBankId
           required: true
           schema:
             type: string
@@ -979,27 +1024,27 @@ paths:
         content:
           application/json:
             schema:
-              $ref: '#/components/schemas/UpdateQuestionPackageRequest'
+              $ref: '#/components/schemas/UpdateQuestionBankRequest'
       responses:
         '200':
-          description: Package updated
+          description: Question bank updated
           content:
             application/json:
               schema:
                 $ref: '#/components/schemas/SuccessResponse'
     delete:
-      operationId: instructorDeleteQuestionPackage
+      operationId: instructorDeleteQuestionBank
       security:
         - bearerAuth: []
       parameters:
         - in: path
-          name: packageId
+          name: questionBankId
           required: true
           schema:
             type: string
       responses:
         '200':
-          description: Package deleted
+          description: Question bank deleted
           content:
             application/json:
               schema:
@@ -1012,7 +1057,7 @@ paths:
         - bearerAuth: []
       parameters:
         - in: query
-          name: packageId
+          name: questionBankId
           required: false
           schema:
             type: string
@@ -1111,7 +1156,7 @@ paths:
             type: string
             enum: [draft, in_review, needs_changes, published, archived]
         - in: query
-          name: packageId
+          name: questionBankId
           required: false
           schema:
             type: string
@@ -1352,6 +1397,78 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/AdminDashboardStatsResponse'
+
+  /admin/exam-packages:
+    get:
+      operationId: adminListExamPackages
+      security:
+        - bearerAuth: []
+      responses:
+        '200':
+          description: Exam packages (admin)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ListAdminExamPackagesResponse'
+    post:
+      operationId: adminCreateExamPackage
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateAdminExamPackageRequest'
+      responses:
+        '200':
+          description: Exam package created
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CreateAdminExamPackageResponse'
+
+  /admin/exam-packages/{examPackageId}:
+    patch:
+      operationId: adminUpdateExamPackage
+      security:
+        - bearerAuth: []
+      parameters:
+        - in: path
+          name: examPackageId
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UpdateAdminExamPackageRequest'
+      responses:
+        '200':
+          description: Exam package updated
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SuccessResponse'
+    delete:
+      operationId: adminDeleteExamPackage
+      security:
+        - bearerAuth: []
+      parameters:
+        - in: path
+          name: examPackageId
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Exam package deleted
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SuccessResponse'
 
   /exam-sessions/{sessionId}/heartbeat:
     post:
@@ -1631,6 +1748,61 @@ components:
               type: integer
             flags:
               type: integer
+
+    AdminExamPackageListItem:
+      type: object
+      required: [id, code, name, isHidden, createdAt, updatedAt]
+      properties:
+        id:
+          type: string
+        code:
+          type: string
+        name:
+          type: string
+        isHidden:
+          type: boolean
+        createdAt:
+          type: string
+          description: RFC3339 timestamp
+        updatedAt:
+          type: string
+          description: RFC3339 timestamp
+
+    ListAdminExamPackagesResponse:
+      type: object
+      required: [items]
+      properties:
+        items:
+          type: array
+          items:
+            $ref: '#/components/schemas/AdminExamPackageListItem'
+
+    CreateAdminExamPackageRequest:
+      type: object
+      required: [name]
+      properties:
+        name:
+          type: string
+        isHidden:
+          type: boolean
+          nullable: true
+
+    CreateAdminExamPackageResponse:
+      type: object
+      required: [id]
+      properties:
+        id:
+          type: string
+
+    UpdateAdminExamPackageRequest:
+      type: object
+      properties:
+        name:
+          type: string
+          nullable: true
+        isHidden:
+          type: boolean
+          nullable: true
     HealthzResponse:
       type: object
       required: [status, ts]
@@ -1760,7 +1932,7 @@ components:
         lastActivityAt:
           type: string
           description: RFC3339 timestamp
-        packageId:
+        examPackageId:
           type: string
           nullable: true
         isTimed:
@@ -1783,7 +1955,7 @@ components:
       type: object
       required: [timed, count]
       properties:
-        packageId:
+        examPackageId:
           type: string
           nullable: true
         timed:
@@ -1830,7 +2002,7 @@ components:
         startedAt:
           type: string
           description: RFC3339 timestamp
-        packageId:
+        examPackageId:
           type: string
           nullable: true
         isTimed:
@@ -1954,6 +2126,43 @@ components:
         success:
           type: boolean
 
+    ExamPackageListItem:
+      type: object
+      required: [id, name, createdAt]
+      properties:
+        id:
+          type: string
+        name:
+          type: string
+        createdAt:
+          type: string
+          description: RFC3339 timestamp
+
+    ListExamPackagesResponse:
+      type: object
+      required: [items]
+      properties:
+        items:
+          type: array
+          items:
+            $ref: '#/components/schemas/ExamPackageListItem'
+
+    EnrollmentListResponse:
+      type: object
+      required: [examPackageIds]
+      properties:
+        examPackageIds:
+          type: array
+          items:
+            type: string
+
+    EnrollRequest:
+      type: object
+      required: [examPackageId]
+      properties:
+        examPackageId:
+          type: string
+
     QuestionDifficulty:
       type: object
       required: [id, displayName]
@@ -1972,7 +2181,7 @@ components:
           items:
             $ref: '#/components/schemas/QuestionDifficulty'
 
-    QuestionPackage:
+    QuestionBank:
       type: object
       required: [id, name, isHidden, createdAt]
       properties:
@@ -1980,6 +2189,9 @@ components:
           type: string
         name:
           type: string
+        examPackageId:
+          type: string
+          nullable: true
         isHidden:
           type: boolean
         createdAt:
@@ -1992,7 +2204,7 @@ components:
       properties:
         id:
           type: string
-        packageId:
+        questionBankId:
           type: string
           nullable: true
         name:
@@ -2003,11 +2215,14 @@ components:
           type: string
           description: RFC3339 timestamp
 
-    UpdateQuestionPackageRequest:
+    UpdateQuestionBankRequest:
       type: object
       properties:
         name:
           type: string
+        examPackageId:
+          type: string
+          nullable: true
         isHidden:
           type: boolean
 
@@ -2026,14 +2241,14 @@ components:
         displayName:
           type: string
 
-    ListQuestionPackagesResponse:
+    ListQuestionBanksResponse:
       type: object
       required: [items]
       properties:
         items:
           type: array
           items:
-            $ref: '#/components/schemas/QuestionPackage'
+            $ref: '#/components/schemas/QuestionBank'
 
     ListQuestionTopicsResponse:
       type: object
@@ -2050,7 +2265,7 @@ components:
       properties:
         id:
           type: string
-        packageId:
+        questionBankId:
           type: string
           nullable: true
         topicId:
@@ -2082,7 +2297,7 @@ components:
       properties:
         id:
           type: string
-        packageId:
+        questionBankId:
           type: string
           nullable: true
         topicId:
@@ -2097,14 +2312,16 @@ components:
           items:
             $ref: '#/components/schemas/PracticeQuestionChoice'
 
-    CreateQuestionPackageRequest:
+    CreateQuestionBankRequest:
       type: object
-      required: [name]
+      required: [name, examPackageId]
       properties:
         name:
           type: string
+        examPackageId:
+          type: string
 
-    CreateQuestionPackageResponse:
+    CreateQuestionBankResponse:
       type: object
       required: [id]
       properties:
@@ -2115,7 +2332,7 @@ components:
       type: object
       required: [name]
       properties:
-        packageId:
+        questionBankId:
           type: string
           nullable: true
         name:
@@ -2132,7 +2349,7 @@ components:
       type: object
       required: [difficultyId, prompt, explanation, choices, correctChoiceIndex]
       properties:
-        packageId:
+        questionBankId:
           type: string
           nullable: true
         topicId:
@@ -2160,7 +2377,7 @@ components:
     UpdateQuestionRequest:
       type: object
       properties:
-        packageId:
+        questionBankId:
           type: string
           nullable: true
         topicId:
@@ -2210,7 +2427,7 @@ components:
       properties:
         id:
           type: string
-        packageId:
+        questionBankId:
           type: string
           nullable: true
         topicId:

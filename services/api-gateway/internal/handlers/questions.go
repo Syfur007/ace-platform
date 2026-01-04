@@ -30,16 +30,17 @@ type QuestionDifficulty struct {
 	DisplayName string `json:"displayName"`
 }
 
-type QuestionPackage struct {
-	ID        string `json:"id"`
-	Name      string `json:"name"`
-	IsHidden  bool   `json:"isHidden"`
-	CreatedAt string `json:"createdAt"`
+type QuestionBank struct {
+	ID           string  `json:"id"`
+	Name         string  `json:"name"`
+	ExamPackageID *string `json:"examPackageId"`
+	IsHidden     bool    `json:"isHidden"`
+	CreatedAt    string  `json:"createdAt"`
 }
 
 type QuestionTopic struct {
 	ID        string  `json:"id"`
-	PackageID *string `json:"packageId"`
+	QuestionBankID *string `json:"questionBankId"`
 	Name      string  `json:"name"`
 	IsHidden  bool    `json:"isHidden"`
 	CreatedAt string  `json:"createdAt"`
@@ -49,8 +50,8 @@ type ListQuestionDifficultiesResponse struct {
 	Items []QuestionDifficulty `json:"items"`
 }
 
-type ListQuestionPackagesResponse struct {
-	Items []QuestionPackage `json:"items"`
+type ListQuestionBanksResponse struct {
+	Items []QuestionBank `json:"items"`
 }
 
 type ListQuestionTopicsResponse struct {
@@ -59,7 +60,7 @@ type ListQuestionTopicsResponse struct {
 
 type PublicQuestionListItem struct {
 	ID           string  `json:"id"`
-	PackageID    *string `json:"packageId"`
+	QuestionBankID    *string `json:"questionBankId"`
 	TopicID      *string `json:"topicId"`
 	DifficultyID string  `json:"difficultyId"`
 	Prompt       string  `json:"prompt"`
@@ -74,7 +75,7 @@ type ListQuestionsResponse struct {
 
 type PublicQuestionResponse struct {
 	ID           string                  `json:"id"`
-	PackageID    *string                 `json:"packageId"`
+	QuestionBankID    *string                 `json:"questionBankId"`
 	TopicID      *string                 `json:"topicId"`
 	DifficultyID string                  `json:"difficultyId"`
 	Prompt       string                  `json:"prompt"`
@@ -83,7 +84,7 @@ type PublicQuestionResponse struct {
 
 type InstructorQuestionResponse struct {
 	ID             string                  `json:"id"`
-	PackageID      *string                 `json:"packageId"`
+	QuestionBankID      *string                 `json:"questionBankId"`
 	TopicID        *string                 `json:"topicId"`
 	DifficultyID   string                  `json:"difficultyId"`
 	Prompt         string                  `json:"prompt"`
@@ -98,7 +99,7 @@ type InstructorQuestionResponse struct {
 }
 
 type CreateQuestionRequest struct {
-	PackageID    *string `json:"packageId"`
+	QuestionBankID    *string `json:"questionBankId"`
 	TopicID      *string `json:"topicId"`
 	DifficultyID string  `json:"difficultyId"`
 	Prompt       string  `json:"prompt"`
@@ -110,7 +111,7 @@ type CreateQuestionRequest struct {
 }
 
 type UpdateQuestionRequest struct {
-	PackageID    *string `json:"packageId"`
+	QuestionBankID    *string `json:"questionBankId"`
 	TopicID      *string `json:"topicId"`
 	DifficultyID *string `json:"difficultyId"`
 	Prompt       *string `json:"prompt"`
@@ -124,18 +125,20 @@ type ReplaceChoicesRequest struct {
 	CorrectChoiceIndex int `json:"correctChoiceIndex"`
 }
 
-type CreateQuestionPackageRequest struct {
-	Name string `json:"name"`
+type CreateQuestionBankRequest struct {
+	Name         string `json:"name"`
+	ExamPackageID string `json:"examPackageId"`
 }
 
 type CreateQuestionTopicRequest struct {
-	PackageID *string `json:"packageId"`
+	QuestionBankID *string `json:"questionBankId"`
 	Name      string  `json:"name"`
 }
 
-type UpdateQuestionPackageRequest struct {
-	Name     *string `json:"name"`
-	IsHidden *bool   `json:"isHidden"`
+type UpdateQuestionBankRequest struct {
+	Name         *string `json:"name"`
+	ExamPackageID *string `json:"examPackageId"`
+	IsHidden      *bool   `json:"isHidden"`
 }
 
 type UpdateQuestionTopicRequest struct {
@@ -236,16 +239,16 @@ func RegisterQuestionRoutes(r *gin.Engine, pool *pgxpool.Pool) {
 	{
 		r.GET("/questions", auth.RequirePortalAuth(pool, "student", "student"), func(c *gin.Context) {
 			limit, offset := parseListParams(c)
-			packageID := strings.TrimSpace(c.Query("packageId"))
+			questionBankID := strings.TrimSpace(c.Query("questionBankId"))
 			topicID := strings.TrimSpace(c.Query("topicId"))
 			difficultyID := strings.TrimSpace(c.Query("difficultyId"))
 
 			args := []any{}
 			where := []string{"q.status='published'"}
 
-			if packageID != "" {
+			if questionBankID != "" {
 				where = append(where, "q.package_id="+sqlParam(len(args)+1))
-				args = append(args, packageID)
+				args = append(args, questionBankID)
 			}
 			if topicID != "" {
 				where = append(where, "q.topic_id="+sqlParam(len(args)+1))
@@ -282,7 +285,7 @@ func RegisterQuestionRoutes(r *gin.Engine, pool *pgxpool.Pool) {
 					c.JSON(http.StatusInternalServerError, gin.H{"message": "failed to list questions"})
 					return
 				}
-				items = append(items, PublicQuestionListItem{ID: id, PackageID: pkg, TopicID: top, DifficultyID: diff, Prompt: prompt})
+				items = append(items, PublicQuestionListItem{ID: id, QuestionBankID: pkg, TopicID: top, DifficultyID: diff, Prompt: prompt})
 				if len(items) == limit+1 {
 					break
 				}
@@ -331,41 +334,55 @@ func RegisterQuestionRoutes(r *gin.Engine, pool *pgxpool.Pool) {
 				choices = append(choices, PracticeQuestionChoice{ID: cid, Text: text})
 			}
 
-			c.JSON(http.StatusOK, PublicQuestionResponse{ID: id, PackageID: pkg, TopicID: top, DifficultyID: diff, Prompt: prompt, Choices: choices})
+			c.JSON(http.StatusOK, PublicQuestionResponse{ID: id, QuestionBankID: pkg, TopicID: top, DifficultyID: diff, Prompt: prompt, Choices: choices})
 		})
 	}
 
 	// Reference data (read-only for now)
 	{
-		r.GET("/question-packages", auth.RequirePortalAuth(pool, "student", "student"), func(c *gin.Context) {
-			rows, err := pool.Query(context.Background(), `select id, name, is_hidden, created_at from question_bank_packages where is_hidden=false order by name asc`)
+		r.GET("/question-banks", auth.RequirePortalAuth(pool, "student", "student"), func(c *gin.Context) {
+			rows, err := pool.Query(context.Background(), `
+				select
+					p.id,
+					p.name,
+					(
+						select min(m.exam_package_id::text)
+						from exam_package_question_bank_packages m
+						where m.question_bank_package_id=p.id
+					) as exam_package_id,
+					p.is_hidden,
+					p.created_at
+				from question_bank_packages p
+				where p.is_hidden=false
+				order by p.name asc`)
 			if err != nil {
-				c.JSON(http.StatusInternalServerError, gin.H{"message": "failed to list packages"})
+				c.JSON(http.StatusInternalServerError, gin.H{"message": "failed to list question banks"})
 				return
 			}
 			defer rows.Close()
-			items := []QuestionPackage{}
+			items := []QuestionBank{}
 			for rows.Next() {
 				var id, name string
+				var examPackageID *string
 				var hidden bool
 				var createdAt time.Time
-				if err := rows.Scan(&id, &name, &hidden, &createdAt); err != nil {
-					c.JSON(http.StatusInternalServerError, gin.H{"message": "failed to list packages"})
+				if err := rows.Scan(&id, &name, &examPackageID, &hidden, &createdAt); err != nil {
+					c.JSON(http.StatusInternalServerError, gin.H{"message": "failed to list question banks"})
 					return
 				}
-				items = append(items, QuestionPackage{ID: id, Name: name, IsHidden: hidden, CreatedAt: createdAt.UTC().Format(time.RFC3339)})
+				items = append(items, QuestionBank{ID: id, Name: name, ExamPackageID: examPackageID, IsHidden: hidden, CreatedAt: createdAt.UTC().Format(time.RFC3339)})
 			}
-			c.JSON(http.StatusOK, ListQuestionPackagesResponse{Items: items})
+			c.JSON(http.StatusOK, ListQuestionBanksResponse{Items: items})
 		})
 
 		r.GET("/question-topics", auth.RequirePortalAuth(pool, "student", "student"), func(c *gin.Context) {
-			packageID := strings.TrimSpace(c.Query("packageId"))
+			questionBankID := strings.TrimSpace(c.Query("questionBankId"))
 			args := []any{}
 			query := `select id, package_id, name, is_hidden, created_at from question_bank_topics`
 			where := []string{"is_hidden=false"}
-			if packageID != "" {
+			if questionBankID != "" {
 				where = append(where, "package_id=$1")
-				args = append(args, packageID)
+				args = append(args, questionBankID)
 			}
 			query += " where " + strings.Join(where, " and ")
 			query += " order by name asc"
@@ -387,7 +404,7 @@ func RegisterQuestionRoutes(r *gin.Engine, pool *pgxpool.Pool) {
 					c.JSON(http.StatusInternalServerError, gin.H{"message": "failed to list topics"})
 					return
 				}
-				items = append(items, QuestionTopic{ID: id, PackageID: pkg, Name: name, IsHidden: hidden, CreatedAt: createdAt.UTC().Format(time.RFC3339)})
+				items = append(items, QuestionTopic{ID: id, QuestionBankID: pkg, Name: name, IsHidden: hidden, CreatedAt: createdAt.UTC().Format(time.RFC3339)})
 			}
 			c.JSON(http.StatusOK, ListQuestionTopicsResponse{Items: items})
 		})
@@ -418,14 +435,14 @@ func RegisterQuestionRoutes(r *gin.Engine, pool *pgxpool.Pool) {
 	{
 		requireInstructorOrAdmin := authRequireRolesAndAudiences(pool, []string{"instructor", "admin"}, []string{"instructor", "admin"})
 
-		r.POST("/instructor/question-packages", requireInstructorOrAdmin, func(c *gin.Context) {
+		r.POST("/instructor/question-banks", requireInstructorOrAdmin, func(c *gin.Context) {
 			userID, ok := auth.GetUserID(c)
 			if !ok {
 				c.JSON(http.StatusUnauthorized, gin.H{"message": "unauthorized"})
 				return
 			}
 
-			var req CreateQuestionPackageRequest
+			var req CreateQuestionBankRequest
 			if err := c.ShouldBindJSON(&req); err != nil {
 				c.JSON(http.StatusBadRequest, gin.H{"message": "invalid json body"})
 				return
@@ -435,44 +452,86 @@ func RegisterQuestionRoutes(r *gin.Engine, pool *pgxpool.Pool) {
 				c.JSON(http.StatusBadRequest, gin.H{"message": "name is required"})
 				return
 			}
+			examPkgID := strings.TrimSpace(req.ExamPackageID)
+			if examPkgID == "" {
+				c.JSON(http.StatusBadRequest, gin.H{"message": "examPackageId is required"})
+				return
+			}
+			var examPkgExists bool
+			if err := pool.QueryRow(context.Background(), `select exists(select 1 from exam_packages where id=$1)`, examPkgID).Scan(&examPkgExists); err != nil || !examPkgExists {
+				c.JSON(http.StatusBadRequest, gin.H{"message": "unknown exam package"})
+				return
+			}
 			pkgID := util.NewID("pkg")
-			_, err := pool.Exec(context.Background(), `insert into question_bank_packages (id, name, created_by_user_id) values ($1,$2,$3)`, pkgID, name, userID)
+
+			ctx := context.Background()
+			tx, err := pool.BeginTx(ctx, pgx.TxOptions{})
 			if err != nil {
-				c.JSON(http.StatusBadRequest, gin.H{"message": "failed to create package"})
+				c.JSON(http.StatusInternalServerError, gin.H{"message": "failed to create package"})
+				return
+			}
+			defer func() { _ = tx.Rollback(ctx) }()
+
+			_, err = tx.Exec(ctx, `insert into question_bank_packages (id, name, created_by_user_id) values ($1,$2,$3)`, pkgID, name, userID)
+			if err != nil {
+				c.JSON(http.StatusBadRequest, gin.H{"message": "failed to create question bank"})
+				return
+			}
+			_, err = tx.Exec(ctx, `insert into exam_package_question_bank_packages (exam_package_id, question_bank_package_id) values ($1,$2) on conflict do nothing`, examPkgID, pkgID)
+			if err != nil {
+				c.JSON(http.StatusBadRequest, gin.H{"message": "failed to create question bank"})
+				return
+			}
+
+			if err := tx.Commit(ctx); err != nil {
+				c.JSON(http.StatusInternalServerError, gin.H{"message": "failed to create question bank"})
 				return
 			}
 			c.JSON(http.StatusOK, gin.H{"id": pkgID})
 		})
 
-		r.GET("/instructor/question-packages", requireInstructorOrAdmin, func(c *gin.Context) {
-			rows, err := pool.Query(context.Background(), `select id, name, is_hidden, created_at from question_bank_packages order by name asc`)
+		r.GET("/instructor/question-banks", requireInstructorOrAdmin, func(c *gin.Context) {
+			rows, err := pool.Query(context.Background(), `
+				select
+					p.id,
+					p.name,
+					(
+						select min(m.exam_package_id::text)
+						from exam_package_question_bank_packages m
+						where m.question_bank_package_id=p.id
+					) as exam_package_id,
+					p.is_hidden,
+					p.created_at
+				from question_bank_packages p
+				order by p.name asc`)
 			if err != nil {
-				c.JSON(http.StatusInternalServerError, gin.H{"message": "failed to list packages"})
+				c.JSON(http.StatusInternalServerError, gin.H{"message": "failed to list question banks"})
 				return
 			}
 			defer rows.Close()
-			items := []QuestionPackage{}
+			items := []QuestionBank{}
 			for rows.Next() {
 				var id, name string
+				var examPackageID *string
 				var hidden bool
 				var createdAt time.Time
-				if err := rows.Scan(&id, &name, &hidden, &createdAt); err != nil {
-					c.JSON(http.StatusInternalServerError, gin.H{"message": "failed to list packages"})
+				if err := rows.Scan(&id, &name, &examPackageID, &hidden, &createdAt); err != nil {
+					c.JSON(http.StatusInternalServerError, gin.H{"message": "failed to list question banks"})
 					return
 				}
-				items = append(items, QuestionPackage{ID: id, Name: name, IsHidden: hidden, CreatedAt: createdAt.UTC().Format(time.RFC3339)})
+				items = append(items, QuestionBank{ID: id, Name: name, ExamPackageID: examPackageID, IsHidden: hidden, CreatedAt: createdAt.UTC().Format(time.RFC3339)})
 			}
-			c.JSON(http.StatusOK, ListQuestionPackagesResponse{Items: items})
+			c.JSON(http.StatusOK, ListQuestionBanksResponse{Items: items})
 		})
 
-		r.PATCH("/instructor/question-packages/:packageId", requireInstructorOrAdmin, func(c *gin.Context) {
-			pid := strings.TrimSpace(c.Param("packageId"))
+		r.PATCH("/instructor/question-banks/:questionBankId", requireInstructorOrAdmin, func(c *gin.Context) {
+			pid := strings.TrimSpace(c.Param("questionBankId"))
 			if pid == "" {
-				c.JSON(http.StatusBadRequest, gin.H{"message": "packageId is required"})
+				c.JSON(http.StatusBadRequest, gin.H{"message": "questionBankId is required"})
 				return
 			}
 
-			var req UpdateQuestionPackageRequest
+			var req UpdateQuestionBankRequest
 			if err := c.ShouldBindJSON(&req); err != nil {
 				c.JSON(http.StatusBadRequest, gin.H{"message": "invalid json body"})
 				return
@@ -497,36 +556,78 @@ func RegisterQuestionRoutes(r *gin.Engine, pool *pgxpool.Pool) {
 				args = append(args, *req.IsHidden)
 				idx++
 			}
+			// examPackageId updates are handled by syncing the mapping table below.
 
 			if len(set) == 0 {
 				c.JSON(http.StatusBadRequest, gin.H{"message": "no fields to update"})
 				return
 			}
 
+			ctx := context.Background()
+			tx, err := pool.BeginTx(ctx, pgx.TxOptions{})
+			if err != nil {
+				c.JSON(http.StatusInternalServerError, gin.H{"message": "failed to update question bank"})
+				return
+			}
+			defer func() { _ = tx.Rollback(ctx) }()
+
 			set = append(set, "updated_at=now()")
 			args = append(args, pid)
-			_, err := pool.Exec(context.Background(), "update question_bank_packages set "+strings.Join(set, ", ")+" where id="+sqlParam(idx), args...)
+			_, err = tx.Exec(ctx, "update question_bank_packages set "+strings.Join(set, ", ")+" where id="+sqlParam(idx), args...)
 			if err != nil {
-				c.JSON(http.StatusBadRequest, gin.H{"message": "failed to update package"})
+				c.JSON(http.StatusBadRequest, gin.H{"message": "failed to update question bank"})
+				return
+			}
+
+			// Keep mapping in sync when examPackageId is updated.
+			if req.ExamPackageID != nil {
+				examPkgID := strings.TrimSpace(*req.ExamPackageID)
+				if examPkgID == "" {
+					_, err = tx.Exec(ctx, `delete from exam_package_question_bank_packages where question_bank_package_id=$1`, pid)
+					if err != nil {
+						c.JSON(http.StatusBadRequest, gin.H{"message": "failed to update question bank"})
+						return
+					}
+				} else {
+					var examPkgExists bool
+					if err := tx.QueryRow(ctx, `select exists(select 1 from exam_packages where id=$1)`, examPkgID).Scan(&examPkgExists); err != nil || !examPkgExists {
+						c.JSON(http.StatusBadRequest, gin.H{"message": "unknown exam package"})
+						return
+					}
+					_, err = tx.Exec(ctx, `delete from exam_package_question_bank_packages where question_bank_package_id=$1`, pid)
+					if err != nil {
+						c.JSON(http.StatusBadRequest, gin.H{"message": "failed to update question bank"})
+						return
+					}
+					_, err = tx.Exec(ctx, `insert into exam_package_question_bank_packages (exam_package_id, question_bank_package_id) values ($1,$2) on conflict do nothing`, examPkgID, pid)
+					if err != nil {
+						c.JSON(http.StatusBadRequest, gin.H{"message": "failed to update question bank"})
+						return
+					}
+				}
+			}
+
+			if err := tx.Commit(ctx); err != nil {
+				c.JSON(http.StatusInternalServerError, gin.H{"message": "failed to update question bank"})
 				return
 			}
 
 			c.JSON(http.StatusOK, gin.H{"success": true})
 		})
 
-		r.DELETE("/instructor/question-packages/:packageId", requireInstructorOrAdmin, func(c *gin.Context) {
-			pid := strings.TrimSpace(c.Param("packageId"))
+		r.DELETE("/instructor/question-banks/:questionBankId", requireInstructorOrAdmin, func(c *gin.Context) {
+			pid := strings.TrimSpace(c.Param("questionBankId"))
 			if pid == "" {
-				c.JSON(http.StatusBadRequest, gin.H{"message": "packageId is required"})
+				c.JSON(http.StatusBadRequest, gin.H{"message": "questionBankId is required"})
 				return
 			}
 			ct, err := pool.Exec(context.Background(), `delete from question_bank_packages where id=$1`, pid)
 			if err != nil {
-				c.JSON(http.StatusBadRequest, gin.H{"message": "failed to delete package"})
+				c.JSON(http.StatusBadRequest, gin.H{"message": "failed to delete question bank"})
 				return
 			}
 			if ct.RowsAffected() == 0 {
-				c.JSON(http.StatusNotFound, gin.H{"message": "package not found"})
+				c.JSON(http.StatusNotFound, gin.H{"message": "question bank not found"})
 				return
 			}
 			c.JSON(http.StatusOK, gin.H{"success": true})
@@ -550,7 +651,7 @@ func RegisterQuestionRoutes(r *gin.Engine, pool *pgxpool.Pool) {
 				return
 			}
 			topicID := util.NewID("top")
-			_, err := pool.Exec(context.Background(), `insert into question_bank_topics (id, package_id, name, created_by_user_id) values ($1,$2,$3,$4)`, topicID, req.PackageID, name, userID)
+			_, err := pool.Exec(context.Background(), `insert into question_bank_topics (id, package_id, name, created_by_user_id) values ($1,$2,$3,$4)`, topicID, req.QuestionBankID, name, userID)
 			if err != nil {
 				c.JSON(http.StatusBadRequest, gin.H{"message": "failed to create topic"})
 				return
@@ -559,12 +660,12 @@ func RegisterQuestionRoutes(r *gin.Engine, pool *pgxpool.Pool) {
 		})
 
 		r.GET("/instructor/question-topics", requireInstructorOrAdmin, func(c *gin.Context) {
-			packageID := strings.TrimSpace(c.Query("packageId"))
+			questionBankID := strings.TrimSpace(c.Query("questionBankId"))
 			args := []any{}
 			query := `select id, package_id, name, is_hidden, created_at from question_bank_topics`
-			if packageID != "" {
+			if questionBankID != "" {
 				query += " where package_id=$1"
-				args = append(args, packageID)
+				args = append(args, questionBankID)
 			}
 			query += " order by name asc"
 			rows, err := pool.Query(context.Background(), query, args...)
@@ -584,7 +685,7 @@ func RegisterQuestionRoutes(r *gin.Engine, pool *pgxpool.Pool) {
 					c.JSON(http.StatusInternalServerError, gin.H{"message": "failed to list topics"})
 					return
 				}
-				items = append(items, QuestionTopic{ID: id, PackageID: pkg, Name: name, IsHidden: hidden, CreatedAt: createdAt.UTC().Format(time.RFC3339)})
+				items = append(items, QuestionTopic{ID: id, QuestionBankID: pkg, Name: name, IsHidden: hidden, CreatedAt: createdAt.UTC().Format(time.RFC3339)})
 			}
 			c.JSON(http.StatusOK, ListQuestionTopicsResponse{Items: items})
 		})
@@ -752,7 +853,7 @@ func RegisterQuestionRoutes(r *gin.Engine, pool *pgxpool.Pool) {
 			now := time.Now().UTC()
 			_, err = tx.Exec(ctx, `insert into question_bank_questions (id, package_id, topic_id, difficulty_id, prompt, explanation_text, status, created_by_user_id, updated_by_user_id)
 				values ($1,$2,$3,$4,$5,$6,$7,$8,$9)`,
-				questionID, req.PackageID, req.TopicID, req.DifficultyID, req.Prompt, req.Explanation, string(QuestionDraft), userID, userID)
+				questionID, req.QuestionBankID, req.TopicID, req.DifficultyID, req.Prompt, req.Explanation, string(QuestionDraft), userID, userID)
 			if err != nil {
 				c.JSON(http.StatusBadRequest, gin.H{"message": "failed to create question"})
 				return
@@ -790,7 +891,7 @@ func RegisterQuestionRoutes(r *gin.Engine, pool *pgxpool.Pool) {
 
 			c.JSON(http.StatusOK, InstructorQuestionResponse{
 				ID:              questionID,
-				PackageID:       req.PackageID,
+				QuestionBankID:       req.QuestionBankID,
 				TopicID:         req.TopicID,
 				DifficultyID:    req.DifficultyID,
 				Prompt:          req.Prompt,
@@ -808,7 +909,7 @@ func RegisterQuestionRoutes(r *gin.Engine, pool *pgxpool.Pool) {
 		r.GET("/instructor/questions", requireInstructorOrAdmin, func(c *gin.Context) {
 			limit, offset := parseListParams(c)
 			status := strings.TrimSpace(c.Query("status"))
-			packageID := strings.TrimSpace(c.Query("packageId"))
+			questionBankID := strings.TrimSpace(c.Query("questionBankId"))
 			topicID := strings.TrimSpace(c.Query("topicId"))
 			difficultyID := strings.TrimSpace(c.Query("difficultyId"))
 
@@ -818,9 +919,9 @@ func RegisterQuestionRoutes(r *gin.Engine, pool *pgxpool.Pool) {
 				where = append(where, "q.status="+sqlParam(len(args)+1))
 				args = append(args, status)
 			}
-			if packageID != "" {
+			if questionBankID != "" {
 				where = append(where, "q.package_id="+sqlParam(len(args)+1))
-				args = append(args, packageID)
+				args = append(args, questionBankID)
 			}
 			if topicID != "" {
 				where = append(where, "q.topic_id="+sqlParam(len(args)+1))
@@ -854,7 +955,7 @@ func RegisterQuestionRoutes(r *gin.Engine, pool *pgxpool.Pool) {
 					c.JSON(http.StatusInternalServerError, gin.H{"message": "failed to list questions"})
 					return
 				}
-				items = append(items, PublicQuestionListItem{ID: id, PackageID: pkg, TopicID: top, DifficultyID: diff, Prompt: prompt})
+				items = append(items, PublicQuestionListItem{ID: id, QuestionBankID: pkg, TopicID: top, DifficultyID: diff, Prompt: prompt})
 				if len(items) == limit+1 {
 					break
 				}
@@ -914,7 +1015,7 @@ func RegisterQuestionRoutes(r *gin.Engine, pool *pgxpool.Pool) {
 
 			c.JSON(http.StatusOK, InstructorQuestionResponse{
 				ID:              id,
-				PackageID:       pkg,
+				QuestionBankID:       pkg,
 				TopicID:         top,
 				DifficultyID:    diff,
 				Prompt:          prompt,
@@ -947,9 +1048,9 @@ func RegisterQuestionRoutes(r *gin.Engine, pool *pgxpool.Pool) {
 			set := []string{"updated_at=now()", "updated_by_user_id=$2"}
 			args := []any{qid, userID}
 			idx := 3
-			if req.PackageID != nil {
+			if req.QuestionBankID != nil {
 				set = append(set, "package_id="+sqlParam(idx))
-				args = append(args, req.PackageID)
+				args = append(args, req.QuestionBankID)
 				idx++
 			}
 			if req.TopicID != nil {

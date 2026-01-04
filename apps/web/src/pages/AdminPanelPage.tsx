@@ -6,25 +6,29 @@ import {
   adminApproveQuestion,
   adminCreateExamFlag,
   adminCreateUser,
+  adminCreateExamPackage,
+  adminDeleteExamPackage,
   adminDeleteUser,
   adminForceSubmitExamSession,
   adminGetExamSession,
   adminGetUser,
   adminInvalidateExamSession,
+  adminListExamPackages,
   adminListExamEvents,
   adminListExamSessions,
   adminListUsers,
   adminRequestQuestionChanges,
   adminRestoreUser,
   adminTerminateExamSession,
+  adminUpdateExamPackage,
   adminUpdateUser,
   instructorArchiveQuestion,
   instructorCreateQuestion,
-  instructorCreateQuestionPackage,
+  instructorCreateQuestionBank,
   adminGetUserSessionLimit,
   instructorCreateQuestionTopic,
   adminListSessionGroups,
-  instructorDeleteQuestionPackage,
+  instructorDeleteQuestionBank,
   instructorDeleteQuestionTopic,
   instructorDraftQuestion,
   adminListUserAuthSessions,
@@ -38,21 +42,21 @@ import {
   adminUpdateSessionGroup,
   instructorGetQuestion,
   instructorListQuestionDifficulties,
-  instructorListQuestionPackages,
+  instructorListQuestionBanks,
   instructorListQuestionTopics,
   instructorListQuestions,
   instructorPublishQuestion,
   instructorReplaceChoices,
   instructorSubmitQuestionForReview,
   instructorUpdateQuestionDifficulty,
-  instructorUpdateQuestionPackage,
+  instructorUpdateQuestionBank,
   instructorUpdateQuestionTopic,
   instructorUpdateQuestion,
 } from '@/api/endpoints'
 import { clearAllAccessTokens } from '@/auth/token'
 
 type CreateQuestionFormState = {
-  packageId: string
+  questionBankId: string
   topicId: string
   difficultyId: string
   prompt: string
@@ -62,7 +66,7 @@ type CreateQuestionFormState = {
 }
 
 type EditQuestionFormState = {
-  packageId: string
+  questionBankId: string
   topicId: string
   difficultyId: string
   prompt: string
@@ -102,12 +106,18 @@ export function AdminPanelPage(props: AdminPanelPageProps) {
 
   const activeTab = props.tab
 
+  const [examPackageName, setExamPackageName] = useState('')
+  const [selectedExamPackageId, setSelectedExamPackageId] = useState('')
+  const [editExamPackageName, setEditExamPackageName] = useState('')
+
   const [packageName, setPackageName] = useState('')
+  const [packageExamPackageId, setPackageExamPackageId] = useState('')
   const [topicName, setTopicName] = useState('')
   const [topicPackageId, setTopicPackageId] = useState('')
 
   const [selectedPackageId, setSelectedPackageId] = useState('')
   const [editPackageName, setEditPackageName] = useState('')
+  const [editPackageExamPackageId, setEditPackageExamPackageId] = useState('')
   const [editPackageIsHidden, setEditPackageIsHidden] = useState(false)
 
   const [selectedTopicId, setSelectedTopicId] = useState('')
@@ -119,13 +129,13 @@ export function AdminPanelPage(props: AdminPanelPageProps) {
 
   const [questionFilters, setQuestionFilters] = useState<{
     status: '' | 'draft' | 'in_review' | 'needs_changes' | 'published' | 'archived'
-    packageId: string
+    questionBankId: string
     topicId: string
     difficultyId: string
-  }>({ status: 'draft', packageId: '', topicId: '', difficultyId: '' })
+  }>({ status: 'draft', questionBankId: '', topicId: '', difficultyId: '' })
 
   const [createQuestion, setCreateQuestion] = useState<CreateQuestionFormState>({
-    packageId: '',
+    questionBankId: '',
     topicId: '',
     difficultyId: '',
     prompt: '',
@@ -141,7 +151,41 @@ export function AdminPanelPage(props: AdminPanelPageProps) {
 
   const packages = useQuery({
     queryKey: ['questionBank', 'packages'],
-    queryFn: instructorListQuestionPackages,
+    queryFn: instructorListQuestionBanks,
+  })
+
+  const examPackages = useQuery({
+    queryKey: ['admin', 'exam-packages'],
+    queryFn: adminListExamPackages,
+    enabled: activeTab === 'questionBank',
+  })
+
+  const createExamPackageMutation = useMutation({
+    mutationFn: adminCreateExamPackage,
+    onSuccess: async () => {
+      setExamPackageName('')
+      await queryClient.invalidateQueries({ queryKey: ['admin', 'exam-packages'] })
+    },
+  })
+
+  const updateExamPackageMutation = useMutation({
+    mutationFn: async (input: { examPackageId: string; name: string }) =>
+      adminUpdateExamPackage(input.examPackageId, { name: input.name }),
+    onSuccess: async () => {
+      await queryClient.invalidateQueries({ queryKey: ['admin', 'exam-packages'] })
+    },
+  })
+
+  const deleteExamPackageMutation = useMutation({
+    mutationFn: adminDeleteExamPackage,
+    onSuccess: async () => {
+      setSelectedExamPackageId('')
+      setEditExamPackageName('')
+      await queryClient.invalidateQueries({ queryKey: ['admin', 'exam-packages'] })
+      await queryClient.invalidateQueries({ queryKey: ['questionBank', 'packages'] })
+      await queryClient.invalidateQueries({ queryKey: ['questionBank', 'topics'] })
+      await queryClient.invalidateQueries({ queryKey: ['questionBank', 'questions'] })
+    },
   })
 
   const topics = useQuery({
@@ -161,7 +205,7 @@ export function AdminPanelPage(props: AdminPanelPageProps) {
         limit: 50,
         offset: 0,
         status: questionFilters.status || undefined,
-        packageId: questionFilters.packageId || undefined,
+        questionBankId: questionFilters.questionBankId || undefined,
         topicId: questionFilters.topicId || undefined,
         difficultyId: questionFilters.difficultyId || undefined,
       }),
@@ -175,19 +219,27 @@ export function AdminPanelPage(props: AdminPanelPageProps) {
 
   const visibleTopics = useMemo(() => {
     const items = (topics.data?.items ?? []).filter((t: any) => !t.isHidden)
-    if (questionFilters.packageId) return items.filter((t) => t.packageId === questionFilters.packageId)
+    if (questionFilters.questionBankId) return items.filter((t) => t.questionBankId === questionFilters.questionBankId)
     return items
-  }, [topics.data?.items, questionFilters.packageId])
+  }, [topics.data?.items, questionFilters.questionBankId])
 
   const visibleTopicsForCreate = useMemo(() => {
     const items = (topics.data?.items ?? []).filter((t: any) => !t.isHidden)
-    if (createQuestion.packageId) return items.filter((t) => t.packageId === createQuestion.packageId)
+    if (createQuestion.questionBankId) return items.filter((t) => t.questionBankId === createQuestion.questionBankId)
     return items
-  }, [topics.data?.items, createQuestion.packageId])
+  }, [topics.data?.items, createQuestion.questionBankId])
 
   const visiblePackagesForSelect = useMemo(() => {
     return (packages.data?.items ?? []).filter((p: any) => !p.isHidden)
   }, [packages.data?.items])
+
+  // Keep exam package edit form in sync when selection changes.
+  useEffect(() => {
+    if (!selectedExamPackageId) return
+    const ep = (examPackages.data?.items ?? []).find((p: any) => p.id === selectedExamPackageId)
+    if (!ep) return
+    setEditExamPackageName(String(ep.name ?? ''))
+  }, [examPackages.data?.items, selectedExamPackageId])
 
   const difficultiesById = useMemo(() => {
     const map = new Map<string, string>()
@@ -196,9 +248,10 @@ export function AdminPanelPage(props: AdminPanelPageProps) {
   }, [difficulties.data?.items])
 
   const createPackageMutation = useMutation({
-    mutationFn: instructorCreateQuestionPackage,
+    mutationFn: instructorCreateQuestionBank,
     onSuccess: async () => {
       setPackageName('')
+      setPackageExamPackageId('')
       await queryClient.invalidateQueries({ queryKey: ['questionBank', 'packages'] })
     },
   })
@@ -215,7 +268,7 @@ export function AdminPanelPage(props: AdminPanelPageProps) {
     mutationFn: instructorCreateQuestion,
     onSuccess: async (data) => {
       setCreateQuestion({
-        packageId: '',
+        questionBankId: '',
         topicId: '',
         difficultyId: '',
         prompt: '',
@@ -283,8 +336,8 @@ export function AdminPanelPage(props: AdminPanelPageProps) {
   })
 
   const updatePackageMutation = useMutation({
-    mutationFn: async (input: { packageId: string; body: { name?: string; isHidden?: boolean } }) =>
-      instructorUpdateQuestionPackage(input.packageId, input.body),
+    mutationFn: async (input: { questionBankId: string; body: { name?: string; examPackageId?: string; isHidden?: boolean } }) =>
+      instructorUpdateQuestionBank(input.questionBankId, input.body),
     onSuccess: async () => {
       await queryClient.invalidateQueries({ queryKey: ['questionBank', 'packages'] })
       await queryClient.invalidateQueries({ queryKey: ['questionBank', 'topics'] })
@@ -292,7 +345,7 @@ export function AdminPanelPage(props: AdminPanelPageProps) {
   })
 
   const deletePackageMutation = useMutation({
-    mutationFn: instructorDeleteQuestionPackage,
+    mutationFn: instructorDeleteQuestionBank,
     onSuccess: async () => {
       setSelectedPackageId('')
       setEditPackageName('')
@@ -342,8 +395,16 @@ export function AdminPanelPage(props: AdminPanelPageProps) {
     const pkg = (packages.data?.items ?? []).find((p: any) => p.id === selectedPackageId)
     if (!pkg) return
     setEditPackageName(pkg.name ?? '')
+    setEditPackageExamPackageId((pkg as any).examPackageId ?? '')
     setEditPackageIsHidden(Boolean((pkg as any).isHidden))
   }, [packages.data?.items, selectedPackageId])
+
+  useEffect(() => {
+    if (packageExamPackageId) return
+    const first = (examPackages.data?.items ?? [])[0]
+    if (!first) return
+    setPackageExamPackageId(first.id)
+  }, [examPackages.data?.items, packageExamPackageId])
 
   useEffect(() => {
     const top = (topics.data?.items ?? []).find((t: any) => t.id === selectedTopicId)
@@ -590,7 +651,7 @@ export function AdminPanelPage(props: AdminPanelPageProps) {
     const q = selectedQuestion.data
     const correctIndex = Math.max(0, q.choices.findIndex((c) => c.id === q.correctChoiceId))
     setEditQuestion({
-      packageId: q.packageId ?? '',
+      questionBankId: q.questionBankId ?? '',
       topicId: q.topicId ?? '',
       difficultyId: q.difficultyId,
       prompt: q.prompt,
@@ -636,32 +697,143 @@ export function AdminPanelPage(props: AdminPanelPageProps) {
       <div className="rounded border border-slate-200 p-4">
         <div className="space-y-1">
           <div className="font-medium">Question Bank</div>
-          <div className="text-sm text-slate-600">Create packages, topics, and manage questions (review workflow supported).</div>
+          <div className="text-sm text-slate-600">Create question banks, topics, and manage questions (review workflow supported).</div>
         </div>
 
         <div className="mt-4 grid grid-cols-1 gap-6 lg:grid-cols-2">
           <div className="space-y-6">
             <div className="space-y-2">
-              <div className="font-medium">Packages</div>
+              <div className="font-medium">Exam Packages</div>
               <div className="flex gap-2">
                 <input
                   className="w-full rounded border border-slate-200 px-3 py-2 text-sm"
-                  placeholder="New package name"
-                  value={packageName}
-                  onChange={(e) => setPackageName(e.target.value)}
+                  placeholder="New exam package name"
+                  value={examPackageName}
+                  onChange={(e) => setExamPackageName(e.target.value)}
                 />
                 <button
                   className="rounded border border-slate-200 px-3 py-2 text-sm hover:bg-slate-50 disabled:opacity-50"
                   type="button"
-                  disabled={createPackageMutation.isPending || packageName.trim() === ''}
-                  onClick={() => createPackageMutation.mutate({ name: packageName.trim() })}
+                  disabled={createExamPackageMutation.isPending || examPackageName.trim() === ''}
+                  onClick={() => createExamPackageMutation.mutate({ name: examPackageName.trim() })}
                 >
                   Create
                 </button>
               </div>
-              {createPackageMutation.isError && (
-                <div className="text-sm text-red-600">Failed to create package.</div>
-              )}
+              {createExamPackageMutation.isError ? (
+                <div className="text-sm text-red-600">Failed to create exam package.</div>
+              ) : null}
+
+
+              <div className="max-h-44 overflow-auto rounded border border-slate-200">
+                <div className="divide-y divide-slate-100">
+                  {(examPackages.data?.items ?? []).map((p: any) => (
+                    <button
+                      key={p.id}
+                      type="button"
+                      className={
+                        'flex w-full items-center justify-between px-3 py-2 text-left text-sm hover:bg-slate-50 ' +
+                        (selectedExamPackageId === p.id ? 'bg-slate-50' : '')
+                      }
+                      onClick={() => setSelectedExamPackageId(p.id)}
+                    >
+                      <div className="truncate">
+                        {p.name}
+                        {p.code ? <span className="ml-2 text-xs text-slate-500">({p.code})</span> : null}
+                      </div>
+                      <div className="text-xs text-slate-500">{p.id}</div>
+                    </button>
+                  ))}
+                  {examPackages.isLoading && <div className="px-3 py-2 text-sm text-slate-600">Loading…</div>}
+                </div>
+              </div>
+
+              <div className="rounded border border-slate-200 p-3">
+                <div className="font-medium">Edit exam package</div>
+                {!selectedExamPackageId ? <div className="mt-1 text-sm text-slate-600">Select an exam package above.</div> : null}
+                {selectedExamPackageId ? (
+                  <div className="mt-3 grid gap-2">
+                    <input
+                      className="w-full rounded border border-slate-200 px-3 py-2 text-sm"
+                      value={editExamPackageName}
+                      onChange={(e) => setEditExamPackageName(e.target.value)}
+                    />
+                    <div className="flex flex-wrap gap-2">
+                      <button
+                        type="button"
+                        className="rounded border border-slate-200 px-3 py-2 text-sm hover:bg-slate-50 disabled:opacity-50"
+                        disabled={updateExamPackageMutation.isPending || editExamPackageName.trim() === ''}
+                        onClick={() =>
+                          updateExamPackageMutation.mutate({
+                            examPackageId: selectedExamPackageId,
+                            name: editExamPackageName.trim(),
+                          })
+                        }
+                      >
+                        Save
+                      </button>
+                      <button
+                        type="button"
+                        className="rounded border border-slate-200 px-3 py-2 text-sm hover:bg-slate-50 disabled:opacity-50"
+                        disabled={deleteExamPackageMutation.isPending}
+                        onClick={() => {
+                          if (!confirm('Delete this exam package? Question banks will be detached.')) return
+                          deleteExamPackageMutation.mutate(selectedExamPackageId)
+                        }}
+                      >
+                        Delete
+                      </button>
+                    </div>
+                    {updateExamPackageMutation.isError ? (
+                      <div className="text-sm text-red-600">Failed to update exam package.</div>
+                    ) : null}
+                    {deleteExamPackageMutation.isError ? (
+                      <div className="text-sm text-red-600">Failed to delete exam package.</div>
+                    ) : null}
+                  </div>
+                ) : null}
+              </div>
+            </div>
+
+            <div className="space-y-2">
+              <div className="font-medium">Question Banks</div>
+              <div className="flex gap-2">
+                <input
+                  className="w-full rounded border border-slate-200 px-3 py-2 text-sm"
+                  placeholder="New question bank name"
+                  value={packageName}
+                  onChange={(e) => setPackageName(e.target.value)}
+                />
+                <select
+                  className="rounded border border-slate-200 px-3 py-2 text-sm"
+                  value={packageExamPackageId}
+                  onChange={(e) => setPackageExamPackageId(e.target.value)}
+                >
+                  <option value="">Select exam package</option>
+                  {(examPackages.data?.items ?? []).map((p: any) => (
+                    <option key={p.id} value={p.id}>
+                      {p.name}
+                    </option>
+                  ))}
+                </select>
+                <button
+                  className="rounded border border-slate-200 px-3 py-2 text-sm hover:bg-slate-50 disabled:opacity-50"
+                  type="button"
+                  disabled={
+                    createPackageMutation.isPending ||
+                    packageName.trim() === '' ||
+                    packageExamPackageId.trim() === '' ||
+                    examPackages.isLoading ||
+                    examPackages.isError
+                  }
+                  onClick={() =>
+                    createPackageMutation.mutate({ name: packageName.trim(), examPackageId: packageExamPackageId.trim() })
+                  }
+                >
+                  Create
+                </button>
+              </div>
+              {createPackageMutation.isError && <div className="text-sm text-red-600">Failed to create question bank.</div>}
 
               <div className="max-h-44 overflow-auto rounded border border-slate-200">
                 <div className="divide-y divide-slate-100">
@@ -679,7 +851,10 @@ export function AdminPanelPage(props: AdminPanelPageProps) {
                         {p.name}
                         {p.isHidden ? <span className="ml-2 text-xs text-slate-500">(hidden)</span> : null}
                       </div>
-                      <div className="text-xs text-slate-500">{p.id}</div>
+                      <div className="text-xs text-slate-500">
+                        {(p as any).examPackageId ? `${(p as any).examPackageId} · ` : ''}
+                        {p.id}
+                      </div>
                     </button>
                   ))}
                   {packages.isLoading && <div className="px-3 py-2 text-sm text-slate-600">Loading…</div>}
@@ -688,8 +863,8 @@ export function AdminPanelPage(props: AdminPanelPageProps) {
               </div>
 
               <div className="rounded border border-slate-200 p-3">
-                <div className="font-medium">Edit package</div>
-                {!selectedPackageId ? <div className="mt-1 text-sm text-slate-600">Select a package above.</div> : null}
+                <div className="font-medium">Edit question bank</div>
+                {!selectedPackageId ? <div className="mt-1 text-sm text-slate-600">Select a question bank above.</div> : null}
                 {selectedPackageId ? (
                   <div className="mt-3 grid gap-2">
                     <input
@@ -697,6 +872,19 @@ export function AdminPanelPage(props: AdminPanelPageProps) {
                       value={editPackageName}
                       onChange={(e) => setEditPackageName(e.target.value)}
                     />
+                    <select
+                      className="w-full rounded border border-slate-200 px-3 py-2 text-sm"
+                      value={editPackageExamPackageId}
+                      onChange={(e) => setEditPackageExamPackageId(e.target.value)}
+                      disabled={examPackages.isLoading || examPackages.isError}
+                    >
+                      <option value="">No exam package</option>
+                      {(examPackages.data?.items ?? []).map((p: any) => (
+                        <option key={p.id} value={p.id}>
+                          {p.name}
+                        </option>
+                      ))}
+                    </select>
                     <label className="flex items-center gap-2 text-sm">
                       <input
                         type="checkbox"
@@ -712,8 +900,12 @@ export function AdminPanelPage(props: AdminPanelPageProps) {
                         disabled={updatePackageMutation.isPending || editPackageName.trim() === ''}
                         onClick={() =>
                           updatePackageMutation.mutate({
-                            packageId: selectedPackageId,
-                            body: { name: editPackageName.trim(), isHidden: editPackageIsHidden },
+                            questionBankId: selectedPackageId,
+                            body: {
+                              name: editPackageName.trim(),
+                              examPackageId: editPackageExamPackageId,
+                              isHidden: editPackageIsHidden,
+                            },
                           })
                         }
                       >
@@ -724,7 +916,7 @@ export function AdminPanelPage(props: AdminPanelPageProps) {
                         className="rounded border border-slate-200 px-3 py-2 text-sm hover:bg-slate-50 disabled:opacity-50"
                         disabled={deletePackageMutation.isPending}
                         onClick={() => {
-                          if (!confirm('Delete this package? Topics/questions will be detached.')) return
+                          if (!confirm('Delete this question bank? Topics/questions will be detached.')) return
                           deletePackageMutation.mutate(selectedPackageId)
                         }}
                       >
@@ -747,7 +939,7 @@ export function AdminPanelPage(props: AdminPanelPageProps) {
                   value={topicPackageId}
                   onChange={(e) => setTopicPackageId(e.target.value)}
                 >
-                  <option value="">No package (global)</option>
+                  <option value="">No question bank (global)</option>
                   {(packages.data?.items ?? []).map((p: any) => (
                     <option key={p.id} value={p.id}>
                       {p.name}{p.isHidden ? ' (hidden)' : ''}
@@ -768,7 +960,7 @@ export function AdminPanelPage(props: AdminPanelPageProps) {
                     onClick={() =>
                       createTopicMutation.mutate({
                         name: topicName.trim(),
-                        packageId: topicPackageId ? topicPackageId : null,
+                        questionBankId: topicPackageId ? topicPackageId : null,
                       })
                     }
                   >
@@ -794,7 +986,7 @@ export function AdminPanelPage(props: AdminPanelPageProps) {
                         {t.name}
                         {t.isHidden ? <span className="ml-2 text-xs text-slate-500">(hidden)</span> : null}
                       </div>
-                      <div className="text-xs text-slate-500">{t.packageId ?? '—'}</div>
+                      <div className="text-xs text-slate-500">{t.questionBankId ?? '—'}</div>
                     </button>
                   ))}
                   {topics.isLoading && <div className="px-3 py-2 text-sm text-slate-600">Loading…</div>}
@@ -910,10 +1102,10 @@ export function AdminPanelPage(props: AdminPanelPageProps) {
               <div className="grid grid-cols-1 gap-2">
                 <select
                   className="w-full rounded border border-slate-200 px-3 py-2 text-sm"
-                  value={createQuestion.packageId}
-                  onChange={(e) => setCreateQuestion((s) => ({ ...s, packageId: e.target.value, topicId: '' }))}
+                  value={createQuestion.questionBankId}
+                  onChange={(e) => setCreateQuestion((s) => ({ ...s, questionBankId: e.target.value, topicId: '' }))}
                 >
-                  <option value="">No package</option>
+                  <option value="">No question bank</option>
                   {visiblePackagesForSelect.map((p: any) => (
                     <option key={p.id} value={p.id}>
                       {p.name}
@@ -997,7 +1189,7 @@ export function AdminPanelPage(props: AdminPanelPageProps) {
                   }
                   onClick={() =>
                     createQuestionMutation.mutate({
-                      packageId: createQuestion.packageId ? createQuestion.packageId : null,
+                      questionBankId: createQuestion.questionBankId ? createQuestion.questionBankId : null,
                       topicId: createQuestion.topicId ? createQuestion.topicId : null,
                       difficultyId: createQuestion.difficultyId,
                       prompt: createQuestion.prompt,
@@ -1036,10 +1228,10 @@ export function AdminPanelPage(props: AdminPanelPageProps) {
 
                 <select
                   className="w-full rounded border border-slate-200 px-3 py-2 text-sm"
-                  value={questionFilters.packageId}
-                  onChange={(e) => setQuestionFilters((s) => ({ ...s, packageId: e.target.value, topicId: '' }))}
+                  value={questionFilters.questionBankId}
+                  onChange={(e) => setQuestionFilters((s) => ({ ...s, questionBankId: e.target.value, topicId: '' }))}
                 >
-                  <option value="">Any package</option>
+                  <option value="">Any question bank</option>
                   {visiblePackagesForSelect.map((p: any) => (
                     <option key={p.id} value={p.id}>
                       {p.name}
@@ -1187,10 +1379,10 @@ export function AdminPanelPage(props: AdminPanelPageProps) {
                 <div className="space-y-3">
                   <select
                     className="w-full rounded border border-slate-200 px-3 py-2 text-sm"
-                    value={editQuestion.packageId}
-                    onChange={(e) => setEditQuestion((s) => (s ? { ...s, packageId: e.target.value, topicId: '' } : s))}
+                    value={editQuestion.questionBankId}
+                    onChange={(e) => setEditQuestion((s) => (s ? { ...s, questionBankId: e.target.value, topicId: '' } : s))}
                   >
-                    <option value="">No package</option>
+                    <option value="">No question bank</option>
                     {visiblePackagesForSelect.map((p: any) => (
                       <option key={p.id} value={p.id}>
                         {p.name}
@@ -1206,7 +1398,7 @@ export function AdminPanelPage(props: AdminPanelPageProps) {
                     <option value="">No topic</option>
                     {(topics.data?.items ?? [])
                       .filter((t: any) => !t.isHidden)
-                      .filter((t) => (editQuestion.packageId ? t.packageId === editQuestion.packageId : true))
+                      .filter((t) => (editQuestion.questionBankId ? t.questionBankId === editQuestion.questionBankId : true))
                       .map((t) => (
                       <option key={t.id} value={t.id}>
                         {t.name}
@@ -1275,7 +1467,7 @@ export function AdminPanelPage(props: AdminPanelPageProps) {
                         updateQuestionMutation.mutate({
                           questionId: selectedQuestionId,
                           body: {
-                            packageId: editQuestion.packageId ? editQuestion.packageId : null,
+                            questionBankId: editQuestion.questionBankId ? editQuestion.questionBankId : null,
                             topicId: editQuestion.topicId ? editQuestion.topicId : null,
                             difficultyId: editQuestion.difficultyId,
                             prompt: editQuestion.prompt,
