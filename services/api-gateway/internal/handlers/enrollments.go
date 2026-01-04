@@ -115,4 +115,26 @@ func RegisterEnrollmentRoutes(r *gin.Engine, pool *pgxpool.Pool) {
 
 		c.JSON(http.StatusOK, gin.H{"success": true})
 	})
+
+	r.DELETE("/student/enrollments/:examPackageId", auth.RequirePortalAuth(pool, "student", "student"), func(c *gin.Context) {
+		userID, ok := auth.GetUserID(c)
+		if !ok {
+			c.JSON(http.StatusUnauthorized, gin.H{"message": "unauthorized"})
+			return
+		}
+
+		examPackageID := strings.TrimSpace(c.Param("examPackageId"))
+		if examPackageID == "" {
+			c.JSON(http.StatusBadRequest, gin.H{"message": "examPackageId is required"})
+			return
+		}
+
+		_, err := pool.Exec(context.Background(), `delete from user_exam_package_enrollments where user_id=$1 and exam_package_id=$2`, userID, examPackageID)
+		if err != nil {
+			c.JSON(http.StatusInternalServerError, gin.H{"message": "failed to cancel enrollment"})
+			return
+		}
+
+		c.JSON(http.StatusOK, gin.H{"success": true})
+	})
 }

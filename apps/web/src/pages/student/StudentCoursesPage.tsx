@@ -2,7 +2,7 @@ import { Link } from 'react-router-dom'
 
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 
-import { listExamPackages, studentEnroll, studentListEnrollments } from '@/api/endpoints'
+import { listExamPackages, studentCancelEnrollment, studentEnroll, studentListEnrollments } from '@/api/endpoints'
 
 export function StudentCoursesPage() {
   const queryClient = useQueryClient()
@@ -24,6 +24,16 @@ export function StudentCoursesPage() {
     mutationFn: async (examPackageId: string) => studentEnroll({ examPackageId }),
     onSuccess: async () => {
       await queryClient.invalidateQueries({ queryKey: ['student', 'enrollments'] })
+    },
+  })
+
+  const unenrollMutation = useMutation({
+    mutationFn: async (examPackageId: string) => studentCancelEnrollment(examPackageId),
+    onSuccess: async () => {
+      await Promise.all([
+        queryClient.invalidateQueries({ queryKey: ['student', 'enrollments'] }),
+        queryClient.invalidateQueries({ queryKey: ['practice-templates'] }),
+      ])
     },
   })
 
@@ -49,7 +59,9 @@ export function StudentCoursesPage() {
           {packagesQuery.data!.items.map((p) => {
             const isEnrolled = enrolledIds.has(p.id)
             const isEnrolling = enrollMutation.isPending && enrollMutation.variables === p.id
+            const isUnenrolling = unenrollMutation.isPending && unenrollMutation.variables === p.id
             const enrollDisabled = isEnrolled || isEnrolling || enrollmentsQuery.isError
+            const unenrollDisabled = !isEnrolled || isUnenrolling || enrollmentsQuery.isError
 
             return (
               <div key={p.id} className="rounded border border-slate-200 p-4">
@@ -76,10 +88,27 @@ export function StudentCoursesPage() {
                   >
                     {isEnrolled ? 'Enrolled' : isEnrolling ? 'Enrolling…' : 'Enroll'}
                   </button>
+
+                  <button
+                    type="button"
+                    className={[
+                      'rounded border px-3 py-2 text-sm',
+                      unenrollDisabled ? 'border-slate-100 text-slate-400' : 'border-slate-200 hover:bg-slate-50',
+                    ].join(' ')}
+                    disabled={unenrollDisabled}
+                    onClick={() => unenrollMutation.mutate(p.id)}
+                    title={enrollmentsQuery.isError ? 'Sign in as a student to manage enrollment.' : undefined}
+                  >
+                    {isUnenrolling ? 'Unenrolling…' : 'Unenroll'}
+                  </button>
                 </div>
 
                 {enrollMutation.isError && enrollMutation.variables === p.id ? (
                   <div className="mt-3 text-sm text-rose-700">Failed to enroll.</div>
+                ) : null}
+
+                {unenrollMutation.isError && unenrollMutation.variables === p.id ? (
+                  <div className="mt-3 text-sm text-rose-700">Failed to unenroll.</div>
                 ) : null}
 
                 {enrollmentsQuery.isError ? (

@@ -77,6 +77,16 @@ export async function studentEnroll(body: StudentEnrollRequest): Promise<Student
   return apiFetchJson<StudentEnrollResponse>('/student/enrollments', { method: 'POST', body })
 }
 
+export type StudentCancelEnrollmentResponse =
+  paths['/student/enrollments/{examPackageId}']['delete']['responses'][200]['content']['application/json']
+
+export async function studentCancelEnrollment(examPackageId: string): Promise<StudentCancelEnrollmentResponse> {
+  return apiFetchJson<StudentCancelEnrollmentResponse>(
+    `/student/enrollments/${encodeURIComponent(examPackageId)}`,
+    { method: 'DELETE' },
+  )
+}
+
 export type AdminListExamPackagesResponse =
   paths['/admin/exam-packages']['get']['responses'][200]['content']['application/json']
 

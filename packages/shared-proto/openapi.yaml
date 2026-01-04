@@ -247,6 +247,28 @@ paths:
               schema:
                 $ref: '#/components/schemas/SuccessResponse'
 
+  /student/enrollments/{examPackageId}:
+    delete:
+      operationId: studentCancelEnrollment
+      security:
+        - bearerAuth: []
+        - cookieAuth: []
+      parameters:
+        - name: examPackageId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+        - $ref: '#/components/parameters/CsrfToken'
+      responses:
+        '200':
+          description: Enrollment cancelled
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SuccessResponse'
+
   /instructor/auth/login:
     post:
       operationId: instructorLogin

@@ -2,7 +2,7 @@ import { Link, useParams } from 'react-router-dom'
 
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 
-import { listExamPackages, studentEnroll, studentListEnrollments } from '@/api/endpoints'
+import { listExamPackages, studentCancelEnrollment, studentEnroll, studentListEnrollments } from '@/api/endpoints'
 import { EXAM_PACKAGES } from '@/packages/catalog'
 
 export function PackageDetailsPage() {
@@ -29,12 +29,23 @@ export function PackageDetailsPage() {
     },
   })
 
+  const unenrollMutation = useMutation({
+    mutationFn: async (examPackageId: string) => studentCancelEnrollment(examPackageId),
+    onSuccess: async () => {
+      await Promise.all([
+        queryClient.invalidateQueries({ queryKey: ['student', 'enrollments'] }),
+        queryClient.invalidateQueries({ queryKey: ['practice-templates'] }),
+      ])
+    },
+  })
+
   const apiPkg = packagesQuery.data?.items?.find((p) => p.id === packageId) ?? null
   const demoPkg = apiPkg ? (EXAM_PACKAGES.find((p) => p.name === apiPkg.name) ?? null) : null
 
   const enrolledIds = new Set(enrollmentsQuery.data?.examPackageIds ?? [])
   const isEnrolled = apiPkg ? enrolledIds.has(apiPkg.id) : false
   const isEnrolling = enrollMutation.isPending && enrollMutation.variables === apiPkg?.id
+  const isUnenrolling = unenrollMutation.isPending && unenrollMutation.variables === apiPkg?.id
 
   if (packagesQuery.isLoading) {
     return <div className="text-sm text-slate-600">Loading package…</div>
@@ -122,12 +133,29 @@ export function PackageDetailsPage() {
             >
               {isEnrolled ? 'Enrolled' : isEnrolling ? 'Enrolling…' : 'Enroll'}
             </button>
+
+            <button
+              type="button"
+              className={[
+                'w-full rounded border px-3 py-2 text-sm',
+                !isEnrolled || enrollmentsQuery.isError || isUnenrolling
+                  ? 'border-slate-100 text-slate-400'
+                  : 'border-slate-200 hover:bg-slate-50',
+              ].join(' ')}
+              disabled={!isEnrolled || enrollmentsQuery.isError || isUnenrolling}
+              onClick={() => unenrollMutation.mutate(apiPkg.id)}
+              title={enrollmentsQuery.isError ? 'Sign in as a student to manage enrollment.' : undefined}
+            >
+              {isUnenrolling ? 'Unenrolling…' : 'Unenroll'}
+            </button>
             <Link className="block w-full rounded border border-slate-200 px-3 py-2 text-center text-sm hover:bg-slate-50" to="/student">
               Back
             </Link>
           </div>
 
           {enrollMutation.isError ? <div className="mt-3 text-sm text-rose-700">Failed to enroll.</div> : null}
+
+          {unenrollMutation.isError ? <div className="mt-3 text-sm text-rose-700">Failed to unenroll.</div> : null}
 
           {enrollmentsQuery.isError ? (
             <div className="mt-4 text-sm text-slate-600">

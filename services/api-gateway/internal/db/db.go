@@ -461,95 +461,126 @@ func Migrate(ctx context.Context, pool *pgxpool.Pool) error {
 		where qbp.exam_package_id is not null and qbp.exam_package_id <> ''
 		on conflict (exam_package_id, question_bank_package_id) do nothing`)
 
-	// Best-effort cleanup so FK constraints can be added safely.
-	// If practice_sessions.package_id was previously text (e.g. 'gre'), map it to UUID via exam_packages.code.
+	// Normalize legacy package IDs:
+	// - user_exam_package_enrollments.exam_package_id: text -> uuid
+	// - practice_sessions.package_id: text -> uuid
+	// Some older dev DBs have constraints that prevent ALTER TYPE, so we drop/recreate them.
 	_, _ = pool.Exec(ctx, `do $$
+	declare
+		enroll_type text;
+		sess_type text;
+		def text;
 	begin
+		-- Drop constraints that would block type changes.
 		if to_regclass('public.practice_sessions') is not null then
-			-- Map legacy codes to UUIDs (store as text temporarily so we can cast).
-			update practice_sessions ps
-			set package_id = ep.id::text
-			from exam_packages ep
-			where ps.package_id is not null and ps.package_id::text = ep.code;
-
-			-- Null out obviously-non-UUID values before attempting a type change.
-			update practice_sessions set package_id=null where package_id is not null and package_id::text !~* '^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$';
-			begin
-				alter table practice_sessions alter column package_id type uuid using package_id::uuid;
-			exception when others then
-				-- If this fails (e.g. already uuid), ignore.
-			end;
+			alter table practice_sessions drop constraint if exists fk_practice_sessions_enrollment;
+			alter table practice_sessions drop constraint if exists fk_practice_sessions_exam_package;
 		end if;
-	end $$;`)
 
-	// If user_exam_package_enrollments.exam_package_id was previously text (e.g. 'gre'), map it to UUID via exam_packages.code.
-	_, _ = pool.Exec(ctx, `do $$
-	begin
+		-- Convert enrollments.exam_package_id to uuid.
 		if to_regclass('public.user_exam_package_enrollments') is not null then
-			-- Only attempt if the column exists.
-			if exists (
-				select 1 from information_schema.columns
-				where table_schema='public' and table_name='user_exam_package_enrollments' and column_name='exam_package_id'
-			) then
-				-- Map legacy codes to UUIDs (store as text temporarily so we can cast).
+			select data_type into enroll_type
+			from information_schema.columns
+			where table_schema='public' and table_name='user_exam_package_enrollments' and column_name='exam_package_id';
+
+			if enroll_type is not null and enroll_type <> 'uuid' then
+				-- Map legacy codes to UUIDs (store as text so we can cast).
 				update user_exam_package_enrollments e
 				set exam_package_id = ep.id::text
 				from exam_packages ep
 				where e.exam_package_id is not null and e.exam_package_id::text = ep.code;
 
 				-- Drop rows that still don't map cleanly.
-				delete from user_exam_package_enrollments where exam_package_id is not null and exam_package_id::text !~* '^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$';
+				delete from user_exam_package_enrollments
+				where exam_package_id is not null
+					and exam_package_id::text !~* '^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$';
+
+				alter table user_exam_package_enrollments drop constraint if exists user_exam_package_enrollments_pkey;
+				alter table user_exam_package_enrollments alter column exam_package_id type uuid using exam_package_id::uuid;
+				alter table user_exam_package_enrollments add primary key (user_id, exam_package_id);
+			end if;
+		end if;
+
+		-- Convert practice_sessions.package_id to uuid.
+		if to_regclass('public.practice_sessions') is not null then
+			select data_type into sess_type
+			from information_schema.columns
+			where table_schema='public' and table_name='practice_sessions' and column_name='package_id';
+
+			if sess_type is not null and sess_type <> 'uuid' then
+				-- Map legacy codes to UUIDs (store as text so we can cast).
+				update practice_sessions ps
+				set package_id = ep.id::text
+				from exam_packages ep
+				where ps.package_id is not null and ps.package_id::text = ep.code;
+
+				-- Null out obviously-non-UUID values before attempting a type change.
+				update practice_sessions
+				set package_id=null
+				where package_id is not null
+					and package_id::text !~* '^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$';
+
+				alter table practice_sessions alter column package_id type uuid using package_id::uuid;
+			end if;
+		end if;
+
+		-- Ensure enrollments have an FK to exam_packages.
+		if to_regclass('public.user_exam_package_enrollments') is not null then
+			if not exists (
+				select 1
+				from pg_constraint
+				where conrelid='public.user_exam_package_enrollments'::regclass
+					and contype='f'
+					and confrelid='public.exam_packages'::regclass
+			) then
 				begin
-					alter table user_exam_package_enrollments alter column exam_package_id type uuid using exam_package_id::uuid;
+					alter table user_exam_package_enrollments
+						add constraint fk_user_exam_package_enrollments_exam_package
+						foreign key (exam_package_id) references exam_packages(id) on delete restrict;
 				exception when others then
-					-- If this fails (e.g. already uuid), ignore.
+					-- Ignore if the constraint exists under another name.
 				end;
+			end if;
+		end if;
+
+		-- Re-add practice session FKs (and keep unenroll working by cascading dependent sessions).
+		if to_regclass('public.practice_sessions') is not null then
+			begin
+				alter table practice_sessions
+					add constraint fk_practice_sessions_exam_package
+					foreign key (package_id) references exam_packages(id) on delete set null;
+			exception when others then
+				-- Ignore if exists.
+			end;
+
+			select pg_get_constraintdef(oid) into def
+			from pg_constraint
+			where conname='fk_practice_sessions_enrollment'
+				and conrelid='public.practice_sessions'::regclass;
+
+			if def is null then
+				alter table practice_sessions
+					add constraint fk_practice_sessions_enrollment
+					foreign key (user_id, package_id)
+					references user_exam_package_enrollments(user_id, exam_package_id)
+					on delete cascade;
+			elsif position('ON DELETE CASCADE' in upper(def)) = 0 then
+				alter table practice_sessions drop constraint if exists fk_practice_sessions_enrollment;
+				alter table practice_sessions
+					add constraint fk_practice_sessions_enrollment
+					foreign key (user_id, package_id)
+					references user_exam_package_enrollments(user_id, exam_package_id)
+					on delete cascade;
 			end if;
 		end if;
 	end $$;`)
 
-	// Re-add FK from enrollments -> exam_packages if it was dropped by a legacy migration.
-	_, _ = pool.Exec(ctx, `do $$
-	begin
-		if to_regclass('public.user_exam_package_enrollments') is null then
-			return;
-		end if;
-		-- Only add if there's no existing FK to exam_packages.
-		if not exists (
-			select 1
-			from pg_constraint
-			where conrelid='public.user_exam_package_enrollments'::regclass
-				and contype='f'
-				and confrelid='public.exam_packages'::regclass
-		) then
-			begin
-				alter table user_exam_package_enrollments
-					add constraint fk_user_exam_package_enrollments_exam_package
-					foreign key (exam_package_id) references exam_packages(id) on delete restrict;
-			exception when others then
-				-- If the column type isn't uuid yet or the constraint exists under another name, ignore.
-			end;
-		end if;
-	end $$;`)
 
+	// Cleanup (best-effort, safe after normalization)
 	_, _ = pool.Exec(ctx, `update practice_sessions set package_id=null where package_id is not null and package_id not in (select id from exam_packages)`)
 	_, _ = pool.Exec(ctx, `update practice_sessions ps set package_id=null where package_id is not null and not exists (
 		select 1 from user_exam_package_enrollments e where e.user_id=ps.user_id and e.exam_package_id=ps.package_id
-	)`) 
-
-	// Foreign keys / constraints (idempotent via pg_constraint guard)
-	_, _ = pool.Exec(ctx, `do $$ begin
-		if not exists (select 1 from pg_constraint where conname='fk_practice_sessions_exam_package') then
-			alter table practice_sessions add constraint fk_practice_sessions_exam_package
-				foreign key (package_id) references exam_packages(id) on delete set null;
-		end if;
-	end $$;`)
-	_, _ = pool.Exec(ctx, `do $$ begin
-		if not exists (select 1 from pg_constraint where conname='fk_practice_sessions_enrollment') then
-			alter table practice_sessions add constraint fk_practice_sessions_enrollment
-				foreign key (user_id, package_id) references user_exam_package_enrollments(user_id, exam_package_id) on delete restrict;
-		end if;
-	end $$;`)
+	)`)
 
 	if err := bootstrapUserFromEnv(ctx, pool, "admin", "BOOTSTRAP_ADMIN_EMAIL", "BOOTSTRAP_ADMIN_PASSWORD"); err != nil {
 		return err

@@ -250,6 +250,22 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/student/enrollments/{examPackageId}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        delete: operations["studentCancelEnrollment"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/instructor/auth/login": {
         parameters: {
             query?: never;
@@ -2091,6 +2107,31 @@ export interface operations {
         };
         responses: {
             /** @description Enrolled */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SuccessResponse"];
+                };
+            };
+        };
+    };
+    studentCancelEnrollment: {
+        parameters: {
+            query?: never;
+            header: {
+                /** @description Double-submit CSRF token. Must match the ace_csrf cookie. */
+                "X-CSRF-Token": components["parameters"]["CsrfToken"];
+            };
+            path: {
+                examPackageId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Enrollment cancelled */
             200: {
                 headers: {
                     [name: string]: unknown;
