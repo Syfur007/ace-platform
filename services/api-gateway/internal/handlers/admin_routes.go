@@ -232,7 +232,8 @@ type AdminExamPackageListItem struct {
 	ID        string `json:"id"`
 	Code      string `json:"code"`
 	Name      string `json:"name"`
- 	Overview  *string `json:"overview"`
+	Subtitle  *string `json:"subtitle"`
+	Overview  *string `json:"overview"`
 	Modules   []string `json:"modules"`
 	Highlights []string `json:"highlights"`
 	ModuleSections []ExamPackageModuleSection `json:"moduleSections"`

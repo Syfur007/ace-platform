@@ -10,6 +10,7 @@ import (
 
 	"github.com/gin-gonic/gin"
 
+	"github.com/ace-platform/api-gateway/internal/bootstrap"
 	"github.com/ace-platform/api-gateway/internal/db"
 	"github.com/ace-platform/api-gateway/internal/handlers"
 )
@@ -26,7 +27,7 @@ func main() {
 	}
 	defer pool.Close()
 
-	if err := db.Migrate(context.Background(), pool); err != nil {
+	if err := bootstrap.UsersFromEnv(context.Background(), pool); err != nil {
 		log.Fatal(err)
 	}
 
