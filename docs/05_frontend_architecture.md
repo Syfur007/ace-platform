@@ -122,4 +122,3 @@ Below is a per-page list of the exact functions imported from `@/api/endpoints` 
 
 Notes:
 - Some pages import many admin/instructor helpers; the actual network calls originate from the functions listed above, which in turn call `apiFetchJson` under the hood.
-- To generate an exhaustive matrix including where in each file the call occurs, I can scan for usages of the imported symbols and produce a CSV or table mapping file → (line numbers, function usage). Tell me if you'd like that.

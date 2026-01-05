@@ -121,5 +121,3 @@ Notes / caveats
 - Cookie-based auth means many endpoints rely on `ace_access` and `ace_refresh` cookies plus `ace_csrf` header for unsafe methods; the client-side `apiFetchJson` expects `credentials: 'include'`.
 - This list excludes internal helper functions and any commented or unused routes.
 
-If you want, I can convert this into a machine-readable OpenAPI YAML (partial, generated from the handlers) or produce a CSV mapping endpoints→tables. Which would you like next?
-

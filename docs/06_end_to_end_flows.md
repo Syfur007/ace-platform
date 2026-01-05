@@ -83,5 +83,3 @@ Implementation notes (quick trace tips)
 - Tracing UI → endpoint: search the page file (for example `apps/web/src/pages/student/StudentPracticeSessionPage.tsx`) for imports from `@/api/endpoints` to find exactly which functions are used.
 - Network behavior: all requests go through `apiFetchJson` (`apps/web/src/api/http.ts`) which uses `credentials: 'include'`, adds the `X-CSRF-Token` header for unsafe methods, and performs a one-shot refresh on 401 responses.
 - DB table names to inspect for these flows: `users`, `auth_sessions`, `auth_refresh_tokens`, `practice_sessions`, `practice_answers` (see `services/api-gateway/internal/db/db.go` and `services/api-gateway/internal/handlers/practice.go`).
-
-If you want, I can now expand each step into a sequence diagram or produce a CSV matrix mapping page → endpoint → handler → DB table → line numbers. Which would you prefer next? 

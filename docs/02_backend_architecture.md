@@ -106,6 +106,3 @@ Graphically: main → db
 **Things that are not present / ignored**
 - No background worker or separate microservice code is present in this repository — all implemented behavior lives in the API gateway binary.
 - No external queues or schedulers are implemented here; any mention of other services is not implemented in this codebase and thus ignored.
-
-If you'd like, I can also produce a visual dependency diagram (Graphviz) or an endpoint-to-table mapping file to help onboarding new developers. Which would you prefer next?
-

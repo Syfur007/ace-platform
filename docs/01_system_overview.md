@@ -63,7 +63,3 @@ This document describes how the system actually works based on the implemented c
 - `apps/web/src/api/http.ts` and `apps/web/src/api/endpoints.ts` — frontend API client and endpoint wrappers
 - `apps/web/src/auth/token.ts` — portal helpers and localStorage handling
 
-**Next steps / suggestions (explicit, optional)**
-- If you want, I can: add sequence diagrams of auth flows, expand per-endpoint contracts, or link OpenAPI schema (if present) into this document. Otherwise this is a concise, code-backed system overview.
-
-

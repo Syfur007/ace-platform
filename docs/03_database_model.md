@@ -123,4 +123,3 @@ Summary
 - The migration script (`db.Migrate`) defines a normalized relational schema capturing users, sessions, exam packages, enrollments, practice and exam sessions, question banks, and admin-related limits and audit logs. Handlers implement concrete flows that read and mutate those tables; auth/session tables are central to request validation.
 - No tables appear to be orphaned — even admin/limits tables are referenced from admin routes and session-limit enforcement logic. Legacy fields exist for migration/backfill safety and are only minimally used by the migration code.
 
-If you want, I can generate a DOT/graphviz diagram of these table relationships, or an endpoint→table mapping CSV to drive a data migration plan. Which would help you most next?
