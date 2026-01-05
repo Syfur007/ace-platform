@@ -167,13 +167,52 @@ func Migrate(ctx context.Context, pool *pgxpool.Pool) error {
 		end $$;`,
 		`alter table exam_packages alter column code set not null;`,
 		`create index if not exists idx_exam_packages_hidden on exam_packages(is_hidden);`,
+
+		// Exam package tiers (policy containers)
+		`create table if not exists exam_package_tiers (
+			id uuid primary key default gen_random_uuid(),
+			exam_package_id uuid not null references exam_packages(id) on delete cascade,
+			code text not null,
+			name text not null,
+			sort_order integer not null default 0,
+			is_default boolean not null default false,
+			is_active boolean not null default true,
+			policy jsonb not null default '{}'::jsonb,
+			created_at timestamptz not null default now(),
+			updated_at timestamptz not null default now(),
+			unique (exam_package_id, code)
+		);`,
+		`create index if not exists idx_exam_package_tiers_pkg on exam_package_tiers(exam_package_id, sort_order);`,
+		`create index if not exists idx_exam_package_tiers_default on exam_package_tiers(exam_package_id, is_default);`,
+		`create index if not exists idx_exam_package_tiers_active on exam_package_tiers(exam_package_id, is_active);`,
+
 		`create table if not exists user_exam_package_enrollments (
 			user_id text not null references users(id) on delete cascade,
 			exam_package_id uuid not null references exam_packages(id) on delete restrict,
+			tier_id uuid null references exam_package_tiers(id) on delete restrict,
 			created_at timestamptz not null default now(),
+			updated_at timestamptz not null default now(),
 			primary key (user_id, exam_package_id)
 		);`,
+		`alter table user_exam_package_enrollments add column if not exists tier_id uuid null;`,
+		`alter table user_exam_package_enrollments add column if not exists updated_at timestamptz not null default now();`,
 		`create index if not exists idx_user_exam_package_enrollments_pkg on user_exam_package_enrollments(exam_package_id);`,
+		`create index if not exists idx_user_exam_package_enrollments_tier on user_exam_package_enrollments(tier_id);`,
+
+		// Enrollment tier history (immutable events)
+		`create table if not exists user_exam_package_enrollment_events (
+			id bigserial primary key,
+			user_id text not null references users(id) on delete cascade,
+			exam_package_id uuid not null references exam_packages(id) on delete cascade,
+			from_tier_id uuid null references exam_package_tiers(id) on delete restrict,
+			to_tier_id uuid not null references exam_package_tiers(id) on delete restrict,
+			changed_at timestamptz not null default now(),
+			changed_by_user_id text null references users(id) on delete set null,
+			reason text not null default '',
+			metadata jsonb not null default '{}'::jsonb
+		);`,
+		`create index if not exists idx_enrollment_events_user_pkg on user_exam_package_enrollment_events(user_id, exam_package_id, id desc);`,
+		`create index if not exists idx_enrollment_events_changed_at on user_exam_package_enrollment_events(changed_at desc);`,
 
 		// Auth sessions + refresh tokens (cookie-based auth)
 		`create table if not exists auth_sessions (
@@ -256,6 +295,7 @@ func Migrate(ctx context.Context, pool *pgxpool.Pool) error {
 			id text primary key,
 			user_id text not null references users(id) on delete cascade,
 			package_id uuid null,
+			tier_id uuid null,
 			template_id uuid null,
 			is_timed boolean not null,
 			started_at timestamptz not null default now(),
@@ -273,6 +313,7 @@ func Migrate(ctx context.Context, pool *pgxpool.Pool) error {
 			last_activity_at timestamptz not null default now()
 		);`,
 		`alter table practice_sessions add column if not exists template_id uuid null;`,
+		`alter table practice_sessions add column if not exists tier_id uuid null;`,
 		`alter table practice_sessions add column if not exists last_activity_at timestamptz not null default now();`,
 		`alter table practice_sessions add column if not exists started_at timestamptz not null default now();`,
 		`alter table practice_sessions add column if not exists time_limit_seconds integer not null default 0;`,
@@ -281,6 +322,7 @@ func Migrate(ctx context.Context, pool *pgxpool.Pool) error {
 		`alter table practice_sessions add column if not exists questions_snapshot jsonb not null default '[]'::jsonb;`,
 		`alter table practice_sessions add column if not exists paused_at timestamptz null;`,
 		`create index if not exists idx_practice_sessions_template_id on practice_sessions(template_id);`,
+		`create index if not exists idx_practice_sessions_tier_id on practice_sessions(tier_id);`,
 		`create table if not exists practice_answers (
 			id bigserial primary key,
 			session_id text not null references practice_sessions(id) on delete cascade,
@@ -296,6 +338,7 @@ func Migrate(ctx context.Context, pool *pgxpool.Pool) error {
 			id text not null,
 			status text not null default 'active',
 			exam_package_id uuid null,
+			tier_id uuid null,
 			snapshot jsonb not null default '{}'::jsonb,
 			created_at timestamptz not null default now(),
 			updated_at timestamptz not null default now(),
@@ -310,6 +353,7 @@ func Migrate(ctx context.Context, pool *pgxpool.Pool) error {
 			primary key (user_id, id)
 		);`,
 		`alter table exam_sessions add column if not exists exam_package_id uuid null;`,
+		`alter table exam_sessions add column if not exists tier_id uuid null;`,
 		`alter table exam_sessions add column if not exists submitted_at timestamptz null;`,
 		`alter table exam_sessions add column if not exists terminated_at timestamptz null;`,
 		`alter table exam_sessions add column if not exists terminated_by_user_id text null references users(id) on delete set null;`,
@@ -320,6 +364,7 @@ func Migrate(ctx context.Context, pool *pgxpool.Pool) error {
 		`create index if not exists idx_exam_sessions_last_heartbeat on exam_sessions(last_heartbeat_at desc);`,
 		`create index if not exists idx_exam_sessions_status on exam_sessions(status);`,
 		`create index if not exists idx_exam_sessions_exam_package_id on exam_sessions(exam_package_id);`,
+		`create index if not exists idx_exam_sessions_tier_id on exam_sessions(tier_id);`,
 
 		`create table if not exists exam_session_events (
 			id bigserial primary key,
@@ -461,6 +506,22 @@ func Migrate(ctx context.Context, pool *pgxpool.Pool) error {
 		('ielts', 'IELTS'),
 		('sat', 'SAT')
 		on conflict (code) do update set name=excluded.name`)
+
+	// Seed a default tier per exam package (idempotent).
+	// This is required to support tier-based enrollments and to backfill existing enrollments.
+	_, _ = pool.Exec(ctx, `insert into exam_package_tiers (exam_package_id, code, name, sort_order, is_default)
+		select id, 'default', 'Default', 0, true
+		from exam_packages
+		on conflict (exam_package_id, code) do nothing`)
+
+	// Ensure all existing enrollments have a tier (idempotent backfill).
+	_, _ = pool.Exec(ctx, `update user_exam_package_enrollments e
+		set tier_id = t.id,
+			updated_at = now()
+		from exam_package_tiers t
+		where e.tier_id is null
+			and t.exam_package_id = e.exam_package_id
+			and t.is_default = true`)
 
 	// Backfill mapping from legacy question_bank_packages.exam_package_id (idempotent).
 	// Legacy value matches exam_packages.code.

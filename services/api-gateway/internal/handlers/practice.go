@@ -334,6 +334,7 @@ func RegisterPracticeRoutes(r *gin.Engine, pool *pgxpool.Pool) {
 
 		// Resolve exam package selection.
 		var packageID string
+		var tierID string
 		if req.TemplateID != nil && strings.TrimSpace(*req.TemplateID) != "" {
 			// Template-driven session. Template must be published and user must be enrolled in its package.
 			tid := strings.TrimSpace(*req.TemplateID)
@@ -343,12 +344,21 @@ func RegisterPracticeRoutes(r *gin.Engine, pool *pgxpool.Pool) {
 			var isPublished bool
 			var isTimed bool
 			var targetCount int
+			var enrollmentTierID *string
 			if err := pool.QueryRow(ctx, `
-				select t.exam_package_id, t.topic_id, t.difficulty_id, t.is_published, t.is_timed, t.target_count,
-					exists(select 1 from user_exam_package_enrollments e where e.user_id=$2 and e.exam_package_id=t.exam_package_id)
+				select
+					t.exam_package_id,
+					t.topic_id,
+					t.difficulty_id,
+					t.is_published,
+					t.is_timed,
+					t.target_count,
+					e.tier_id,
+					e.user_id is not null
 				from practice_test_templates t
+				left join user_exam_package_enrollments e on e.exam_package_id=t.exam_package_id and e.user_id=$2
 				where t.id=$1`, tid, userID).
-				Scan(&packageID, &templateTopicID, &templateDifficultyID, &isPublished, &isTimed, &targetCount, &enrolled); err != nil {
+				Scan(&packageID, &templateTopicID, &templateDifficultyID, &isPublished, &isTimed, &targetCount, &enrollmentTierID, &enrolled); err != nil {
 				c.JSON(http.StatusNotFound, gin.H{"message": "template not found"})
 				return
 			}
@@ -360,6 +370,11 @@ func RegisterPracticeRoutes(r *gin.Engine, pool *pgxpool.Pool) {
 				c.JSON(http.StatusForbidden, gin.H{"message": "not enrolled"})
 				return
 			}
+			if enrollmentTierID == nil || strings.TrimSpace(*enrollmentTierID) == "" {
+				c.JSON(http.StatusInternalServerError, gin.H{"message": "enrollment has no tier"})
+				return
+			}
+			tierID = strings.TrimSpace(*enrollmentTierID)
 
 			req.Timed = isTimed
 			count = targetCount
@@ -371,25 +386,27 @@ func RegisterPracticeRoutes(r *gin.Engine, pool *pgxpool.Pool) {
 			}
 		} else if req.ExamPackageID != nil && strings.TrimSpace(*req.ExamPackageID) != "" {
 			packageID = strings.TrimSpace(*req.ExamPackageID)
-			// Require enrollment in the selected package.
-			var enrolled bool
-			if err := pool.QueryRow(ctx, `select exists(select 1 from user_exam_package_enrollments where user_id=$1 and exam_package_id=$2)`, userID, packageID).Scan(&enrolled); err != nil || !enrolled {
+			// Require enrollment in the selected package and snapshot the current tier.
+			if err := pool.QueryRow(ctx, `select coalesce(tier_id::text,'') from user_exam_package_enrollments where user_id=$1 and exam_package_id=$2`, userID, packageID).Scan(&tierID); err != nil || strings.TrimSpace(tierID) == "" {
 				c.JSON(http.StatusForbidden, gin.H{"message": "not enrolled"})
 				return
 			}
 		} else {
 			// If package isn't specified, infer only when user has exactly 1 enrollment.
-			rows, err := pool.Query(ctx, `select exam_package_id from user_exam_package_enrollments where user_id=$1 order by created_at asc`, userID)
+			rows, err := pool.Query(ctx, `select exam_package_id::text, coalesce(tier_id::text,'') from user_exam_package_enrollments where user_id=$1 order by created_at asc`, userID)
 			if err != nil {
 				c.JSON(http.StatusInternalServerError, gin.H{"message": "failed to resolve enrollment"})
 				return
 			}
 			defer rows.Close()
 			ids := []string{}
+			tiers := []string{}
 			for rows.Next() {
 				var id string
-				if err := rows.Scan(&id); err == nil {
+				var t string
+				if err := rows.Scan(&id, &t); err == nil {
 					ids = append(ids, id)
+					tiers = append(tiers, t)
 				}
 			}
 			if len(ids) == 0 {
@@ -401,6 +418,11 @@ func RegisterPracticeRoutes(r *gin.Engine, pool *pgxpool.Pool) {
 				return
 			}
 			packageID = ids[0]
+			tierID = strings.TrimSpace(tiers[0])
+			if tierID == "" {
+				c.JSON(http.StatusInternalServerError, gin.H{"message": "enrollment has no tier"})
+				return
+			}
 		}
 
 		// Select published questions from the DB-backed question bank for this exam package.
@@ -502,9 +524,9 @@ func RegisterPracticeRoutes(r *gin.Engine, pool *pgxpool.Pool) {
 		snapshotJSON, _ := json.Marshal(snapshot)
 
 		sessionID := util.NewID("ps")
-		_, err = pool.Exec(ctx, `insert into practice_sessions (id, user_id, package_id, template_id, is_timed, target_count, current_index, correct_count, status, question_order, questions_snapshot)
-			values ($1,$2,$3,$4,$5,$6,0,0,$7,$8,$9)` ,
-			sessionID, userID, packageID, templateID, req.Timed, count, string(PracticeSessionActive), orderJSON, snapshotJSON)
+		_, err = pool.Exec(ctx, `insert into practice_sessions (id, user_id, package_id, tier_id, template_id, is_timed, target_count, current_index, correct_count, status, question_order, questions_snapshot)
+			values ($1,$2,$3,$4,$5,$6,$7,0,0,$8,$9,$10)` ,
+			sessionID, userID, packageID, tierID, templateID, req.Timed, count, string(PracticeSessionActive), orderJSON, snapshotJSON)
 		if err != nil {
 			c.JSON(http.StatusInternalServerError, gin.H{"message": "failed to create session"})
 			return

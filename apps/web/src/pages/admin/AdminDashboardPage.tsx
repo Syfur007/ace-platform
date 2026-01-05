@@ -34,6 +34,9 @@ export function AdminDashboardPage() {
           <div className="mt-1 text-sm text-slate-600">Lifetime totals across the platform.</div>
         </div>
         <div className="flex flex-wrap gap-2">
+          <Link className="rounded border border-slate-200 px-3 py-2 text-sm hover:bg-slate-50" to="/admin/packages">
+            Packages &amp; Tiers
+          </Link>
           <Link className="rounded border border-slate-200 px-3 py-2 text-sm hover:bg-slate-50" to="/admin/question-bank">
             Question Bank
           </Link>

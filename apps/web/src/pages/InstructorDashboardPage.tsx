@@ -11,6 +11,9 @@ export function InstructorDashboardPage() {
       </div>
 
       <div className="flex flex-wrap gap-2">
+        <Link className="rounded border border-slate-200 px-3 py-2 text-sm hover:bg-slate-50" to="/instructor/packages">
+          Packages &amp; Tiers
+        </Link>
         <Link className="rounded border border-slate-200 px-3 py-2 text-sm hover:bg-slate-50" to="/instructor/practice-templates">
           Practice Templates
         </Link>

@@ -37,7 +37,9 @@ export function StudentCoursesPage() {
     },
   })
 
-  const enrolledIds = new Set(enrollmentsQuery.data?.examPackageIds ?? [])
+  const enrolledIds = new Set(
+    (enrollmentsQuery.data?.items?.map((e) => e.examPackageId) ?? enrollmentsQuery.data?.examPackageIds ?? []),
+  )
 
   return (
     <div className="space-y-6">

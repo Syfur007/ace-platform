@@ -27,6 +27,23 @@ paths:
               schema:
                 $ref: '#/components/schemas/ListExamPackagesResponse'
 
+  /exam-packages/{examPackageId}/tiers:
+    get:
+      operationId: listExamPackageTiers
+      parameters:
+        - name: examPackageId
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Exam package tiers
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ListExamPackageTiersResponse'
+
   /auth/register:
     post:
       deprecated: true
@@ -242,6 +259,33 @@ paths:
       responses:
         '200':
           description: Enrolled
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SuccessResponse'
+
+  /student/enrollments/{examPackageId}/change-tier:
+    post:
+      operationId: studentChangeTier
+      security:
+        - bearerAuth: []
+        - cookieAuth: []
+      parameters:
+        - $ref: '#/components/parameters/CsrfToken'
+        - name: examPackageId
+          in: path
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ChangeTierRequest'
+      responses:
+        '200':
+          description: Tier changed
           content:
             application/json:
               schema:
@@ -1633,6 +1677,106 @@ paths:
               schema:
                 $ref: '#/components/schemas/SuccessResponse'
 
+  /admin/exam-packages/{examPackageId}/tiers:
+    get:
+      operationId: adminListExamPackageTiers
+      security:
+        - bearerAuth: []
+      parameters:
+        - in: path
+          name: examPackageId
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '200':
+          description: Exam package tiers (admin)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ListAdminExamPackageTiersResponse'
+    post:
+      operationId: adminCreateExamPackageTier
+      security:
+        - bearerAuth: []
+      parameters:
+        - in: path
+          name: examPackageId
+          required: true
+          schema:
+            type: string
+            format: uuid
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateAdminExamPackageTierRequest'
+      responses:
+        '200':
+          description: Exam package tier created
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CreateAdminExamPackageTierResponse'
+
+  /admin/exam-packages/{examPackageId}/tiers/{tierId}:
+    patch:
+      operationId: adminUpdateExamPackageTier
+      security:
+        - bearerAuth: []
+      parameters:
+        - in: path
+          name: examPackageId
+          required: true
+          schema:
+            type: string
+            format: uuid
+        - in: path
+          name: tierId
+          required: true
+          schema:
+            type: string
+            format: uuid
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UpdateAdminExamPackageTierRequest'
+      responses:
+        '200':
+          description: Exam package tier updated
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SuccessResponse'
+    delete:
+      operationId: adminDeleteExamPackageTier
+      security:
+        - bearerAuth: []
+      parameters:
+        - in: path
+          name: examPackageId
+          required: true
+          schema:
+            type: string
+            format: uuid
+        - in: path
+          name: tierId
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '200':
+          description: Exam package tier deleted
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SuccessResponse'
+
   /instructor/exam-packages/{examPackageId}:
     patch:
       operationId: instructorUpdateExamPackage
@@ -1655,6 +1799,124 @@ paths:
       responses:
         '200':
           description: Exam package updated
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SuccessResponse'
+
+  /instructor/exam-packages:
+    get:
+      operationId: instructorListExamPackages
+      security:
+        - bearerAuth: []
+        - cookieAuth: []
+      responses:
+        '200':
+          description: Exam packages (instructor/admin)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ListAdminExamPackagesResponse'
+
+  /instructor/exam-packages/{examPackageId}/tiers:
+    get:
+      operationId: instructorListExamPackageTiers
+      security:
+        - bearerAuth: []
+        - cookieAuth: []
+      parameters:
+        - in: path
+          name: examPackageId
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '200':
+          description: Exam package tiers (instructor/admin)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ListAdminExamPackageTiersResponse'
+    post:
+      operationId: instructorCreateExamPackageTier
+      security:
+        - bearerAuth: []
+        - cookieAuth: []
+      parameters:
+        - in: path
+          name: examPackageId
+          required: true
+          schema:
+            type: string
+            format: uuid
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateAdminExamPackageTierRequest'
+      responses:
+        '200':
+          description: Exam package tier created
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CreateAdminExamPackageTierResponse'
+
+  /instructor/exam-packages/{examPackageId}/tiers/{tierId}:
+    patch:
+      operationId: instructorUpdateExamPackageTier
+      security:
+        - bearerAuth: []
+        - cookieAuth: []
+      parameters:
+        - in: path
+          name: examPackageId
+          required: true
+          schema:
+            type: string
+            format: uuid
+        - in: path
+          name: tierId
+          required: true
+          schema:
+            type: string
+            format: uuid
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UpdateAdminExamPackageTierRequest'
+      responses:
+        '200':
+          description: Exam package tier updated
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SuccessResponse'
+    delete:
+      operationId: instructorDeleteExamPackageTier
+      security:
+        - bearerAuth: []
+        - cookieAuth: []
+      parameters:
+        - in: path
+          name: examPackageId
+          required: true
+          schema:
+            type: string
+            format: uuid
+        - in: path
+          name: tierId
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '200':
+          description: Exam package tier deleted
           content:
             application/json:
               schema:
@@ -2052,6 +2314,95 @@ components:
           nullable: true
         isHidden:
           type: boolean
+          nullable: true
+
+    AdminExamPackageTier:
+      type: object
+      required: [id, examPackageId, code, name, sortOrder, isDefault, isActive, policy, createdAt, updatedAt]
+      properties:
+        id:
+          type: string
+        examPackageId:
+          type: string
+        code:
+          type: string
+        name:
+          type: string
+        sortOrder:
+          type: integer
+        isDefault:
+          type: boolean
+        isActive:
+          type: boolean
+        policy:
+          type: object
+          additionalProperties: true
+        createdAt:
+          type: string
+          description: RFC3339 timestamp
+        updatedAt:
+          type: string
+          description: RFC3339 timestamp
+
+    ListAdminExamPackageTiersResponse:
+      type: object
+      required: [items]
+      properties:
+        items:
+          type: array
+          items:
+            $ref: '#/components/schemas/AdminExamPackageTier'
+
+    CreateAdminExamPackageTierRequest:
+      type: object
+      required: [code, name]
+      properties:
+        code:
+          type: string
+        name:
+          type: string
+        sortOrder:
+          type: integer
+          nullable: true
+        isDefault:
+          type: boolean
+          nullable: true
+        isActive:
+          type: boolean
+          nullable: true
+        policy:
+          type: object
+          additionalProperties: true
+          nullable: true
+
+    CreateAdminExamPackageTierResponse:
+      type: object
+      required: [id]
+      properties:
+        id:
+          type: string
+
+    UpdateAdminExamPackageTierRequest:
+      type: object
+      properties:
+        code:
+          type: string
+          nullable: true
+        name:
+          type: string
+          nullable: true
+        sortOrder:
+          type: integer
+          nullable: true
+        isDefault:
+          type: boolean
+          nullable: true
+        isActive:
+          type: boolean
+          nullable: true
+        policy:
+          type: object
+          additionalProperties: true
           nullable: true
 
     UpdateInstructorExamPackageRequest:
@@ -2566,20 +2917,73 @@ components:
           items:
             $ref: '#/components/schemas/ExamPackageListItem'
 
+    ExamPackageTierListItem:
+      type: object
+      required: [id, examPackageId, code, name, sortOrder, isDefault]
+      properties:
+        id:
+          type: string
+        examPackageId:
+          type: string
+        code:
+          type: string
+        name:
+          type: string
+        sortOrder:
+          type: integer
+        isDefault:
+          type: boolean
+
+    ListExamPackageTiersResponse:
+      type: object
+      required: [items]
+      properties:
+        items:
+          type: array
+          items:
+            $ref: '#/components/schemas/ExamPackageTierListItem'
+
+    EnrollmentItem:
+      type: object
+      required: [examPackageId, tierId, createdAt, updatedAt]
+      properties:
+        examPackageId:
+          type: string
+        tierId:
+          type: string
+        createdAt:
+          type: string
+          description: RFC3339 timestamp
+        updatedAt:
+          type: string
+          description: RFC3339 timestamp
+
     EnrollmentListResponse:
       type: object
-      required: [examPackageIds]
       properties:
         examPackageIds:
           type: array
           items:
             type: string
+        items:
+          type: array
+          items:
+            $ref: '#/components/schemas/EnrollmentItem'
 
     EnrollRequest:
       type: object
       required: [examPackageId]
       properties:
         examPackageId:
+          type: string
+        tierId:
+          type: string
+
+    ChangeTierRequest:
+      type: object
+      required: [tierId]
+      properties:
+        tierId:
           type: string
 
     QuestionDifficulty:

@@ -24,6 +24,8 @@ import { AdminPracticeTemplatesPage } from '@/pages/admin/AdminPracticeTemplates
 import { AdminQuestionBankPage } from '@/pages/admin/AdminQuestionBankPage'
 import { AdminUsersPage } from '@/pages/admin/AdminUsersPage'
 import { InstructorPracticeTemplatesPage } from '@/pages/instructor/InstructorPracticeTemplatesPage'
+import { AdminPackagesPage } from '@/pages/admin/AdminPackagesPage'
+import { InstructorPackagesPage } from '@/pages/instructor/InstructorPackagesPage'
 
 function AppShell() {
   const location = useLocation()
@@ -198,6 +200,7 @@ const router = createBrowserRouter([
         ),
         children: [
           { index: true, element: <InstructorDashboardPage /> },
+          { path: 'packages', element: <InstructorPackagesPage /> },
           { path: 'practice-templates', element: <InstructorPracticeTemplatesPage /> },
         ],
       },
@@ -212,6 +215,7 @@ const router = createBrowserRouter([
         children: [
           { index: true, element: <AdminDashboardPage /> },
           { path: 'dashboard', element: <AdminDashboardPage /> },
+          { path: 'packages', element: <AdminPackagesPage /> },
           { path: 'question-bank', element: <AdminQuestionBankPage /> },
           { path: 'practice-templates', element: <AdminPracticeTemplatesPage /> },
           { path: 'users', element: <AdminUsersPage /> },

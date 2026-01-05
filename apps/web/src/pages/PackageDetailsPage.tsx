@@ -1,12 +1,15 @@
+import { useEffect, useMemo, useState } from 'react'
 import { Link, useParams } from 'react-router-dom'
 
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 
-import { listExamPackages, studentCancelEnrollment, studentEnroll, studentListEnrollments } from '@/api/endpoints'
+import { listExamPackageTiers, listExamPackages, studentCancelEnrollment, studentChangeTier, studentEnroll, studentListEnrollments } from '@/api/endpoints'
 
 export function PackageDetailsPage() {
   const { packageId } = useParams()
   const queryClient = useQueryClient()
+
+  const [selectedTierId, setSelectedTierId] = useState<string>('')
 
   const packagesQuery = useQuery({
     queryKey: ['exam-packages'],
@@ -21,8 +24,23 @@ export function PackageDetailsPage() {
     retry: false,
   })
 
+  const tiersQuery = useQuery({
+    queryKey: ['exam-package-tiers', packageId],
+    queryFn: () => (packageId ? listExamPackageTiers(packageId) : Promise.resolve({ items: [] } as any)),
+    enabled: Boolean(packageId),
+    refetchOnWindowFocus: false,
+    retry: false,
+  })
+
   const enrollMutation = useMutation({
-    mutationFn: async (examPackageId: string) => studentEnroll({ examPackageId }),
+    mutationFn: async (examPackageId: string) => studentEnroll({ examPackageId, tierId: selectedTierId || undefined }),
+    onSuccess: async () => {
+      await queryClient.invalidateQueries({ queryKey: ['student', 'enrollments'] })
+    },
+  })
+
+  const changeTierMutation = useMutation({
+    mutationFn: async (examPackageId: string) => studentChangeTier(examPackageId, { tierId: selectedTierId }),
     onSuccess: async () => {
       await queryClient.invalidateQueries({ queryKey: ['student', 'enrollments'] })
     },
@@ -40,10 +58,34 @@ export function PackageDetailsPage() {
 
   const apiPkg = packagesQuery.data?.items?.find((p) => p.id === packageId) ?? null
 
-  const enrolledIds = new Set(enrollmentsQuery.data?.examPackageIds ?? [])
+  const enrollment = useMemo(() => {
+    const items = enrollmentsQuery.data?.items
+    if (!apiPkg || !items) return null
+    return items.find((e) => e.examPackageId === apiPkg.id) ?? null
+  }, [apiPkg, enrollmentsQuery.data])
+
+  const enrolledIds = new Set(
+    (enrollmentsQuery.data?.items?.map((e) => e.examPackageId) ?? enrollmentsQuery.data?.examPackageIds ?? []),
+  )
+
   const isEnrolled = apiPkg ? enrolledIds.has(apiPkg.id) : false
   const isEnrolling = enrollMutation.isPending && enrollMutation.variables === apiPkg?.id
   const isUnenrolling = unenrollMutation.isPending && unenrollMutation.variables === apiPkg?.id
+  const isChangingTier = changeTierMutation.isPending && changeTierMutation.variables === apiPkg?.id
+
+  const tiers = tiersQuery.data?.items ?? []
+  const enrolledTier = enrollment?.tierId ? tiers.find((t: any) => t.id === enrollment.tierId) ?? null : null
+
+  useEffect(() => {
+    if (!apiPkg) return
+    if (selectedTierId) return
+    if (enrollment?.tierId) {
+      setSelectedTierId(enrollment.tierId)
+      return
+    }
+    const def = tiers.find((t: any) => t.isDefault) ?? tiers[0]
+    if (def?.id) setSelectedTierId(def.id)
+  }, [apiPkg, enrollment?.tierId, selectedTierId, tiers])
 
   if (packagesQuery.isLoading) {
     return <div className="text-sm text-slate-600">Loading package…</div>
@@ -121,6 +163,27 @@ export function PackageDetailsPage() {
         <aside className="rounded border border-slate-200 p-4">
           <div className="font-medium">Actions</div>
           <div className="mt-3 space-y-2">
+            <label className="grid gap-1">
+              <span className="text-xs text-slate-600">Tier</span>
+              <select
+                className="rounded border border-slate-200 bg-white px-3 py-2 text-sm"
+                value={selectedTierId}
+                onChange={(e) => setSelectedTierId(e.target.value)}
+                disabled={tiersQuery.isLoading || tiersQuery.isError || tiers.length === 0}
+              >
+                {tiersQuery.isLoading ? <option value="">Loading…</option> : null}
+                {!tiersQuery.isLoading && tiers.length === 0 ? <option value="">No tiers</option> : null}
+                {tiers.map((t: any) => (
+                  <option key={t.id} value={t.id}>
+                    {t.name}
+                  </option>
+                ))}
+              </select>
+              {isEnrolled && enrolledTier ? (
+                <span className="text-xs text-slate-600">Current: {enrolledTier.name}</span>
+              ) : null}
+            </label>
+
             <button
               type="button"
               className={[
@@ -134,6 +197,21 @@ export function PackageDetailsPage() {
               title={enrollmentsQuery.isError ? 'Sign in as a student to enroll.' : undefined}
             >
               {isEnrolled ? 'Enrolled' : isEnrolling ? 'Enrolling…' : 'Enroll'}
+            </button>
+
+            <button
+              type="button"
+              className={[
+                'w-full rounded border px-3 py-2 text-sm',
+                !isEnrolled || enrollmentsQuery.isError || isChangingTier || !selectedTierId || (enrollment?.tierId === selectedTierId)
+                  ? 'border-slate-100 text-slate-400'
+                  : 'border-slate-200 hover:bg-slate-50',
+              ].join(' ')}
+              disabled={!isEnrolled || enrollmentsQuery.isError || isChangingTier || !selectedTierId || (enrollment?.tierId === selectedTierId)}
+              onClick={() => changeTierMutation.mutate(apiPkg.id)}
+              title={enrollmentsQuery.isError ? 'Sign in as a student to manage enrollment.' : undefined}
+            >
+              {isChangingTier ? 'Changing…' : 'Change tier'}
             </button>
 
             <button
@@ -156,6 +234,8 @@ export function PackageDetailsPage() {
           </div>
 
           {enrollMutation.isError ? <div className="mt-3 text-sm text-rose-700">Failed to enroll.</div> : null}
+
+          {changeTierMutation.isError ? <div className="mt-3 text-sm text-rose-700">Failed to change tier.</div> : null}
 
           {unenrollMutation.isError ? <div className="mt-3 text-sm text-rose-700">Failed to unenroll.</div> : null}
 

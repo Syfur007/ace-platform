@@ -60,6 +60,16 @@ export async function listExamPackages(): Promise<ListExamPackagesResponse> {
   return apiFetchJson<ListExamPackagesResponse>('/exam-packages', { method: 'GET' })
 }
 
+export type ListExamPackageTiersResponse =
+  paths['/exam-packages/{examPackageId}/tiers']['get']['responses'][200]['content']['application/json']
+
+export async function listExamPackageTiers(examPackageId: string): Promise<ListExamPackageTiersResponse> {
+  return apiFetchJson<ListExamPackageTiersResponse>(
+    `/exam-packages/${encodeURIComponent(examPackageId)}/tiers`,
+    { method: 'GET' },
+  )
+}
+
 export type StudentListEnrollmentsResponse =
   paths['/student/enrollments']['get']['responses'][200]['content']['application/json']
 
@@ -75,6 +85,22 @@ export type StudentEnrollResponse =
 
 export async function studentEnroll(body: StudentEnrollRequest): Promise<StudentEnrollResponse> {
   return apiFetchJson<StudentEnrollResponse>('/student/enrollments', { method: 'POST', body })
+}
+
+export type StudentChangeTierRequest =
+  paths['/student/enrollments/{examPackageId}/change-tier']['post']['requestBody']['content']['application/json']
+
+export type StudentChangeTierResponse =
+  paths['/student/enrollments/{examPackageId}/change-tier']['post']['responses'][200]['content']['application/json']
+
+export async function studentChangeTier(
+  examPackageId: string,
+  body: StudentChangeTierRequest,
+): Promise<StudentChangeTierResponse> {
+  return apiFetchJson<StudentChangeTierResponse>(
+    `/student/enrollments/${encodeURIComponent(examPackageId)}/change-tier`,
+    { method: 'POST', body },
+  )
 }
 
 export type StudentCancelEnrollmentResponse =
@@ -103,6 +129,56 @@ export async function adminCreateExamPackage(body: AdminCreateExamPackageRequest
   return apiFetchJson<AdminCreateExamPackageResponse>('/admin/exam-packages', { method: 'POST', body })
 }
 
+export type AdminListExamPackageTiersResponse =
+  paths['/admin/exam-packages/{examPackageId}/tiers']['get']['responses'][200]['content']['application/json']
+
+export async function adminListExamPackageTiers(examPackageId: string): Promise<AdminListExamPackageTiersResponse> {
+  return apiFetchJson<AdminListExamPackageTiersResponse>(
+    `/admin/exam-packages/${encodeURIComponent(examPackageId)}/tiers`,
+    { method: 'GET' },
+  )
+}
+
+export type AdminCreateExamPackageTierRequest =
+  paths['/admin/exam-packages/{examPackageId}/tiers']['post']['requestBody']['content']['application/json']
+
+export type AdminCreateExamPackageTierResponse =
+  paths['/admin/exam-packages/{examPackageId}/tiers']['post']['responses'][200]['content']['application/json']
+
+export async function adminCreateExamPackageTier(
+  examPackageId: string,
+  body: AdminCreateExamPackageTierRequest,
+): Promise<AdminCreateExamPackageTierResponse> {
+  return apiFetchJson<AdminCreateExamPackageTierResponse>(
+    `/admin/exam-packages/${encodeURIComponent(examPackageId)}/tiers`,
+    { method: 'POST', body },
+  )
+}
+
+export type AdminUpdateExamPackageTierRequest =
+  paths['/admin/exam-packages/{examPackageId}/tiers/{tierId}']['patch']['requestBody']['content']['application/json']
+
+export async function adminUpdateExamPackageTier(
+  examPackageId: string,
+  tierId: string,
+  body: AdminUpdateExamPackageTierRequest,
+): Promise<{ success: true }> {
+  return apiFetchJson<{ success: true }>(
+    `/admin/exam-packages/${encodeURIComponent(examPackageId)}/tiers/${encodeURIComponent(tierId)}`,
+    { method: 'PATCH', body },
+  )
+}
+
+export async function adminDeleteExamPackageTier(
+  examPackageId: string,
+  tierId: string,
+): Promise<{ success: true }> {
+  return apiFetchJson<{ success: true }>(
+    `/admin/exam-packages/${encodeURIComponent(examPackageId)}/tiers/${encodeURIComponent(tierId)}`,
+    { method: 'DELETE' },
+  )
+}
+
 export type AdminUpdateExamPackageRequest =
   paths['/admin/exam-packages/{examPackageId}']['patch']['requestBody']['content']['application/json']
 
@@ -127,6 +203,65 @@ export async function instructorUpdateExamPackage(
     method: 'PATCH',
     body,
   })
+}
+
+export type InstructorListExamPackagesResponse =
+  paths['/instructor/exam-packages']['get']['responses'][200]['content']['application/json']
+
+export async function instructorListExamPackages(): Promise<InstructorListExamPackagesResponse> {
+  return apiFetchJson<InstructorListExamPackagesResponse>('/instructor/exam-packages', { method: 'GET' })
+}
+
+export type InstructorListExamPackageTiersResponse =
+  paths['/instructor/exam-packages/{examPackageId}/tiers']['get']['responses'][200]['content']['application/json']
+
+export async function instructorListExamPackageTiers(
+  examPackageId: string,
+): Promise<InstructorListExamPackageTiersResponse> {
+  return apiFetchJson<InstructorListExamPackageTiersResponse>(
+    `/instructor/exam-packages/${encodeURIComponent(examPackageId)}/tiers`,
+    { method: 'GET' },
+  )
+}
+
+export type InstructorCreateExamPackageTierRequest =
+  paths['/instructor/exam-packages/{examPackageId}/tiers']['post']['requestBody']['content']['application/json']
+
+export type InstructorCreateExamPackageTierResponse =
+  paths['/instructor/exam-packages/{examPackageId}/tiers']['post']['responses'][200]['content']['application/json']
+
+export async function instructorCreateExamPackageTier(
+  examPackageId: string,
+  body: InstructorCreateExamPackageTierRequest,
+): Promise<InstructorCreateExamPackageTierResponse> {
+  return apiFetchJson<InstructorCreateExamPackageTierResponse>(
+    `/instructor/exam-packages/${encodeURIComponent(examPackageId)}/tiers`,
+    { method: 'POST', body },
+  )
+}
+
+export type InstructorUpdateExamPackageTierRequest =
+  paths['/instructor/exam-packages/{examPackageId}/tiers/{tierId}']['patch']['requestBody']['content']['application/json']
+
+export async function instructorUpdateExamPackageTier(
+  examPackageId: string,
+  tierId: string,
+  body: InstructorUpdateExamPackageTierRequest,
+): Promise<{ success: true }> {
+  return apiFetchJson<{ success: true }>(
+    `/instructor/exam-packages/${encodeURIComponent(examPackageId)}/tiers/${encodeURIComponent(tierId)}`,
+    { method: 'PATCH', body },
+  )
+}
+
+export async function instructorDeleteExamPackageTier(
+  examPackageId: string,
+  tierId: string,
+): Promise<{ success: true }> {
+  return apiFetchJson<{ success: true }>(
+    `/instructor/exam-packages/${encodeURIComponent(examPackageId)}/tiers/${encodeURIComponent(tierId)}`,
+    { method: 'DELETE' },
+  )
 }
 
 export async function adminDeleteExamPackage(examPackageId: string): Promise<{ success: true }> {

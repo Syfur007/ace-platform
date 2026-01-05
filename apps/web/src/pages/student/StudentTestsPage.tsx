@@ -21,7 +21,10 @@ export function StudentTestsPage() {
     retry: false,
   })
 
-  const enrolledIds = useMemo(() => enrollmentsQuery.data?.examPackageIds ?? [], [enrollmentsQuery.data])
+  const enrolledIds = useMemo(
+    () => enrollmentsQuery.data?.items?.map((e) => e.examPackageId) ?? enrollmentsQuery.data?.examPackageIds ?? [],
+    [enrollmentsQuery.data],
+  )
 
   const [examPackageId, setExamPackageId] = useState<string>('')
   const [startError, setStartError] = useState<string | null>(null)

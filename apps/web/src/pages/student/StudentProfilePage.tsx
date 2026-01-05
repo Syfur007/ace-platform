@@ -25,7 +25,10 @@ export function StudentProfilePage() {
     retry: false,
   })
 
-  const enrolledIds = useMemo(() => new Set(enrollmentsQuery.data?.examPackageIds ?? []), [enrollmentsQuery.data])
+  const enrolledIds = useMemo(
+    () => new Set(enrollmentsQuery.data?.items?.map((e) => e.examPackageId) ?? enrollmentsQuery.data?.examPackageIds ?? []),
+    [enrollmentsQuery.data],
+  )
   const enrolledPackages = useMemo(
     () => (packagesQuery.data?.items ?? []).filter((p) => enrolledIds.has(p.id)),
     [packagesQuery.data, enrolledIds],

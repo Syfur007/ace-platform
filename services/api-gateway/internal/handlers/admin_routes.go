@@ -182,6 +182,45 @@ type AdminDashboardExamStats struct {
 	Flags     int64            `json:"flags"`
 }
 
+type AdminExamPackageTier struct {
+	ID            string          `json:"id"`
+	ExamPackageID string          `json:"examPackageId"`
+	Code          string          `json:"code"`
+	Name          string          `json:"name"`
+	SortOrder     int             `json:"sortOrder"`
+	IsDefault     bool            `json:"isDefault"`
+	IsActive      bool            `json:"isActive"`
+	Policy        json.RawMessage `json:"policy"`
+	CreatedAt     string          `json:"createdAt"`
+	UpdatedAt     string          `json:"updatedAt"`
+}
+
+type ListAdminExamPackageTiersResponse struct {
+	Items []AdminExamPackageTier `json:"items"`
+}
+
+type CreateAdminExamPackageTierRequest struct {
+	Code      string           `json:"code"`
+	Name      string           `json:"name"`
+	SortOrder *int             `json:"sortOrder"`
+	IsDefault *bool            `json:"isDefault"`
+	IsActive  *bool            `json:"isActive"`
+	Policy    *json.RawMessage `json:"policy"`
+}
+
+type CreateAdminExamPackageTierResponse struct {
+	ID string `json:"id"`
+}
+
+type UpdateAdminExamPackageTierRequest struct {
+	Code      *string          `json:"code"`
+	Name      *string          `json:"name"`
+	SortOrder *int             `json:"sortOrder"`
+	IsDefault *bool            `json:"isDefault"`
+	IsActive  *bool            `json:"isActive"`
+	Policy    *json.RawMessage `json:"policy"`
+}
+
 type AdminDashboardStatsResponse struct {
 	Ts           string                         `json:"ts"`
 	Users        AdminDashboardUsersStats       `json:"users"`
@@ -652,6 +691,331 @@ func RegisterAdminRoutes(r *gin.Engine, pool *pgxpool.Pool) {
 				return
 			}
 			audit(context.Background(), pool, actorUserID, actorRole, "admin.exam_packages.delete", "exam_package", examPackageID, nil)
+			c.JSON(http.StatusOK, gin.H{"success": true})
+		})
+
+		// Exam package tiers (admin-only CRUD)
+		r.GET("/admin/exam-packages/:examPackageId/tiers", adminAuth, func(c *gin.Context) {
+			examPackageID := strings.TrimSpace(c.Param("examPackageId"))
+			if examPackageID == "" {
+				c.JSON(http.StatusBadRequest, gin.H{"message": "examPackageId is required"})
+				return
+			}
+
+			rows, err := pool.Query(context.Background(), `
+				select
+					id::text,
+					exam_package_id::text,
+					code,
+					name,
+					sort_order,
+					is_default,
+					is_active,
+					policy,
+					created_at,
+					updated_at
+				from exam_package_tiers
+				where exam_package_id=$1
+				order by sort_order asc, created_at asc`, examPackageID)
+			if err != nil {
+				c.JSON(http.StatusInternalServerError, gin.H{"message": "failed to list tiers"})
+				return
+			}
+			defer rows.Close()
+
+			items := []AdminExamPackageTier{}
+			for rows.Next() {
+				var id, pkgID, code, name string
+				var sortOrder int
+				var isDefault bool
+				var isActive bool
+				var policy json.RawMessage
+				var createdAt time.Time
+				var updatedAt time.Time
+				if err := rows.Scan(&id, &pkgID, &code, &name, &sortOrder, &isDefault, &isActive, &policy, &createdAt, &updatedAt); err != nil {
+					c.JSON(http.StatusInternalServerError, gin.H{"message": "failed to list tiers"})
+					return
+				}
+				if len(policy) == 0 {
+					policy = json.RawMessage(`{}`)
+				}
+				items = append(items, AdminExamPackageTier{
+					ID:            id,
+					ExamPackageID: pkgID,
+					Code:          code,
+					Name:          name,
+					SortOrder:     sortOrder,
+					IsDefault:     isDefault,
+					IsActive:      isActive,
+					Policy:        policy,
+					CreatedAt:     createdAt.UTC().Format(time.RFC3339),
+					UpdatedAt:     updatedAt.UTC().Format(time.RFC3339),
+				})
+			}
+			c.JSON(http.StatusOK, ListAdminExamPackageTiersResponse{Items: items})
+		})
+
+		r.POST("/admin/exam-packages/:examPackageId/tiers", adminAuth, func(c *gin.Context) {
+			actorUserID, _ := auth.GetUserID(c)
+			actorRole, _ := auth.GetRole(c)
+
+			examPackageID := strings.TrimSpace(c.Param("examPackageId"))
+			if examPackageID == "" {
+				c.JSON(http.StatusBadRequest, gin.H{"message": "examPackageId is required"})
+				return
+			}
+
+			var req CreateAdminExamPackageTierRequest
+			if err := c.ShouldBindJSON(&req); err != nil {
+				c.JSON(http.StatusBadRequest, gin.H{"message": "invalid json body"})
+				return
+			}
+			code := strings.TrimSpace(req.Code)
+			name := strings.TrimSpace(req.Name)
+			if code == "" {
+				c.JSON(http.StatusBadRequest, gin.H{"message": "code is required"})
+				return
+			}
+			if name == "" {
+				c.JSON(http.StatusBadRequest, gin.H{"message": "name is required"})
+				return
+			}
+
+			policy := json.RawMessage(`{}`)
+			if req.Policy != nil {
+				if !json.Valid(*req.Policy) {
+					c.JSON(http.StatusBadRequest, gin.H{"message": "policy must be valid json"})
+					return
+				}
+				policy = *req.Policy
+				if len(policy) == 0 {
+					policy = json.RawMessage(`{}`)
+				}
+			}
+
+			isActive := true
+			if req.IsActive != nil {
+				isActive = *req.IsActive
+			}
+
+			ctx := context.Background()
+			tx, err := pool.Begin(ctx)
+			if err != nil {
+				c.JSON(http.StatusInternalServerError, gin.H{"message": "failed to create tier"})
+				return
+			}
+			defer tx.Rollback(ctx)
+
+			var pkgExists bool
+			if err := tx.QueryRow(ctx, `select exists(select 1 from exam_packages where id=$1)`, examPackageID).Scan(&pkgExists); err != nil || !pkgExists {
+				c.JSON(http.StatusNotFound, gin.H{"message": "exam package not found"})
+				return
+			}
+
+			sortOrder := 0
+			if req.SortOrder != nil {
+				sortOrder = *req.SortOrder
+			} else {
+				_ = tx.QueryRow(ctx, `select coalesce(max(sort_order), 0) + 1 from exam_package_tiers where exam_package_id=$1`, examPackageID).Scan(&sortOrder)
+			}
+
+			var newID string
+			err = tx.QueryRow(ctx, `
+				insert into exam_package_tiers (exam_package_id, code, name, sort_order, is_default, is_active, policy)
+				values ($1, $2, $3, $4, false, $5, $6)
+				returning id::text`, examPackageID, code, name, sortOrder, isActive, policy).Scan(&newID)
+			if err != nil {
+				c.JSON(http.StatusBadRequest, gin.H{"message": "failed to create tier"})
+				return
+			}
+
+			// Default handling: if caller requested default, or package has no default, make this tier default.
+			makeDefault := false
+			if req.IsDefault != nil && *req.IsDefault {
+				makeDefault = true
+			} else {
+				var hasDefault bool
+				_ = tx.QueryRow(ctx, `select exists(select 1 from exam_package_tiers where exam_package_id=$1 and is_default=true)`, examPackageID).Scan(&hasDefault)
+				if !hasDefault {
+					makeDefault = true
+				}
+			}
+			if makeDefault {
+				_, _ = tx.Exec(ctx, `update exam_package_tiers set is_default=false where exam_package_id=$1 and id<>$2`, examPackageID, newID)
+				_, _ = tx.Exec(ctx, `update exam_package_tiers set is_default=true where id=$1`, newID)
+			}
+
+			if err := tx.Commit(ctx); err != nil {
+				c.JSON(http.StatusInternalServerError, gin.H{"message": "failed to create tier"})
+				return
+			}
+
+			audit(ctx, pool, actorUserID, actorRole, "admin.exam_package_tiers.create", "exam_package_tier", newID, gin.H{"examPackageId": examPackageID, "code": code, "name": name})
+			c.JSON(http.StatusOK, CreateAdminExamPackageTierResponse{ID: newID})
+		})
+
+		r.PATCH("/admin/exam-packages/:examPackageId/tiers/:tierId", adminAuth, func(c *gin.Context) {
+			actorUserID, _ := auth.GetUserID(c)
+			actorRole, _ := auth.GetRole(c)
+
+			examPackageID := strings.TrimSpace(c.Param("examPackageId"))
+			tierID := strings.TrimSpace(c.Param("tierId"))
+			if examPackageID == "" {
+				c.JSON(http.StatusBadRequest, gin.H{"message": "examPackageId is required"})
+				return
+			}
+			if tierID == "" {
+				c.JSON(http.StatusBadRequest, gin.H{"message": "tierId is required"})
+				return
+			}
+
+			var req UpdateAdminExamPackageTierRequest
+			if err := c.ShouldBindJSON(&req); err != nil {
+				c.JSON(http.StatusBadRequest, gin.H{"message": "invalid json body"})
+				return
+			}
+
+			ctx := context.Background()
+			tx, err := pool.Begin(ctx)
+			if err != nil {
+				c.JSON(http.StatusInternalServerError, gin.H{"message": "failed to update tier"})
+				return
+			}
+			defer tx.Rollback(ctx)
+
+			var exists bool
+			var currentIsDefault bool
+			if err := tx.QueryRow(ctx, `select is_default from exam_package_tiers where id=$1 and exam_package_id=$2`, tierID, examPackageID).Scan(&currentIsDefault); err != nil {
+				c.JSON(http.StatusNotFound, gin.H{"message": "tier not found"})
+				return
+			}
+			exists = true
+			_ = exists
+
+			if req.IsDefault != nil && !*req.IsDefault && currentIsDefault {
+				c.JSON(http.StatusBadRequest, gin.H{"message": "cannot unset default tier; set another default tier first"})
+				return
+			}
+			if req.IsActive != nil && !*req.IsActive && currentIsDefault {
+				c.JSON(http.StatusBadRequest, gin.H{"message": "cannot deactivate the default tier; set another default tier first"})
+				return
+			}
+
+			set := []string{"updated_at=now()"}
+			args := []any{}
+			idx := 1
+
+			if req.Code != nil {
+				v := strings.TrimSpace(*req.Code)
+				if v == "" {
+					c.JSON(http.StatusBadRequest, gin.H{"message": "code cannot be empty"})
+					return
+				}
+				set = append(set, "code="+sqlParam(idx))
+				args = append(args, v)
+				idx++
+			}
+			if req.Name != nil {
+				v := strings.TrimSpace(*req.Name)
+				if v == "" {
+					c.JSON(http.StatusBadRequest, gin.H{"message": "name cannot be empty"})
+					return
+				}
+				set = append(set, "name="+sqlParam(idx))
+				args = append(args, v)
+				idx++
+			}
+			if req.SortOrder != nil {
+				set = append(set, "sort_order="+sqlParam(idx))
+				args = append(args, *req.SortOrder)
+				idx++
+			}
+			if req.IsActive != nil {
+				set = append(set, "is_active="+sqlParam(idx))
+				args = append(args, *req.IsActive)
+				idx++
+			}
+			if req.Policy != nil {
+				if !json.Valid(*req.Policy) {
+					c.JSON(http.StatusBadRequest, gin.H{"message": "policy must be valid json"})
+					return
+				}
+				v := *req.Policy
+				if len(v) == 0 {
+					v = json.RawMessage(`{}`)
+				}
+				set = append(set, "policy="+sqlParam(idx))
+				args = append(args, v)
+				idx++
+			}
+
+			if len(set) == 1 && (req.IsDefault == nil) {
+				c.JSON(http.StatusBadRequest, gin.H{"message": "no fields to update"})
+				return
+			}
+
+			if len(set) > 1 {
+				args = append(args, tierID, examPackageID)
+				ct, err := tx.Exec(ctx, "update exam_package_tiers set "+strings.Join(set, ", ")+" where id="+sqlParam(idx)+" and exam_package_id="+sqlParam(idx+1), args...)
+				if err != nil {
+					c.JSON(http.StatusBadRequest, gin.H{"message": "failed to update tier"})
+					return
+				}
+				if ct.RowsAffected() == 0 {
+					c.JSON(http.StatusNotFound, gin.H{"message": "tier not found"})
+					return
+				}
+			}
+
+			if req.IsDefault != nil && *req.IsDefault {
+				_, _ = tx.Exec(ctx, `update exam_package_tiers set is_default=false where exam_package_id=$1 and id<>$2`, examPackageID, tierID)
+				_, _ = tx.Exec(ctx, `update exam_package_tiers set is_default=true where id=$1`, tierID)
+			}
+
+			if err := tx.Commit(ctx); err != nil {
+				c.JSON(http.StatusInternalServerError, gin.H{"message": "failed to update tier"})
+				return
+			}
+			audit(ctx, pool, actorUserID, actorRole, "admin.exam_package_tiers.update", "exam_package_tier", tierID, req)
+			c.JSON(http.StatusOK, gin.H{"success": true})
+		})
+
+		r.DELETE("/admin/exam-packages/:examPackageId/tiers/:tierId", adminAuth, func(c *gin.Context) {
+			actorUserID, _ := auth.GetUserID(c)
+			actorRole, _ := auth.GetRole(c)
+
+			examPackageID := strings.TrimSpace(c.Param("examPackageId"))
+			tierID := strings.TrimSpace(c.Param("tierId"))
+			if examPackageID == "" {
+				c.JSON(http.StatusBadRequest, gin.H{"message": "examPackageId is required"})
+				return
+			}
+			if tierID == "" {
+				c.JSON(http.StatusBadRequest, gin.H{"message": "tierId is required"})
+				return
+			}
+
+			ctx := context.Background()
+			var isDefault bool
+			if err := pool.QueryRow(ctx, `select is_default from exam_package_tiers where id=$1 and exam_package_id=$2`, tierID, examPackageID).Scan(&isDefault); err != nil {
+				c.JSON(http.StatusNotFound, gin.H{"message": "tier not found"})
+				return
+			}
+			if isDefault {
+				c.JSON(http.StatusBadRequest, gin.H{"message": "cannot delete the default tier"})
+				return
+			}
+
+			ct, err := pool.Exec(ctx, `delete from exam_package_tiers where id=$1 and exam_package_id=$2`, tierID, examPackageID)
+			if err != nil {
+				c.JSON(http.StatusConflict, gin.H{"message": "failed to delete tier"})
+				return
+			}
+			if ct.RowsAffected() == 0 {
+				c.JSON(http.StatusNotFound, gin.H{"message": "tier not found"})
+				return
+			}
+			audit(ctx, pool, actorUserID, actorRole, "admin.exam_package_tiers.delete", "exam_package_tier", tierID, gin.H{"examPackageId": examPackageID})
 			c.JSON(http.StatusOK, gin.H{"success": true})
 		})
 	}

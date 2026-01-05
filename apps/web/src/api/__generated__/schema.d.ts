@@ -36,6 +36,22 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/exam-packages/{examPackageId}/tiers": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["listExamPackageTiers"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/auth/register": {
         parameters: {
             query?: never;
@@ -244,6 +260,22 @@ export interface paths {
         get: operations["studentListEnrollments"];
         put?: never;
         post: operations["studentEnroll"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/student/enrollments/{examPackageId}/change-tier": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: operations["studentChangeTier"];
         delete?: never;
         options?: never;
         head?: never;
@@ -1066,6 +1098,38 @@ export interface paths {
         patch: operations["adminUpdateExamPackage"];
         trace?: never;
     };
+    "/admin/exam-packages/{examPackageId}/tiers": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["adminListExamPackageTiers"];
+        put?: never;
+        post: operations["adminCreateExamPackageTier"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/admin/exam-packages/{examPackageId}/tiers/{tierId}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        delete: operations["adminDeleteExamPackageTier"];
+        options?: never;
+        head?: never;
+        patch: operations["adminUpdateExamPackageTier"];
+        trace?: never;
+    };
     "/instructor/exam-packages/{examPackageId}": {
         parameters: {
             query?: never;
@@ -1080,6 +1144,54 @@ export interface paths {
         options?: never;
         head?: never;
         patch: operations["instructorUpdateExamPackage"];
+        trace?: never;
+    };
+    "/instructor/exam-packages": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["instructorListExamPackages"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/instructor/exam-packages/{examPackageId}/tiers": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["instructorListExamPackageTiers"];
+        put?: never;
+        post: operations["instructorCreateExamPackageTier"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/instructor/exam-packages/{examPackageId}/tiers/{tierId}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        delete: operations["instructorDeleteExamPackageTier"];
+        options?: never;
+        head?: never;
+        patch: operations["instructorUpdateExamPackageTier"];
         trace?: never;
     };
     "/exam-sessions/{sessionId}/heartbeat": {
@@ -1314,6 +1426,48 @@ export interface components {
             moduleSections?: components["schemas"]["ExamPackageModuleSection"][] | null;
             isHidden?: boolean | null;
         };
+        AdminExamPackageTier: {
+            id: string;
+            examPackageId: string;
+            code: string;
+            name: string;
+            sortOrder: number;
+            isDefault: boolean;
+            isActive: boolean;
+            policy: {
+                [key: string]: unknown;
+            };
+            /** @description RFC3339 timestamp */
+            createdAt: string;
+            /** @description RFC3339 timestamp */
+            updatedAt: string;
+        };
+        ListAdminExamPackageTiersResponse: {
+            items: components["schemas"]["AdminExamPackageTier"][];
+        };
+        CreateAdminExamPackageTierRequest: {
+            code: string;
+            name: string;
+            sortOrder?: number | null;
+            isDefault?: boolean | null;
+            isActive?: boolean | null;
+            policy?: {
+                [key: string]: unknown;
+            } | null;
+        };
+        CreateAdminExamPackageTierResponse: {
+            id: string;
+        };
+        UpdateAdminExamPackageTierRequest: {
+            code?: string | null;
+            name?: string | null;
+            sortOrder?: number | null;
+            isDefault?: boolean | null;
+            isActive?: boolean | null;
+            policy?: {
+                [key: string]: unknown;
+            } | null;
+        };
         UpdateInstructorExamPackageRequest: {
             subtitle?: string | null;
             overview?: string | null;
@@ -1540,11 +1694,35 @@ export interface components {
         ListExamPackagesResponse: {
             items: components["schemas"]["ExamPackageListItem"][];
         };
+        ExamPackageTierListItem: {
+            id: string;
+            examPackageId: string;
+            code: string;
+            name: string;
+            sortOrder: number;
+            isDefault: boolean;
+        };
+        ListExamPackageTiersResponse: {
+            items: components["schemas"]["ExamPackageTierListItem"][];
+        };
+        EnrollmentItem: {
+            examPackageId: string;
+            tierId: string;
+            /** @description RFC3339 timestamp */
+            createdAt: string;
+            /** @description RFC3339 timestamp */
+            updatedAt: string;
+        };
         EnrollmentListResponse: {
-            examPackageIds: string[];
+            examPackageIds?: string[];
+            items?: components["schemas"]["EnrollmentItem"][];
         };
         EnrollRequest: {
             examPackageId: string;
+            tierId?: string;
+        };
+        ChangeTierRequest: {
+            tierId: string;
         };
         QuestionDifficulty: {
             id: string;
@@ -1840,6 +2018,28 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["ListExamPackagesResponse"];
+                };
+            };
+        };
+    };
+    listExamPackageTiers: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                examPackageId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Exam package tiers */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ListExamPackageTiersResponse"];
                 };
             };
         };
@@ -2155,6 +2355,35 @@ export interface operations {
         };
         responses: {
             /** @description Enrolled */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SuccessResponse"];
+                };
+            };
+        };
+    };
+    studentChangeTier: {
+        parameters: {
+            query?: never;
+            header: {
+                /** @description Double-submit CSRF token. Must match the ace_csrf cookie. */
+                "X-CSRF-Token": components["parameters"]["CsrfToken"];
+            };
+            path: {
+                examPackageId: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ChangeTierRequest"];
+            };
+        };
+        responses: {
+            /** @description Tier changed */
             200: {
                 headers: {
                     [name: string]: unknown;
@@ -3686,6 +3915,104 @@ export interface operations {
             };
         };
     };
+    adminListExamPackageTiers: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                examPackageId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Exam package tiers (admin) */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ListAdminExamPackageTiersResponse"];
+                };
+            };
+        };
+    };
+    adminCreateExamPackageTier: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                examPackageId: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["CreateAdminExamPackageTierRequest"];
+            };
+        };
+        responses: {
+            /** @description Exam package tier created */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CreateAdminExamPackageTierResponse"];
+                };
+            };
+        };
+    };
+    adminDeleteExamPackageTier: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                examPackageId: string;
+                tierId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Exam package tier deleted */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SuccessResponse"];
+                };
+            };
+        };
+    };
+    adminUpdateExamPackageTier: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                examPackageId: string;
+                tierId: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["UpdateAdminExamPackageTierRequest"];
+            };
+        };
+        responses: {
+            /** @description Exam package tier updated */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SuccessResponse"];
+                };
+            };
+        };
+    };
     instructorUpdateExamPackage: {
         parameters: {
             query?: never;
@@ -3702,6 +4029,124 @@ export interface operations {
         };
         responses: {
             /** @description Exam package updated */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SuccessResponse"];
+                };
+            };
+        };
+    };
+    instructorListExamPackages: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Exam packages (instructor/admin) */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ListAdminExamPackagesResponse"];
+                };
+            };
+        };
+    };
+    instructorListExamPackageTiers: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                examPackageId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Exam package tiers (instructor/admin) */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ListAdminExamPackageTiersResponse"];
+                };
+            };
+        };
+    };
+    instructorCreateExamPackageTier: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                examPackageId: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["CreateAdminExamPackageTierRequest"];
+            };
+        };
+        responses: {
+            /** @description Exam package tier created */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CreateAdminExamPackageTierResponse"];
+                };
+            };
+        };
+    };
+    instructorDeleteExamPackageTier: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                examPackageId: string;
+                tierId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Exam package tier deleted */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SuccessResponse"];
+                };
+            };
+        };
+    };
+    instructorUpdateExamPackageTier: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                examPackageId: string;
+                tierId: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["UpdateAdminExamPackageTierRequest"];
+            };
+        };
+        responses: {
+            /** @description Exam package tier updated */
             200: {
                 headers: {
                     [name: string]: unknown;
