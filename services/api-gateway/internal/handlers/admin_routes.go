@@ -324,7 +324,7 @@ func RegisterAdminRoutes(r *gin.Engine, pool *pgxpool.Pool) {
 				(select count(*) from users where deleted_at is null and role='student') as users_student,
 				(select count(*) from users where deleted_at is null and role='instructor') as users_instructor,
 				(select count(*) from users where deleted_at is null and role='admin') as users_admin,
-				(select count(*) from question_bank_packages) as qb_packages,
+				(select count(*) from question_banks) as qb_packages,
 				(select count(*) from question_bank_topics) as qb_topics,
 				(select count(*) from question_bank_questions) as qb_questions,
 				(select count(*) from exam_sessions) as exam_sessions,

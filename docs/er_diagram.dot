@@ -27,11 +27,11 @@ digraph ER {
 
   audit_log [label="{audit_log|id PK\nactor_user_id FK -> users.id\nactor_role\naction\ntarget_type\ntarget_id\nmetadata jsonb\ncreated_at\l}"];
 
-  question_bank_packages [label="{question_bank_packages|id PK\nname\nexam_package_id (legacy)\ncreated_by_user_id FK -> users.id\nis_hidden\ncreated_at\l}"];
-  exam_package_question_bank_packages [label="{exam_package_question_bank_packages|exam_package_id FK -> exam_packages.id\nquestion_bank_package_id FK -> question_bank_packages.id\nPK(exam_package_id,question_bank_package_id)\l}"];
-  question_bank_topics [label="{question_bank_topics|id PK\npackage_id FK -> question_bank_packages.id\nname\ncreated_by_user_id\nis_hidden\ncreated_at\l}"];
+  question_banks [label="{question_banks|id PK\nname\nexam_package_id (legacy)\ncreated_by_user_id FK -> users.id\nis_hidden\ncreated_at\l}"];
+  exam_package_question_bank_packages [label="{exam_package_question_bank_packages|exam_package_id FK -> exam_packages.id\nquestion_bank_package_id FK -> question_banks.id\nPK(exam_package_id,question_bank_package_id)\l}"];
+  question_bank_topics [label="{question_bank_topics|id PK\npackage_id FK -> question_banks.id\nname\ncreated_by_user_id\nis_hidden\ncreated_at\l}"];
   question_bank_difficulties [label="{question_bank_difficulties|id PK\ndisplay_name\nsort_order\l}"];
-  question_bank_questions [label="{question_bank_questions|id PK\npackage_id FK -> question_bank_packages.id\ntopic_id FK -> question_bank_topics.id\ndifficulty_id FK -> question_bank_difficulties.id\nprompt\nexplanation_text\nstatus\ncreated_by_user_id\nupdated_by_user_id\ncreated_at\nupdated_at\l}"];
+  question_bank_questions [label="{question_bank_questions|id PK\npackage_id FK -> question_banks.id\ntopic_id FK -> question_bank_topics.id\ndifficulty_id FK -> question_bank_difficulties.id\nprompt\nexplanation_text\nstatus\ncreated_by_user_id\nupdated_by_user_id\ncreated_at\nupdated_at\l}"];
   question_bank_choices [label="{question_bank_choices|id PK\nquestion_id FK -> question_bank_questions.id\norder_index\ntext\l}"];
   question_bank_correct_choice [label="{question_bank_correct_choice|question_id PK -> question_bank_questions.id\nchoice_id FK -> question_bank_choices.id\l}"];
 
@@ -59,9 +59,9 @@ digraph ER {
   audit_log -> users [label="actor_user_id"];
 
   exam_package_question_bank_packages -> exam_packages [label="exam_package_id"];
-  exam_package_question_bank_packages -> question_bank_packages [label="question_bank_package_id"];
-  question_bank_topics -> question_bank_packages [label="package_id"];
-  question_bank_questions -> question_bank_packages [label="package_id"];
+  exam_package_question_bank_packages -> question_bank [label="question_bank_package_id"];
+  question_bank_topics -> question_bank [label="package_id"];
+  question_bank_questions -> question_bank [label="package_id"];
   question_bank_questions -> question_bank_topics [label="topic_id"];
   question_bank_questions -> question_bank_difficulties [label="difficulty_id"];
   question_bank_choices -> question_bank_questions [label="question_id"];

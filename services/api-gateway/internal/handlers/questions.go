@@ -352,7 +352,7 @@ func RegisterQuestionRoutes(r *gin.Engine, pool *pgxpool.Pool) {
 					) as exam_package_id,
 					p.is_hidden,
 					p.created_at
-				from question_bank_packages p
+				from question_banks p
 				where p.is_hidden=false
 				order by p.name asc`)
 			if err != nil {
@@ -472,7 +472,7 @@ func RegisterQuestionRoutes(r *gin.Engine, pool *pgxpool.Pool) {
 			}
 			defer func() { _ = tx.Rollback(ctx) }()
 
-			_, err = tx.Exec(ctx, `insert into question_bank_packages (id, name, created_by_user_id) values ($1,$2,$3)`, pkgID, name, userID)
+			_, err = tx.Exec(ctx, `insert into question_banks (id, name, created_by_user_id) values ($1,$2,$3)`, pkgID, name, userID)
 			if err != nil {
 				c.JSON(http.StatusBadRequest, gin.H{"message": "failed to create question bank"})
 				return
@@ -502,7 +502,7 @@ func RegisterQuestionRoutes(r *gin.Engine, pool *pgxpool.Pool) {
 					) as exam_package_id,
 					p.is_hidden,
 					p.created_at
-				from question_bank_packages p
+				from question_banks p
 				order by p.name asc`)
 			if err != nil {
 				c.JSON(http.StatusInternalServerError, gin.H{"message": "failed to list question banks"})
@@ -573,7 +573,7 @@ func RegisterQuestionRoutes(r *gin.Engine, pool *pgxpool.Pool) {
 
 			set = append(set, "updated_at=now()")
 			args = append(args, pid)
-			_, err = tx.Exec(ctx, "update question_bank_packages set "+strings.Join(set, ", ")+" where id="+sqlParam(idx), args...)
+			_, err = tx.Exec(ctx, "update question_banks set "+strings.Join(set, ", ")+" where id="+sqlParam(idx), args...)
 			if err != nil {
 				c.JSON(http.StatusBadRequest, gin.H{"message": "failed to update question bank"})
 				return
@@ -621,7 +621,7 @@ func RegisterQuestionRoutes(r *gin.Engine, pool *pgxpool.Pool) {
 				c.JSON(http.StatusBadRequest, gin.H{"message": "questionBankId is required"})
 				return
 			}
-			ct, err := pool.Exec(context.Background(), `delete from question_bank_packages where id=$1`, pid)
+			ct, err := pool.Exec(context.Background(), `delete from question_banks where id=$1`, pid)
 			if err != nil {
 				c.JSON(http.StatusBadRequest, gin.H{"message": "failed to delete question bank"})
 				return

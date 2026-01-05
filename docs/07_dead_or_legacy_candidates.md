@@ -12,8 +12,8 @@ This file lists code and schema elements that appear unused, legacy, partially i
 - File/module: `services/api-gateway/internal/db/db.go` (many backfill/normalize SQL blocks)
 - Original intent: Support older development/production databases that used textual package IDs (e.g. 'gre', 'sat') and to backfill/normalize to UUIDs and mapping tables.
 - Evidence of non-use / legacy:
-  - Numerous comments in `db.go` describing "legacy", backfill, and normalization of `exam_packages.id` and `question_bank_packages.exam_package_id`.
-  - `docs/03_database_model.md` explicitly states `question_bank_packages.exam_package_id` is retained for migration safety and application logic prefers `exam_package_question_bank_packages` mapping table.
+  - Numerous comments in `db.go` describing "legacy", backfill, and normalization of `exam_packages.id` and `question_banks.exam_package_id`.
+  - `docs/03_database_model.md` explicitly states `question_banks.exam_package_id` is retained for migration safety and application logic prefers `exam_package_question_bank_packages` mapping table.
 - Risk level of removal: High. Dropping/migrating these fields before confirming backfill completion or removing clients that depend on the legacy column may break migrations and historical data access.
 
 3) Frontend catalog scaffold (`apps/web/src/packages/catalog.ts`)

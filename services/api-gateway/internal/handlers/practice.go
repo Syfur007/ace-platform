@@ -427,10 +427,10 @@ func RegisterPracticeRoutes(r *gin.Engine, pool *pgxpool.Pool) {
 
 		// Select published questions from the DB-backed question bank for this exam package.
 		args := []any{string(QuestionPublished), packageID}
-		query := `
+			query := `
 			select q.id, q.prompt, q.explanation_text, cc.choice_id
 			from question_bank_questions q
-			join question_bank_packages p on p.id=q.package_id
+			join question_banks p on p.id=q.package_id
 			join exam_package_question_bank_packages m on m.question_bank_package_id=p.id
 			join question_bank_correct_choice cc on cc.question_id=q.id
 			where q.status=$1 and p.is_hidden=false and m.exam_package_id=$2`

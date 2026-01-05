@@ -44,15 +44,15 @@ Practice sessions & templates (handlers/practice.go, practice_templates.go)
 Question bank (handlers/questions.go)
 - GET `/questions` — list published questions (student). Requires student auth. Reads: `question_bank_questions` filtered status='published'.
 - GET `/questions/:questionId` — get published question with choices. Requires student auth. Reads: `question_bank_questions`, `question_bank_choices`, (`question_bank_correct_choice` not exposed).
-- GET `/question-banks` — list visible question banks. Requires student auth. Reads: `question_bank_packages`, `exam_package_question_bank_packages` for mapping.
+- GET `/question-banks` — list visible question banks. Requires student auth. Reads: `question_banks`, `exam_package_question_bank_packages` for mapping.
 - GET `/question-topics` — list topics. Requires student auth. Reads: `question_bank_topics`.
 - GET `/question-difficulties` — list difficulties. Requires student auth. Reads: `question_bank_difficulties`.
 
 Instructor/admin question flows (handlers/questions.go)
-- POST `/instructor/question-banks` — create question bank package. Requires instructor/admin auth. Writes: `question_bank_packages`, `exam_package_question_bank_packages`.
-- GET `/instructor/question-banks` — list all question bank packages. Requires instructor/admin auth. Reads: `question_bank_packages`, `exam_package_question_bank_packages`.
-- PATCH `/instructor/question-banks/:questionBankId` — update package. Requires instructor/admin auth. Writes: `question_bank_packages`, `exam_package_question_bank_packages` if examPackageId updated.
-- DELETE `/instructor/question-banks/:questionBankId` — delete package. Requires instructor/admin auth. Deletes from `question_bank_packages` (cascade to related rows per schema).
+- POST `/instructor/question-banks` — create question bank package. Requires instructor/admin auth. Writes: `question_banks`, `exam_package_question_bank_packages`.
+- GET `/instructor/question-banks` — list all question bank packages. Requires instructor/admin auth. Reads: `question_banks`, `exam_package_question_bank_packages`.
+- PATCH `/instructor/question-banks/:questionBankId` — update package. Requires instructor/admin auth. Writes: `question_banks`, `exam_package_question_bank_packages` if examPackageId updated.
+- DELETE `/instructor/question-banks/:questionBankId` — delete package. Requires instructor/admin auth. Deletes from `question_banks` (cascade to related rows per schema).
 - POST `/instructor/question-topics` — create topic. Requires instructor/admin auth. Writes: `question_bank_topics`.
 - GET `/instructor/question-topics` — list topics. Requires instructor/admin auth. Reads: `question_bank_topics`.
 - PATCH `/instructor/question-topics/:topicId` — update topic. Requires instructor/admin auth. Writes: `question_bank_topics`.
@@ -81,7 +81,7 @@ Enrollments & Exam packages (handlers/enrollments.go)
 - DELETE `/student/enrollments/:examPackageId` — cancel enrollment. Requires student auth. Writes: `user_exam_package_enrollments` (delete).
 
 Admin routes (handlers/admin_routes.go)
-- GET `/admin/dashboard` — aggregate stats. Requires admin auth. Reads: `users`, `question_bank_packages`, `question_bank_topics`, `question_bank_questions`, `exam_sessions`, `exam_session_events`, `exam_session_flags`.
+- GET `/admin/dashboard` — aggregate stats. Requires admin auth. Reads: `users`, `question_banks`, `question_bank_topics`, `question_bank_questions`, `exam_sessions`, `exam_session_events`, `exam_session_flags`.
 - Admin exam package CRUD:
 	- GET `/admin/exam-packages` — list packages. Reads: `exam_packages`.
 	- POST `/admin/exam-packages` — create package. Writes: `exam_packages`.

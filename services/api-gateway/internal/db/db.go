@@ -404,7 +404,7 @@ func Migrate(ctx context.Context, pool *pgxpool.Pool) error {
 		`create index if not exists idx_audit_log_actor on audit_log(actor_user_id, id desc);`,
 
 		// Normalized question bank (MVP)
-		`create table if not exists question_bank_packages (
+		`create table if not exists question_banks (
 			id text primary key,
 			name text not null unique,
 			-- Legacy: previously referenced exam packages by a string id (e.g. 'gre').
@@ -414,16 +414,16 @@ func Migrate(ctx context.Context, pool *pgxpool.Pool) error {
 			is_hidden boolean not null default false,
 			created_at timestamptz not null default now()
 		);`,
-		`alter table question_bank_packages add column if not exists exam_package_id text null;`,
-		`create index if not exists idx_question_bank_packages_exam_package_id on question_bank_packages(exam_package_id);`,
-		`alter table question_bank_packages add column if not exists created_by_user_id text not null references users(id) on delete restrict;`,
-		`alter table question_bank_packages add column if not exists is_hidden boolean not null default false;`,
-		`alter table question_bank_packages add column if not exists updated_at timestamptz not null default now();`,
+		`alter table question_banks add column if not exists exam_package_id text null;`,
+		`create index if not exists idx_question_banks_exam_package_id on question_banks(exam_package_id);`,
+		`alter table question_banks add column if not exists created_by_user_id text not null references users(id) on delete restrict;`,
+		`alter table question_banks add column if not exists is_hidden boolean not null default false;`,
+		`alter table question_banks add column if not exists updated_at timestamptz not null default now();`,
 
 		// Exam package → question bank packages mapping (allows 1:N or N:N)
 		`create table if not exists exam_package_question_bank_packages (
 			exam_package_id uuid not null references exam_packages(id) on delete cascade,
-			question_bank_package_id text not null references question_bank_packages(id) on delete cascade,
+			question_bank_package_id text not null references question_banks(id) on delete cascade,
 			created_at timestamptz not null default now(),
 			primary key (exam_package_id, question_bank_package_id)
 		);`,
@@ -431,7 +431,7 @@ func Migrate(ctx context.Context, pool *pgxpool.Pool) error {
 
 		`create table if not exists question_bank_topics (
 			id text primary key,
-			package_id text null references question_bank_packages(id) on delete set null,
+			package_id text null references question_banks(id) on delete set null,
 			name text not null,
 			created_by_user_id text not null references users(id) on delete restrict,
 			is_hidden boolean not null default false,
@@ -451,7 +451,7 @@ func Migrate(ctx context.Context, pool *pgxpool.Pool) error {
 
 		`create table if not exists question_bank_questions (
 			id text primary key,
-			package_id text null references question_bank_packages(id) on delete set null,
+			package_id text null references question_banks(id) on delete set null,
 			topic_id text null references question_bank_topics(id) on delete set null,
 			difficulty_id text not null references question_bank_difficulties(id) on delete restrict,
 			prompt text not null,
@@ -523,11 +523,11 @@ func Migrate(ctx context.Context, pool *pgxpool.Pool) error {
 			and t.exam_package_id = e.exam_package_id
 			and t.is_default = true`)
 
-	// Backfill mapping from legacy question_bank_packages.exam_package_id (idempotent).
+	// Backfill mapping from legacy question_banks.exam_package_id (idempotent).
 	// Legacy value matches exam_packages.code.
 	_, _ = pool.Exec(ctx, `insert into exam_package_question_bank_packages (exam_package_id, question_bank_package_id)
 		select ep.id, qbp.id
-		from question_bank_packages qbp
+		from question_banks qbp
 		join exam_packages ep on ep.code = qbp.exam_package_id
 		where qbp.exam_package_id is not null and qbp.exam_package_id <> ''
 		on conflict (exam_package_id, question_bank_package_id) do nothing`)

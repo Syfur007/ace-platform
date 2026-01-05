@@ -547,7 +547,7 @@ The current codebase also includes the following major entity groups (implemente
 - **Audit trail**: `audit_log`.
 - **Exam integrity**: `exam_session_events`, `exam_session_flags`.
 - **Exam packages + enrollments**: `exam_packages`, `user_exam_package_enrollments`, `exam_package_question_bank_packages`.
-- **Question Bank (admin-managed content)**: `question_bank_packages`, `question_bank_topics`, `question_bank_difficulties`, `question_bank_questions`, `question_bank_choices`, `question_bank_correct_choice`.
+ - **Question Bank (admin-managed content)**: `question_bank`, `question_bank_topics`, `question_bank_difficulties`, `question_bank_questions`, `question_bank_choices`, `question_bank_correct_choice`.
 - **Practice template catalog**: `practice_test_templates`.
 
 **Important alignment note (Packages / Enrollment)**
@@ -563,7 +563,7 @@ The current implementation now includes:
 
 Practically, this means the current implementation effectively collapses concepts:
 
-- `question_bank_packages` currently behaves like a top-level container for questions, but it does not model “one package contains multiple question banks”.
+ - `question_bank` currently behaves like a top-level container for questions, but it does not model “one package contains multiple question banks”.
 - `practice_sessions.package_id` is not a foreign key, so referential integrity is not enforced at the database layer.
 
 Student-side enrollment UI is implemented: students can enroll from the Courses page and package details, and the Practice page is driven off enrollments.
