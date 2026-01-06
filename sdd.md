@@ -728,7 +728,7 @@ Flexible document storage for questions and activity.
 RESTful API design with cookie-based authentication (JWT access token in HttpOnly cookie + refresh + CSRF token for unsafe requests).
 
 - Local dev base URL: http://localhost:8080
-- Source-of-truth contract (local dev): `packages/shared-proto/openapi.yaml` (web types generated via `openapi-typescript`)
+- Source-of-truth contract (local dev): `packages/api-specs/openapi.yaml` (web types generated via `openapi-typescript`)
 
 ### 6.1.1 Current Implemented API (Jan 2026 MVP)
 

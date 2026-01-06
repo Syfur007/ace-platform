@@ -1,6 +1,8 @@
 
 API Contracts (implemented endpoints)
 
+**Canonical spec:** The authoritative OpenAPI specification lives at `packages/api-specs/openapi.yaml` and CI generates SDKs into `packages/sdks` (TypeScript and Go). Frontend clients should prefer generated clients or a typed API layer under `apps/web/src/services` rather than importing backend internals.
+
 Notes: for each endpoint I list route + method, purpose, auth requirement, handler file, and DB tables read/written by that handler for that endpoint.
 
 Auth (handlers/auth.go)
