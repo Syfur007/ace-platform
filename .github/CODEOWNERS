@@ -1,0 +1,7 @@
+# Codeowners for monorepo
+# Backend domain and policy owners
+/apps/backend/internal/ @backend-team
+# API spec owners
+/packages/api-specs/ @api-team
+# Frontend owners
+/apps/web/ @frontend-team
