@@ -1273,7 +1273,7 @@ Local development is container-first: Node.js and Go are run inside Docker conta
 | --- | --- | --- | --- |
 | db | postgres:15-alpine | 5432 → 5432 | Persistent data via a named Docker volume |
 | redis | redis:alpine | 6379 → 6379 | Persistent data via a named Docker volume |
-| api-gateway | golang:1.24-alpine | 8080 → 8080 | Runs `go run ./cmd/api-gateway` |
+| backend (api) | golang:1.24-alpine | 8080 → 8080 | Runs `go run ./cmd/api` |
 | web | node:24-alpine | 5173 → 5173 | Runs `npm install` then `vite dev` bound to 0.0.0.0 |
 
 **Environment variables:**
@@ -1287,7 +1287,7 @@ Local development is container-first: Node.js and Go are run inside Docker conta
 **Common commands:**
 
 - `docker compose up -d` starts all local services.
-- `docker compose logs -f api-gateway` tails API logs.
+- `docker compose logs -f api-gateway` tails API logs (service working dir: `apps/backend`).
 - `docker compose logs -f web` tails frontend logs.
 - `make install`, `make dev-web`, `make dev-api` provide a shorthand workflow.
 

@@ -3,7 +3,7 @@
 This document maps the implemented backend code in this repository: entry points, routing, major packages, their dependencies, and what data each module owns or mutates. It describes only what the code actually implements.
 
 **Application entry point(s)**
-- `services/api-gateway/cmd/api-gateway/main.go` — single binary entrypoint. Responsibilities:
+- `apps/backend/cmd/api/main.go` — single binary entrypoint. Responsibilities:
 	- Connect to PostgreSQL via `internal/db.Connect` and run `db.Migrate`.
 	- Create a Gin router, install CORS and double-submit CSRF middleware, register handlers, and run the HTTP server.
 
@@ -22,7 +22,7 @@ Routes are grouped by portal (student/instructor/admin) and protected with `auth
 
 **Major internal packages / modules**
 - `services/api-gateway/cmd/api-gateway` (main): server startup, middleware, route registration.
-- `services/api-gateway/internal/db`: DB connection, idempotent migration and seed/backfill logic.
+- `apps/backend/internal/db`: DB connection, idempotent migration and seed/backfill logic.
 - `services/api-gateway/internal/auth`: authentication primitives and middleware.
 - `services/api-gateway/internal/handlers`: HTTP handlers (multiple files) implementing domain APIs.
 - `services/api-gateway/internal/util`: small utilities (ID generation).
