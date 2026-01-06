@@ -3,12 +3,12 @@
 This document describes how the system actually works based on the implemented code in this repository. It focuses on runtime components, request flows, and concrete behaviors observed in the code. It does not speculate about unimplemented features.
 
 **Backend Entry Points**
-- **Main server:** `services/api-gateway/cmd/api-gateway/main.go` — starts a Gin HTTP server, connects to the database, runs the idempotent migration, sets CORS and CSRF middleware, and registers route groups via the handlers package.
-- **Route registration:** Route handlers are registered by functions in `services/api-gateway/internal/handlers` (e.g. `RegisterAuthRoutes`, `RegisterExamRoutes`, `RegisterQuestionRoutes`). These functions attach the implemented HTTP endpoints to the Gin engine.
+- **Main server:** `apps/backend/cmd/api/main.go` — starts a Gin HTTP server, connects to the database, runs the idempotent migration, sets CORS and CSRF middleware, and registers route groups via the handlers package.
+- **Route registration:** Route handlers are registered by functions in `apps/backend/internal/handlers` (e.g. `RegisterAuthRoutes`, `RegisterExamRoutes`, `RegisterQuestionRoutes`). These functions attach the implemented HTTP endpoints to the Gin engine.
 
 **Core Backend Modules / Services (implemented)**
 - **HTTP framework:** Gin (router/HTTP server) is the API gateway surface.
-- **Database & migrations:** `services/api-gateway/internal/db/db.go` — creates a `pgx` connection pool to PostgreSQL using `DATABASE_URL` (with a dev default), performs schema creation/backfill, seeds data (difficulties, some exam packages), and bootstraps admin/instructor users from env variables when present.
+- **Database & migrations:** `apps/backend/internal/db/db.go` — creates a `pgx` connection pool to PostgreSQL using `DATABASE_URL` (with a dev default), performs schema creation/backfill, seeds data (difficulties, some exam packages), and bootstraps admin/instructor users from env variables when present.
 - **Authentication:** `services/api-gateway/internal/auth` implements:
 	- JWT access tokens (HS256) with subject/audience/role/session claims.
 	- Opaque refresh tokens (random bytes, stored hashed in DB).

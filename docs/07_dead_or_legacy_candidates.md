@@ -1,7 +1,7 @@
 This file lists code and schema elements that appear unused, legacy, partially implemented, or support features not present in the main workflows. Each item includes the file/module, inferred intent, evidence of non-use or partiality, and a risk assessment for removal.
 
 1) Legacy auth aliases (`/auth/*`) and related handlers
-- File/module: `services/api-gateway/internal/handlers/auth.go` (legacy alias section)
+- File/module: `apps/backend/internal/handlers/auth.go` (legacy alias section)
 - Original intent: Backwards-compatibility for older clients that addressed auth under `/auth/*` rather than portal-scoped `/student/auth`, `/instructor/auth`, `/admin/auth`.
 - Evidence of non-use / legacy:
   - Code contains an explicit "Legacy aliases" comment and registers legacy routes as aliases to student portal handlers.
@@ -9,7 +9,7 @@ This file lists code and schema elements that appear unused, legacy, partially i
 - Risk level of removal: Medium → High. Removing will break older clients or integrations relying on the legacy path; safe only after verifying no consumers or after providing redirects.
 
 2) Migration-only DB fields and legacy package-id handling
-- File/module: `services/api-gateway/internal/db/db.go` (many backfill/normalize SQL blocks)
+- File/module: `apps/backend/internal/db/db.go` (many backfill/normalize SQL blocks)
 - Original intent: Support older development/production databases that used textual package IDs (e.g. 'gre', 'sat') and to backfill/normalize to UUIDs and mapping tables.
 - Evidence of non-use / legacy:
   - Numerous comments in `db.go` describing "legacy", backfill, and normalization of `exam_packages.id` and `question_banks.exam_package_id`.
