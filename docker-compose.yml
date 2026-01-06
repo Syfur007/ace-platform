@@ -19,10 +19,10 @@ services:
 
   api-gateway:
     image: golang:1.24-alpine
-    working_dir: /work/services/api-gateway
+    working_dir: /work/apps/backend
     volumes:
       - ./:/work
-    command: sh -c "/usr/local/go/bin/go run ./cmd/api-gateway"
+    command: sh -c "/usr/local/go/bin/go run ./cmd/api"
     environment:
       PORT: ${API_PORT:-8080}
       DATABASE_URL: ${DATABASE_URL:-postgres://ace:ace@db:5432/ace?sslmode=disable}

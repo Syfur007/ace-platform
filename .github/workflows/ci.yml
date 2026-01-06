@@ -32,6 +32,20 @@ jobs:
           go mod tidy
           go test ./... -v
 
+  generate-clients:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Generate TypeScript and Go clients from OpenAPI
+        run: |
+          docker run --rm -v ${GITHUB_WORKSPACE}:/local openapitools/openapi-generator-cli generate -i /local/packages/api-specs/openapi.yaml -g typescript-fetch -o /local/packages/sdks/ts -p supportsES6=true
+          docker run --rm -v ${GITHUB_WORKSPACE}:/local openapitools/openapi-generator-cli generate -i /local/packages/api-specs/openapi.yaml -g go -o /local/packages/sdks/go
+      - name: Upload generated SDKS as artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: generated-sdks
+          path: packages/sdks
+
   frontend:
     runs-on: ubuntu-latest
     strategy:

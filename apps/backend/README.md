@@ -2,17 +2,15 @@
 
 ## Database
 
-This service uses **versioned, file-based SQL migrations** in [services/api-gateway/migrations](migrations).
+This service uses **versioned, file-based SQL migrations** stored at `infrastructure/database/migrations`.
 
 - Migrations are **not** run automatically on service startup.
-- Apply migrations explicitly via the migrate CLI (local dev / CI/CD).
+- Apply migrations explicitly via the migrate CLI (local dev / CI/CD) or via the repository-level Makefile.
 
-### Run migrations locally
+### Run migrations locally (from repository root)
 
 ```sh
-cd services/api-gateway
-
-go run ./cmd/migrate --database "$DATABASE_URL" --path ./migrations up
+go run ./apps/backend/cmd/migrate --database "$DATABASE_URL" --path ./infrastructure/database/migrations up
 ```
 
 ### Automatic bootstrap users (startup)
