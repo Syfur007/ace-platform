@@ -182,202 +182,119 @@ Goal: keep business rules in one place, minimize cross-module coupling, and keep
 ## 8. Data Model — Conceptual and Implementation Notes
 
 8.1 Authoritative Storage Strategy
-- PostgreSQL is the source-of-truth for: users, packages, tiers, enrollments, templates, sessions, answers, audit trails.
-- Redis is a performance and rate-limit layer only; it must be safe to evict at any time.
-- Optional MongoDB may be introduced for flexible question/explanation documents; Postgres retains canonical references and entitlements.
+- PostgreSQL is the source-of-truth for users, sessions, packages, tiers, enrollments, templates, question banks, and audit trails.
+- Redis remains a volatile performance and rate-limit layer.
 
-8.2 Authoritative Tables (PostgreSQL)
-- `users` — user identity and role.
-- `exam_packages` — package metadata and tier definitions metadata pointer.
-- `exam_package_tiers` — per-package tier policy definitions (JSONB for flexible flags + typed columns for common constraints).
-- `user_exam_package_enrollments` — enrollment history and active tier pointer.
-- `question_bank`, `question_bank_questions`, `question_bank_choices`, `question_bank_correct_choice` — canonical question storage.
-- `practice_templates` — templates with `is_published` and package linkage.
-- `practice_sessions` — persisted sessions (id, user_id, package_id, template_id, question_order: JSONB, question_timings: JSONB, status, started_at, last_activity_at, etc.).
-- `practice_answers` — append-only answers with verdict and explanation snapshot.
-- `exam_sessions`, `exam_session_events`, `exam_session_flags` — exam integrity and events.
-
-8.3 Modeling Choices and Constraints
-- Keep `practice_sessions.package_id` nullable only for legacy compatibility; new sessions must include a package.
-- Store tier policy in `exam_package_tiers` as JSONB rules plus normalized columns for frequently enforced constraints.
-- Use indexes on `(user_id, status)` and `(created_at, last_activity_at)` for efficient history queries.
-
-8.4 Authoritative PostgreSQL Schema (Tables, Keys, Indexes)
-
-Note: column names below reflect required invariants; exact types may be `uuid`, `text`, `timestamptz`, `int`, `jsonb`, and `boolean`.
+8.2 Source Schema
+- The production canonical schema (implemented as ordered SQL migrations) includes the following primary tables and columns (types summarized):
 
 ### `users`
-- `id` (PK)
-- `email` (unique), `role` (`student|instructor|admin`)
-- `created_at`, `updated_at`
+- `id` text PRIMARY KEY
+- `email` text UNIQUE NOT NULL
+- `password_hash` text NOT NULL
+- `role` text NOT NULL DEFAULT 'student'
+- `created_at` timestamp NOT NULL DEFAULT now()
+- `updated_at` timestamp
+- `deleted_at` timestamp
 
-Indexes/constraints:
-- unique(`email`)
+### `auth_sessions`
+- `id` text PRIMARY KEY
+- `user_id` text NOT NULL
+- `role` text NOT NULL
+- `audience` text NOT NULL
+- `ip` text, `user_agent` text
+- `created_at` timestamp NOT NULL DEFAULT now()
+- `last_seen_at` timestamp, `expires_at` timestamp NOT NULL
+- `revoked_at` timestamp, `revoked_reason` text
+
+### `auth_refresh_tokens`
+- `id` text PRIMARY KEY
+- `session_id` text NOT NULL
+- `token_hash` bytea NOT NULL
+- `created_at` timestamp NOT NULL DEFAULT now(), `expires_at` timestamp NOT NULL
+- `revoked_at` timestamp, `replaced_by_token_id` text
+
+### Auth session groups & limits
+- `auth_session_groups`, `auth_session_group_memberships`, `auth_session_limits_group`, `auth_session_limits_user`, `auth_session_limits_role` tables exist to support group-based limits and per-role/user caps.
 
 ### `exam_packages`
-- `id` (PK)
-- `code` (unique, stable identifier), `name`, `description`
-- `tier_definitions_ref` (optional pointer/metadata)
-- `created_at`, `updated_at`
-
-Indexes/constraints:
-- unique(`code`)
+- `id` uuid PRIMARY KEY
+- `code` text UNIQUE NOT NULL, `name` text UNIQUE NOT NULL, `subtitle` text, `overview` text
+- `modules`, `highlights`, `module_sections` json
+- `is_hidden` boolean NOT NULL DEFAULT false
+- `created_at` timestamp NOT NULL DEFAULT now(), `updated_at` timestamp
 
 ### `exam_package_tiers`
-- `id` (PK)
-- `exam_package_id` (FK → `exam_packages.id`, ON DELETE CASCADE)
-- `code` (e.g., `free`, `premium`) unique **per package**
-- `display_name`
-- `policy` (JSONB; feature flags, caps, toggles)
-- Common enforced columns (normalized for performance), e.g.:
-  - `can_start_practice_session` (bool)
-  - `can_access_mock_tests` (bool)
-  - `max_practice_sessions_per_week` (int, nullable)
-- `created_at`, `updated_at`
+- `id` uuid PRIMARY KEY
+- `exam_package_id` uuid NOT NULL REFERENCES `exam_packages`(id)
+- `code` text NOT NULL, `name` text NOT NULL, `sort_order` integer NOT NULL DEFAULT 0
+- `is_default` boolean NOT NULL DEFAULT false, `is_active` boolean NOT NULL DEFAULT true
+- `policy` json NOT NULL
+- `max_practice_sessions_per_week` integer, `max_exam_sessions_per_week` integer
+- `created_at` timestamp NOT NULL DEFAULT now(), `updated_at` timestamp
 
-Indexes/constraints:
-- unique(`exam_package_id`, `code`)
-- index(`exam_package_id`)
-
-### `user_exam_package_enrollments` (immutable history + active pointer)
-- `id` (PK)
-- `user_id` (FK → `users.id`)
-- `exam_package_id` (FK → `exam_packages.id`)
-- `tier_id` (FK → `exam_package_tiers.id`)
-- `status` (`active|ended`)
-- `started_at`, `ended_at` (nullable)
-- `created_at`
-
-Invariants:
-- Exactly one `active` enrollment per (`user_id`, `exam_package_id`) at a time.
-- Tier changes create a new row; old row is ended.
-
-Indexes/constraints:
-- index(`user_id`, `exam_package_id`, `status`)
-- partial unique: unique(`user_id`, `exam_package_id`) WHERE `status` = 'active'
-
-### Question bank (canonical, package-owned)
-#### `question_bank`
-- `id` (PK)
-- `exam_package_id` (FK → `exam_packages.id`)
-- `name`, `created_at`
-
-#### `question_bank_questions`
-- `id` (PK)
-- `question_bank_package_id` (FK → `question_bank.id`)
-- `prompt` (text), `metadata` (JSONB), `difficulty` (nullable)
-- `created_at`, `updated_at`
-
-#### `question_bank_choices`
-- `id` (PK)
-- `question_id` (FK → `question_bank_questions.id`)
-- `label` (e.g., `A`), `text`
-- `created_at`
-
-#### `question_bank_correct_choice`
-- `question_id` (PK/FK → `question_bank_questions.id`)
-- `choice_id` (FK → `question_bank_choices.id`)
-
-Indexes/constraints:
-- index(`question_bank_package_id`)
-- index(`question_id`) on choices
-- enforce one correct choice per question (PK on `question_id`)
+### `user_exam_package_enrollments` and events
+- `user_exam_package_enrollments` uses composite PK (`user_id`, `exam_package_id`) and stores `tier_id`, timestamps and `updated_at`.
+- `user_exam_package_enrollment_events` records changes with `from_tier_id`, `to_tier_id`, `changed_by_user_id` and metadata.
 
 ### `practice_templates`
-- `id` (PK)
-- `exam_package_id` (FK → `exam_packages.id`)
-- `title`, `description`
-- `selection_rules` (JSONB: topic tags, difficulty bounds, etc.)
-- `time_limit_seconds` (nullable; null = untimed)
-- `question_count` (int)
-- `tier_restrictions` (JSONB or nullable)
-- `is_published` (bool)
-- `published_at` (nullable)
-- `version` (int; increments on publish snapshot)
-- `created_at`, `updated_at`
-
-Invariants:
-- Published templates are immutable; changes require creating a new version/snapshot.
-
-Indexes/constraints:
-- index(`exam_package_id`, `is_published`)
+- `id` uuid PRIMARY KEY
+- `exam_package_id` uuid NOT NULL REFERENCES `exam_packages`(id)
+- `name` text NOT NULL, `section` text NOT NULL
+- optional `topic_id` (references `question_topics.id`) and `difficulty_id` (references `question_bank_difficulties.id`)
+- `is_timed` boolean NOT NULL, `target_count` integer NOT NULL, `sort_order` integer
+- `is_published` boolean NOT NULL DEFAULT false
+- `created_by_user_id`, `updated_by_user_id` (user refs), `created_at`, `updated_at`
 
 ### `practice_sessions`
-- `id` (PK)
-- `user_id` (FK → `users.id`)
-- `exam_package_id` (FK → `exam_packages.id`) **NOT NULL for new sessions**
-- `template_id` (FK → `practice_templates.id`)
-- `status` (`active|paused|finished|invalidated`)
-- `question_order` (JSONB array of question IDs; authoritative)
-- `question_timings` (JSONB; per-question start/elapsed; authoritative)
-- `current_index` (int)
-- `time_limit_seconds` (nullable; copied from template at creation)
-- `started_at`, `finished_at` (nullable)
-- `last_activity_at`
-- `invalidated_at` (nullable), `invalidated_reason` (nullable)
-- `created_at`
+- `id` text PRIMARY KEY
+- `user_id` text NOT NULL REFERENCES `users`(id)
+- `package_id` uuid (nullable for legacy) REFERENCES `exam_packages`(id)
+- `tier_id` uuid REFERENCES `exam_package_tiers`(id)
+- `template_id` uuid REFERENCES `practice_templates`(id)
+- `is_timed` boolean NOT NULL, `started_at` timestamp NOT NULL
+- `time_limit_seconds` integer, `target_count` integer NOT NULL
+- `current_index` integer NOT NULL DEFAULT 0, `current_question_started_at` timestamp
+- `paused_at` timestamp, `status` text NOT NULL
+- `questions_snapshot` json NOT NULL, `question_timings` json
+- `correct_count` integer NOT NULL DEFAULT 0, `created_at` timestamp NOT NULL DEFAULT now(), `last_activity_at` timestamp
 
-Indexes/constraints:
-- index(`user_id`, `status`)
-- index(`created_at`)
-- index(`last_activity_at`)
-- (migration-stage) allow nullable `exam_package_id` only for legacy rows; enforce NOT NULL after cleanup.
+### `practice_answers`
+- `id` bigserial PRIMARY KEY
+- `session_id` text NOT NULL REFERENCES `practice_sessions`(id)
+- `user_id` text NOT NULL REFERENCES `users`(id)
+- `question_id` text NOT NULL, `choice_id` text NOT NULL
+- `correct` boolean NOT NULL, `explanation` text, `ts` timestamp NOT NULL DEFAULT now()
 
-### `practice_answers` (append-only)
-- `id` (PK)
-- `practice_session_id` (FK → `practice_sessions.id`, ON DELETE CASCADE)
-- `question_id` (FK → `question_bank_questions.id`)
-- `answer_payload` (JSONB; selected choice, text, etc.)
-- `is_correct` (nullable until graded if needed)
-- `explanation_snapshot` (JSONB or text; captured at answer time)
-- `answered_at`
-- `created_at`
+### `exam_sessions`, `exam_session_events`, `exam_session_flags`
+- `exam_sessions` uses composite PK (`user_id`, `id`) and includes `status`, `exam_package_id`, `tier_id`, `snapshot` json, timestamps for heartbeat/submit/termination/invalidation.
+- `exam_session_events` and `exam_session_flags` are append-only event/flag stores referencing the session composite key.
 
-Indexes/constraints:
-- index(`practice_session_id`, `answered_at`)
-- index(`question_id`)
+### Question bank tables
+- `question_banks` (`id` text PK, `name`, `exam_package_id` uuid NOT NULL)
+- `question_topics` (`id` text PK, `package_id` uuid NOT NULL, `name`, ...)
+- `question_bank_difficulties` (`id` text PK, `display_name`, `sort_order`)
+- `question_bank_questions` (`id` text PK, `question_bank_id` text NOT NULL, `topic_id`, `difficulty_id`, `prompt`, `explanation_text`, `status`, created/updated timestamps)
+- `question_bank_choices` (`id` text PK, `question_id` text NOT NULL, `order_index` integer NOT NULL, `text`)
+- `question_bank_correct_choice` (`question_id` text PK, `choice_id` text NOT NULL)
 
-### Exam (mock) sessions
-#### `exam_sessions`
-- `id` (PK)
-- `user_id` (FK → `users.id`)
-- `exam_package_id` (FK → `exam_packages.id`)
-- `status` (`active|finished|invalidated`)
-- `snapshot` (JSONB; minimal resume state; authoritative)
-- `started_at`, `finished_at` (nullable)
-- `last_heartbeat_at` (nullable)
-- `created_at`
+### `audit_log`
+- `id` bigserial PRIMARY KEY
+- `actor_user_id` text, `actor_role` text, `action` text NOT NULL
+- `target_type`, `target_id`, `metadata` json, `created_at` timestamp NOT NULL DEFAULT now()
 
-Indexes:
-- index(`user_id`, `status`)
-- index(`last_heartbeat_at`)
+8.3 Indexes, Uniques and FK constraints
+- Unique and composite indexes present in ACE.sql include: unique on `exam_package_tiers` (`exam_package_id`,`code`), unique package/name on `question_banks`, unique topic name per package, and various functional indexes on session and audit tables.
+- Foreign keys are applied after base tables are created; the ACE.sql ordering places FK creation blocks to ensure referenced tables exist (migrations must preserve ordering).
 
-#### `exam_session_events` (append-only)
-- `id` (PK)
-- `exam_session_id` (FK → `exam_sessions.id`, ON DELETE CASCADE)
-- `type` (text; e.g., `heartbeat`, `focus_lost`, `network_drop`)
-- `payload` (JSONB)
-- `created_at`
-
-#### `exam_session_flags`
-- `id` (PK)
-- `exam_session_id` (FK → `exam_sessions.id`, ON DELETE CASCADE)
-- `flag_type` (text), `reason` (text), `created_at`
-
-### `audit_log` (immutable)
-- `id` (PK)
-- `actor_user_id` (nullable FK → `users.id`)
-- `action` (text; e.g., `policy_decision`, `session_transition`)
-- `resource_type`, `resource_id`
-- `payload` (JSONB; include decision reason codes)
-- `created_at`
-
-Indexes:
-- index(`resource_type`, `resource_id`)
-- index(`created_at`)
+8.4 Modeling Notes and Migration Guidance
+- `practice_sessions.package_id` is allowed nullable for legacy data (ACE.sql uses `package_id`); migrations should populate and then enforce NOT NULL during cleanup.
+- Status columns are stored as `text` with check/comment metadata in ACE.sql; domain code should validate and map allowed state strings (`practice_sessions.status` and `exam_sessions.status`).
+- Use `json`/`jsonb` columns for flexible payloads such as `modules`, `questions_snapshot`, `snapshot`, and `policy`.
+- Seed data (difficulties, topics, example packages) is present in migration seeds and tests should assert expected seeded counts.
 
 8.5 Future DB Plan
-- Introduce a document store (MongoDB) for flexible question schema and media-rich explanations; keep Postgres as source-of-truth for enrollments, sessions, and audit trails.
+- Keep Postgres as the authoritative store for enrollments, sessions, audit logs and entitlements. Consider document store for media-rich question content later; maintain migration-driven evolution with ordered SQL files and a migration table.
 
 ---
 
