@@ -2,7 +2,10 @@ package auth
 
 import (
 	"context"
+	"log"
 	"net/http"
+	"os"
+	"strconv"
 	"strings"
 	"time"
 
@@ -16,22 +19,52 @@ const UserIDKey ContextKey = "userId"
 const RoleKey ContextKey = "role"
 const SessionIDKey ContextKey = "sessionId"
 
+const (
+	HeaderAuthorization = "Authorization"
+	CookieAccessName    = "ace_access"
+)
+
+// extractBearerOrCookie extracts token from Authorization header or cookie.
+func extractBearerOrCookie(c *gin.Context) string {
+	authz := c.GetHeader(HeaderAuthorization)
+	if authz != "" {
+		parts := strings.SplitN(authz, " ", 2)
+		if len(parts) == 2 && strings.EqualFold(parts[0], "Bearer") {
+			return strings.TrimSpace(parts[1])
+		}
+		return ""
+	}
+	if v, err := c.Cookie(CookieAccessName); err == nil {
+		return strings.TrimSpace(v)
+	}
+	return ""
+}
+
+func intFromEnv(name string, fallback int) int {
+	if v := os.Getenv(name); v != "" {
+		if n, err := strconv.Atoi(v); err == nil {
+			return n
+		}
+	}
+	return fallback
+}
+
+// allowStrictSessionCheck controls whether DB session checks are required.
+func allowStrictSessionCheck() bool {
+	v := os.Getenv("AUTH_STRICT_SESSION_CHECK")
+	if v == "" {
+		return true
+	}
+	b, err := strconv.ParseBool(v)
+	if err != nil {
+		return true
+	}
+	return b
+}
+
 func RequirePortalAuth(pool *pgxpool.Pool, expectedRole string, expectedAudience string) gin.HandlerFunc {
 	return func(c *gin.Context) {
-		token := ""
-		authz := c.GetHeader("Authorization")
-		if authz != "" {
-			parts := strings.SplitN(authz, " ", 2)
-			if len(parts) != 2 || !strings.EqualFold(parts[0], "Bearer") {
-				c.AbortWithStatusJSON(http.StatusUnauthorized, gin.H{"message": "invalid authorization"})
-				return
-			}
-			token = parts[1]
-		} else {
-			if v, err := c.Cookie("ace_access"); err == nil {
-				token = strings.TrimSpace(v)
-			}
-		}
+		token := extractBearerOrCookie(c)
 		if token == "" {
 			c.AbortWithStatusJSON(http.StatusUnauthorized, gin.H{"message": "missing authorization"})
 			return
@@ -39,6 +72,7 @@ func RequirePortalAuth(pool *pgxpool.Pool, expectedRole string, expectedAudience
 
 		claims, err := ParseAccessToken(token)
 		if err != nil || claims.Subject == "" {
+			// ParseAccessToken returns typed errors; map them to 401/403 as appropriate.
 			c.AbortWithStatusJSON(http.StatusUnauthorized, gin.H{"message": "invalid token"})
 			return
 		}
@@ -64,22 +98,33 @@ func RequirePortalAuth(pool *pgxpool.Pool, expectedRole string, expectedAudience
 
 		// If token is tied to a DB session, enforce revocation + expiry server-side.
 		if claims.SessionID != "" && pool != nil {
-			ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
+			timeoutMs := intFromEnv("AUTH_DB_TIMEOUT_MS", 2000)
+			ctx, cancel := context.WithTimeout(context.Background(), time.Duration(timeoutMs)*time.Millisecond)
 			defer cancel()
+
 			var revokedAt *time.Time
 			var expiresAt time.Time
 			err := pool.QueryRow(ctx, `select revoked_at, expires_at from auth_sessions where id=$1 and user_id=$2`, claims.SessionID, claims.Subject).
 				Scan(&revokedAt, &expiresAt)
 			if err != nil {
-				c.AbortWithStatusJSON(http.StatusUnauthorized, gin.H{"message": "unauthorized"})
-				return
+				if allowStrictSessionCheck() {
+					log.Printf("DEBUG: auth: session DB check failed: %v", err)
+					c.AbortWithStatusJSON(http.StatusUnauthorized, gin.H{"message": "unauthorized"})
+					return
+				}
+				// graceful degradation: log and continue with JWT-only validation
+				log.Printf("WARN: auth: session DB unavailable, falling back to JWT-only validation: %v", err)
+			} else {
+				now := time.Now().UTC()
+				if revokedAt != nil || !expiresAt.After(now) {
+					c.AbortWithStatusJSON(http.StatusUnauthorized, gin.H{"message": "unauthorized"})
+					return
+				}
+				// best-effort update of last_seen_at
+				if _, err := pool.Exec(ctx, `update auth_sessions set last_seen_at=now() where id=$1`, claims.SessionID); err != nil {
+					log.Printf("DEBUG: auth: failed to update last_seen_at: %v", err)
+				}
 			}
-			now := time.Now().UTC()
-			if revokedAt != nil || !expiresAt.After(now) {
-				c.AbortWithStatusJSON(http.StatusUnauthorized, gin.H{"message": "unauthorized"})
-				return
-			}
-			_, _ = pool.Exec(ctx, `update auth_sessions set last_seen_at=now() where id=$1`, claims.SessionID)
 		}
 
 		c.Set(string(UserIDKey), claims.Subject)
