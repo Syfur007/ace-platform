@@ -1,4 +1,4 @@
-module github.com/ace-platform/api-gateway
+module github.com/ace-platform/apps/backend
 
 go 1.24.0
 
