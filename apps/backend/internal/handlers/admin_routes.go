@@ -12,8 +12,8 @@ import (
 	"github.com/jackc/pgx/v5/pgconn"
 	"github.com/jackc/pgx/v5/pgxpool"
 
-	"github.com/ace-platform/api-gateway/internal/auth"
-	"github.com/ace-platform/api-gateway/internal/util"
+	"github.com/ace-platform/apps/backend/internal/auth"
+	"github.com/ace-platform/apps/backend/internal/util"
 )
 
 type AdminUserListItem struct {

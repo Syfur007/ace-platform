@@ -10,9 +10,12 @@ import (
 
 	"github.com/gin-gonic/gin"
 
-	"github.com/ace-platform/api-gateway/internal/bootstrap"
-	"github.com/ace-platform/api-gateway/internal/db"
-	"github.com/ace-platform/api-gateway/internal/handlers"
+	"encoding/json"
+	"github.com/ace-platform/apps/backend/internal/bootstrap"
+	"github.com/ace-platform/apps/backend/internal/db"
+	"github.com/ace-platform/apps/backend/internal/handlers"
+	pack "github.com/ace-platform/apps/backend/internal/handlers/exampackage"
+	dom "github.com/ace-platform/apps/backend/internal/domain/exampackage"
 )
 
 func main() {
@@ -98,7 +101,25 @@ func main() {
 	})
 
 	handlers.RegisterAuthRoutes(r, pool)
-	handlers.RegisterEnrollmentRoutes(r, pool)
+
+	// Wire exam package domain: repository -> service -> handlers
+	repo := dom.NewPostgresRepository(pool)
+	auditFn := func(ctx context.Context, actorUserID, actorRole, action, targetType, targetID string, metadata any) {
+		payload := []byte("{}")
+		if metadata != nil {
+			if b, err := json.Marshal(metadata); err == nil {
+				payload = b
+			}
+		}
+		_, _ = pool.Exec(ctx, `insert into audit_log (actor_user_id, actor_role, action, target_type, target_id, metadata) values ($1,$2,$3,$4,$5,$6)`, actorUserID, actorRole, action, targetType, targetID, payload)
+	}
+	svc := dom.NewService(repo, auditFn)
+
+	// Register the new exam package handlers (preserve existing endpoints)
+	pack.RegisterPublicRoutes(r, svc)
+	pack.RegisterStudentRoutes(r, svc, pool)
+	pack.RegisterInstructorRoutes(r, svc, pool)
+
 	handlers.RegisterPracticeRoutes(r, pool)
 	handlers.RegisterExamRoutes(r, pool)
 	handlers.RegisterQuestionRoutes(r, pool)

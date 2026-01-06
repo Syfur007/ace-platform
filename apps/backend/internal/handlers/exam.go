@@ -10,7 +10,7 @@ import (
 	"github.com/gin-gonic/gin"
 	"github.com/jackc/pgx/v5/pgxpool"
 
-	"github.com/ace-platform/api-gateway/internal/auth"
+	"github.com/ace-platform/apps/backend/internal/auth"
 )
 
 type ExamSessionStatus string
