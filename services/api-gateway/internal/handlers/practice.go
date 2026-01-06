@@ -355,7 +355,7 @@ func RegisterPracticeRoutes(r *gin.Engine, pool *pgxpool.Pool) {
 					t.target_count,
 					e.tier_id,
 					e.user_id is not null
-				from practice_test_templates t
+				from practice_templates t
 				left join user_exam_package_enrollments e on e.exam_package_id=t.exam_package_id and e.user_id=$2
 				where t.id=$1`, tid, userID).
 				Scan(&packageID, &templateTopicID, &templateDifficultyID, &isPublished, &isTimed, &targetCount, &enrollmentTierID, &enrolled); err != nil {

@@ -192,7 +192,7 @@ Goal: keep business rules in one place, minimize cross-module coupling, and keep
 - `exam_package_tiers` — per-package tier policy definitions (JSONB for flexible flags + typed columns for common constraints).
 - `user_exam_package_enrollments` — enrollment history and active tier pointer.
 - `question_bank`, `question_bank_questions`, `question_bank_choices`, `question_bank_correct_choice` — canonical question storage.
-- `practice_test_templates` — templates with `is_published` and package linkage.
+- `practice_templates` — templates with `is_published` and package linkage.
 - `practice_sessions` — persisted sessions (id, user_id, package_id, template_id, question_order: JSONB, question_timings: JSONB, status, started_at, last_activity_at, etc.).
 - `practice_answers` — append-only answers with verdict and explanation snapshot.
 - `exam_sessions`, `exam_session_events`, `exam_session_flags` — exam integrity and events.
@@ -283,7 +283,7 @@ Indexes/constraints:
 - index(`question_id`) on choices
 - enforce one correct choice per question (PK on `question_id`)
 
-### `practice_test_templates`
+### `practice_templates`
 - `id` (PK)
 - `exam_package_id` (FK → `exam_packages.id`)
 - `title`, `description`
@@ -306,7 +306,7 @@ Indexes/constraints:
 - `id` (PK)
 - `user_id` (FK → `users.id`)
 - `exam_package_id` (FK → `exam_packages.id`) **NOT NULL for new sessions**
-- `template_id` (FK → `practice_test_templates.id`)
+- `template_id` (FK → `practice_templates.id`)
 - `status` (`active|paused|finished|invalidated`)
 - `question_order` (JSONB array of question IDs; authoritative)
 - `question_timings` (JSONB; per-question start/elapsed; authoritative)

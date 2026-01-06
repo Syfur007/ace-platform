@@ -96,7 +96,7 @@ func registerPracticeTemplateRoutes(r *gin.Engine, pool *pgxpool.Pool) {
 				t.updated_at,
 				tp.name as topic_name,
 				d.display_name as difficulty_name
-			from practice_test_templates t
+			from practice_templates t
 			join user_exam_package_enrollments e on e.exam_package_id = t.exam_package_id and e.user_id = $1
 			left join question_bank_topics tp on tp.id = t.topic_id
 			left join question_bank_difficulties d on d.id = t.difficulty_id
@@ -206,7 +206,7 @@ func registerPracticeTemplateRoutes(r *gin.Engine, pool *pgxpool.Pool) {
 					t.updated_at,
 					tp.name as topic_name,
 					d.display_name as difficulty_name
-				from practice_test_templates t
+				from practice_templates t
 				left join question_bank_topics tp on tp.id = t.topic_id
 				left join question_bank_difficulties d on d.id = t.difficulty_id
 				`+where+`
@@ -215,7 +215,6 @@ func registerPracticeTemplateRoutes(r *gin.Engine, pool *pgxpool.Pool) {
 				c.JSON(http.StatusInternalServerError, gin.H{"message": "failed to list practice templates"})
 				return
 			}
-			defer rows.Close()
 
 			items := []PracticeTemplate{}
 			for rows.Next() {
@@ -308,7 +307,7 @@ func registerPracticeTemplateRoutes(r *gin.Engine, pool *pgxpool.Pool) {
 
 			ctx := context.Background()
 			_, err := pool.Exec(ctx, `
-				insert into practice_test_templates (
+				insert into practice_templates (
 					exam_package_id, name, section, topic_id, difficulty_id, is_timed, target_count, sort_order, is_published,
 					created_by_user_id, updated_by_user_id
 				)
@@ -336,7 +335,7 @@ func registerPracticeTemplateRoutes(r *gin.Engine, pool *pgxpool.Pool) {
 					t.updated_at,
 					tp.name as topic_name,
 					d.display_name as difficulty_name
-				from practice_test_templates t
+				from practice_templates t
 				left join question_bank_topics tp on tp.id = t.topic_id
 				left join question_bank_difficulties d on d.id = t.difficulty_id
 				where t.exam_package_id=$1 and t.created_by_user_id=$2
@@ -394,7 +393,7 @@ func registerPracticeTemplateRoutes(r *gin.Engine, pool *pgxpool.Pool) {
 
 			// Update with COALESCE to keep patch semantics.
 			_, err := pool.Exec(ctx, `
-				update practice_test_templates set
+				update practice_templates set
 					name = coalesce($2, name),
 					section = coalesce($3, section),
 					topic_id = $4,
@@ -436,7 +435,7 @@ func registerPracticeTemplateRoutes(r *gin.Engine, pool *pgxpool.Pool) {
 					t.updated_at,
 					tp.name as topic_name,
 					d.display_name as difficulty_name
-				from practice_test_templates t
+				from practice_templates t
 				left join question_bank_topics tp on tp.id = t.topic_id
 				left join question_bank_difficulties d on d.id = t.difficulty_id
 				where t.id=$1`, id)
@@ -476,7 +475,7 @@ func registerPracticeTemplateRoutes(r *gin.Engine, pool *pgxpool.Pool) {
 				return
 			}
 			ctx := context.Background()
-			ct, err := pool.Exec(ctx, `delete from practice_test_templates where id=$1`, id)
+			ct, err := pool.Exec(ctx, `delete from practice_templates where id=$1`, id)
 			if err != nil {
 				c.JSON(http.StatusInternalServerError, gin.H{"message": "failed to delete template"})
 				return
@@ -497,7 +496,7 @@ func registerPracticeTemplateRoutes(r *gin.Engine, pool *pgxpool.Pool) {
 				}
 
 				ctx := context.Background()
-				_, err := pool.Exec(ctx, `update practice_test_templates set is_published=$2, updated_at=now() where id=$1`, id, isPublished)
+				_, err := pool.Exec(ctx, `update practice_templates set is_published=$2, updated_at=now() where id=$1`, id, isPublished)
 				if err != nil {
 					c.JSON(http.StatusInternalServerError, gin.H{"message": "failed to update publish state"})
 					return
@@ -519,7 +518,7 @@ func registerPracticeTemplateRoutes(r *gin.Engine, pool *pgxpool.Pool) {
 						t.updated_at,
 						tp.name as topic_name,
 						d.display_name as difficulty_name
-					from practice_test_templates t
+					from practice_templates t
 					left join question_bank_topics tp on tp.id = t.topic_id
 					left join question_bank_difficulties d on d.id = t.difficulty_id
 					where t.id=$1`, id)

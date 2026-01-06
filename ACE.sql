@@ -110,7 +110,7 @@ CREATE TABLE "user_exam_package_enrollment_events" (
   "metadata" json
 );
 
-CREATE TABLE "practice_test_templates" (
+CREATE TABLE "practice_templates" (
   "id" uuid PRIMARY KEY,
   "exam_package_id" uuid NOT NULL,
   "name" text NOT NULL,
@@ -332,15 +332,15 @@ ALTER TABLE "user_exam_package_enrollment_events" ADD FOREIGN KEY ("to_tier_id")
 
 ALTER TABLE "user_exam_package_enrollment_events" ADD FOREIGN KEY ("changed_by_user_id") REFERENCES "users" ("id");
 
-ALTER TABLE "practice_test_templates" ADD FOREIGN KEY ("exam_package_id") REFERENCES "exam_packages" ("id");
+ALTER TABLE "practice_templates" ADD FOREIGN KEY ("exam_package_id") REFERENCES "exam_packages" ("id");
 
-ALTER TABLE "practice_test_templates" ADD FOREIGN KEY ("topic_id") REFERENCES "question_topics" ("id");
+ALTER TABLE "practice_templates" ADD FOREIGN KEY ("topic_id") REFERENCES "question_topics" ("id");
 
-ALTER TABLE "practice_test_templates" ADD FOREIGN KEY ("difficulty_id") REFERENCES "question_bank_difficulties" ("id");
+ALTER TABLE "practice_templates" ADD FOREIGN KEY ("difficulty_id") REFERENCES "question_bank_difficulties" ("id");
 
-ALTER TABLE "practice_test_templates" ADD FOREIGN KEY ("created_by_user_id") REFERENCES "users" ("id");
+ALTER TABLE "practice_templates" ADD FOREIGN KEY ("created_by_user_id") REFERENCES "users" ("id");
 
-ALTER TABLE "practice_test_templates" ADD FOREIGN KEY ("updated_by_user_id") REFERENCES "users" ("id");
+ALTER TABLE "practice_templates" ADD FOREIGN KEY ("updated_by_user_id") REFERENCES "users" ("id");
 
 ALTER TABLE "practice_sessions" ADD FOREIGN KEY ("user_id") REFERENCES "users" ("id");
 
@@ -348,7 +348,7 @@ ALTER TABLE "practice_sessions" ADD FOREIGN KEY ("package_id") REFERENCES "exam_
 
 ALTER TABLE "practice_sessions" ADD FOREIGN KEY ("tier_id") REFERENCES "exam_package_tiers" ("id");
 
-ALTER TABLE "practice_sessions" ADD FOREIGN KEY ("template_id") REFERENCES "practice_test_templates" ("id");
+ALTER TABLE "practice_sessions" ADD FOREIGN KEY ("template_id") REFERENCES "practice_templates" ("id");
 
 ALTER TABLE "practice_answers" ADD FOREIGN KEY ("session_id") REFERENCES "practice_sessions" ("id");
 

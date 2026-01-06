@@ -162,15 +162,15 @@ END $$;
 -- These must run after question bank tables exist.
 DO $$
 BEGIN
-  IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname='fk_practice_test_templates_topic_id') THEN
-    ALTER TABLE practice_test_templates
-      ADD CONSTRAINT fk_practice_test_templates_topic_id
+  IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname='fk_practice_templates_topic_id') THEN
+    ALTER TABLE practice_templates
+      ADD CONSTRAINT fk_practice_templates_topic_id
       FOREIGN KEY (topic_id) REFERENCES question_topics(id);
   END IF;
 
-  IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname='fk_practice_test_templates_difficulty_id') THEN
-    ALTER TABLE practice_test_templates
-      ADD CONSTRAINT fk_practice_test_templates_difficulty_id
+  IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname='fk_practice_templates_difficulty_id') THEN
+    ALTER TABLE practice_templates
+      ADD CONSTRAINT fk_practice_templates_difficulty_id
       FOREIGN KEY (difficulty_id) REFERENCES question_bank_difficulties(id);
   END IF;
 

@@ -24,16 +24,16 @@ Exam sessions (handlers/exam.go)
 - POST `/exam-sessions/:sessionId/events` — record an event for a session. Requires student auth. Writes: `exam_session_events`.
 
 Practice sessions & templates (handlers/practice.go, practice_templates.go)
-- GET `/practice-templates` — list published templates (student). Requires student auth. Reads: `practice_test_templates`.
-- GET `/instructor/practice-templates` — instructor list (can include unpublished). Requires instructor/admin auth. Reads: `practice_test_templates`.
-- POST `/instructor/practice-templates` — create template. Requires instructor/admin auth. Writes: `practice_test_templates`.
-- PATCH `/instructor/practice-templates/:templateId` — update template. Requires instructor/admin auth. Writes: `practice_test_templates`.
-- DELETE `/instructor/practice-templates/:templateId` — delete template. Requires instructor/admin auth. Writes: `practice_test_templates`.
-- POST `/instructor/practice-templates/:templateId/publish` — publish template. Requires instructor/admin auth. Writes: `practice_test_templates`.
-- POST `/instructor/practice-templates/:templateId/unpublish` — unpublish template. Requires instructor/admin auth. Writes: `practice_test_templates`.
+- GET `/practice-templates` — list published templates (student). Requires student auth. Reads: `practice_templates`.
+- GET `/instructor/practice-templates` — instructor list (can include unpublished). Requires instructor/admin auth. Reads: `practice_templates`.
+- POST `/instructor/practice-templates` — create template. Requires instructor/admin auth. Writes: `practice_templates`.
+- PATCH `/instructor/practice-templates/:templateId` — update template. Requires instructor/admin auth. Writes: `practice_templates`.
+- DELETE `/instructor/practice-templates/:templateId` — delete template. Requires instructor/admin auth. Writes: `practice_templates`.
+- POST `/instructor/practice-templates/:templateId/publish` — publish template. Requires instructor/admin auth. Writes: `practice_templates`.
+- POST `/instructor/practice-templates/:templateId/unpublish` — unpublish template. Requires instructor/admin auth. Writes: `practice_templates`.
 
 - GET `/practice-sessions` — list practice sessions for user. Requires student auth. Reads: `practice_sessions`.
-- POST `/practice-sessions` — create practice session (template-driven or package-driven). Requires student auth. Reads: `practice_test_templates`, `user_exam_package_enrollments`, `exam_packages`. Writes: `practice_sessions`.
+- POST `/practice-sessions` — create practice session (template-driven or package-driven). Requires student auth. Reads: `practice_templates`, `user_exam_package_enrollments`, `exam_packages`. Writes: `practice_sessions`.
 - GET `/practice-sessions/:sessionId` — get practice session. Requires student auth. Reads: `practice_sessions`.
 - POST `/practice-sessions/:sessionId/pause` — pause session. Requires student auth. Updates: `practice_sessions`.
 - POST `/practice-sessions/:sessionId/resume` — resume session. Requires student auth. Updates: `practice_sessions`.

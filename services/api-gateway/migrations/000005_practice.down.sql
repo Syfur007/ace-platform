@@ -22,9 +22,9 @@ ALTER TABLE practice_sessions DROP CONSTRAINT IF EXISTS fk_practice_sessions_pac
 ALTER TABLE practice_sessions DROP CONSTRAINT IF EXISTS fk_practice_sessions_user_id;
 DROP TABLE IF EXISTS practice_sessions;
 
-ALTER TABLE practice_test_templates DROP CONSTRAINT IF EXISTS fk_practice_test_templates_updated_by_user_id;
-ALTER TABLE practice_test_templates DROP CONSTRAINT IF EXISTS fk_practice_test_templates_created_by_user_id;
-ALTER TABLE practice_test_templates DROP CONSTRAINT IF EXISTS fk_practice_test_templates_difficulty_id;
-ALTER TABLE practice_test_templates DROP CONSTRAINT IF EXISTS fk_practice_test_templates_topic_id;
-ALTER TABLE practice_test_templates DROP CONSTRAINT IF EXISTS fk_practice_test_templates_exam_package_id;
-DROP TABLE IF EXISTS practice_test_templates;
+ALTER TABLE practice_templates DROP CONSTRAINT IF EXISTS fk_practice_templates_updated_by_user_id;
+ALTER TABLE practice_templates DROP CONSTRAINT IF EXISTS fk_practice_templates_created_by_user_id;
+ALTER TABLE practice_templates DROP CONSTRAINT IF EXISTS fk_practice_templates_difficulty_id;
+ALTER TABLE practice_templates DROP CONSTRAINT IF EXISTS fk_practice_templates_topic_id;
+ALTER TABLE practice_templates DROP CONSTRAINT IF EXISTS fk_practice_templates_exam_package_id;
+DROP TABLE IF EXISTS practice_templates;

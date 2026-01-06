@@ -474,7 +474,7 @@ The MVP schema is created idempotently by the Go API gateway at startup.
 | id | TEXT | Primary key (session id) |
 | user_id | TEXT | FK to users(id) |
 | package_id | UUID (nullable) | References the selected exam package (`exam_packages.id`) for this session. Current implementation does not enforce a FK constraint, but the API enforces enrollment when creating sessions. |
-| template_id | UUID (nullable) | Optional link to a published practice template (`practice_test_templates.id`) when the session is started from a template. |
+| template_id | UUID (nullable) | Optional link to a published practice template (`practice_templates.id`) when the session is started from a template. |
 | is_timed | BOOLEAN | Ironman vs Untimed |
 | started_at | TIMESTAMPTZ | Session start timestamp |
 | time_limit_seconds | INTEGER | Total allowed time for Ironman; 0 for untimed |
@@ -489,7 +489,7 @@ The MVP schema is created idempotently by the Go API gateway at startup.
 | created_at | TIMESTAMPTZ | Created timestamp |
 | last_activity_at | TIMESTAMPTZ | Activity timestamp for ordering/history |
 
-**practice_test_templates**
+**practice_templates**
 
 Catalog items that define reusable practice configurations per exam package.
 
@@ -548,7 +548,7 @@ The current codebase also includes the following major entity groups (implemente
 - **Exam integrity**: `exam_session_events`, `exam_session_flags`.
 - **Exam packages + enrollments**: `exam_packages`, `user_exam_package_enrollments`, `exam_package_question_bank_packages`.
  - **Question Bank (admin-managed content)**: `question_bank`, `question_bank_topics`, `question_bank_difficulties`, `question_bank_questions`, `question_bank_choices`, `question_bank_correct_choice`.
-- **Practice template catalog**: `practice_test_templates`.
+- **Practice template catalog**: `practice_templates`.
 
 **Important alignment note (Packages / Enrollment)**
 

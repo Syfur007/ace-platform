@@ -3,7 +3,7 @@
 -- Risk: medium (sessions/answers can grow).
 -- Reversible: yes (drops tables; destructive).
 
-CREATE TABLE IF NOT EXISTS practice_test_templates (
+CREATE TABLE IF NOT EXISTS practice_templates (
   id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
   exam_package_id uuid NOT NULL,
   name text NOT NULL,
@@ -22,14 +22,14 @@ CREATE TABLE IF NOT EXISTS practice_test_templates (
 
 DO $$
 BEGIN
-  IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname='fk_practice_test_templates_exam_package_id') THEN
-    ALTER TABLE practice_test_templates
-      ADD CONSTRAINT fk_practice_test_templates_exam_package_id
+  IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname='fk_practice_templates_exam_package_id') THEN
+    ALTER TABLE practice_templates
+      ADD CONSTRAINT fk_practice_templates_exam_package_id
       FOREIGN KEY (exam_package_id) REFERENCES exam_packages(id);
   END IF;
-  IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname='fk_practice_test_templates_updated_by_user_id') THEN
-    ALTER TABLE practice_test_templates
-      ADD CONSTRAINT fk_practice_test_templates_updated_by_user_id
+  IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname='fk_practice_templates_updated_by_user_id') THEN
+    ALTER TABLE practice_templates
+      ADD CONSTRAINT fk_practice_templates_updated_by_user_id
       FOREIGN KEY (updated_by_user_id) REFERENCES users(id);
   END IF;
 END $$;
@@ -78,7 +78,7 @@ BEGIN
   IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname='fk_practice_sessions_template_id') THEN
     ALTER TABLE practice_sessions
       ADD CONSTRAINT fk_practice_sessions_template_id
-      FOREIGN KEY (template_id) REFERENCES practice_test_templates(id);
+      FOREIGN KEY (template_id) REFERENCES practice_templates(id);
   END IF;
 END $$;
 

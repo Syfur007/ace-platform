@@ -75,7 +75,7 @@ Graphically: main → db
 	- `exam.go` — exam session lifecycle (heartbeat, submit, events) persisted to `exam_sessions`, `exam_session_events`, and related tables.
 	- `questions.go` — question bank CRUD, choices, publish/approval workflows; mutates question bank tables and related choice/metadata tables.
 	- `enrollments.go` — exam package listing, student enroll/unenroll, instructor updates to packages; mutates `user_exam_package_enrollments` and `exam_packages`.
-	- `practice.go` — practice session lifecycle, session creation, answers, timing, summary, and review; mutates `practice_sessions`, `practice_answers` and reads `practice_test_templates`.
+	- `practice.go` — practice session lifecycle, session creation, answers, timing, summary, and review; mutates `practice_sessions`, `practice_answers` and reads `practice_templates`.
 	- `practice_templates.go` — instructor CRUD for practice templates (not detailed above but present in repository).
 	- `admin_routes.go` — admin dashboard, admin CRUD for users, sessions, groups, exam packages, and admin exam session actions; mutates users, auth_sessions, auth_refresh_tokens, exam session flags, audit_log, and exam_packages.
 	- `list_params.go` — shared small helper for list pagination.
@@ -92,7 +92,7 @@ Graphically: main → db
 - `auth_sessions` — written/updated by `handlers/auth.go` (create session on login/register, update last_seen), read by `internal/auth` middleware for token validation, revoked by logout endpoints and admin actions.
 - `auth_refresh_tokens` — written by `handlers/auth.go` (store hashed refresh tokens), read in refresh flow, rotated on refresh.
 - `exam_sessions`, `exam_session_events`, `exam_session_flags` — written/read by `handlers/exam.go` and visible via admin routes.
-- `practice_sessions`, `practice_answers`, `practice_test_templates` — handled by `handlers/practice.go` and `handlers/practice_templates.go`.
+- `practice_sessions`, `practice_answers`, `practice_templates` — handled by `handlers/practice.go` and `handlers/practice_templates.go`.
 - `question_bank_*` tables — created/read/updated by `handlers/questions.go` and admin routes.
 - `exam_packages`, `user_exam_package_enrollments` — used by `handlers/enrollments.go` and package-related admin/instructor endpoints.
 - `audit_log` — written by `admin_routes.go` and some handlers for auditing changes.

@@ -6,8 +6,8 @@
 -- Drop deferred foreign keys from practice tables first (they reference question-bank tables).
 ALTER TABLE practice_answers DROP CONSTRAINT IF EXISTS fk_practice_answers_choice_id;
 ALTER TABLE practice_answers DROP CONSTRAINT IF EXISTS fk_practice_answers_question_id;
-ALTER TABLE practice_test_templates DROP CONSTRAINT IF EXISTS fk_practice_test_templates_difficulty_id;
-ALTER TABLE practice_test_templates DROP CONSTRAINT IF EXISTS fk_practice_test_templates_topic_id;
+ALTER TABLE practice_templates DROP CONSTRAINT IF EXISTS fk_practice_templates_difficulty_id;
+ALTER TABLE practice_templates DROP CONSTRAINT IF EXISTS fk_practice_templates_topic_id;
 
 ALTER TABLE question_bank_correct_choice DROP CONSTRAINT IF EXISTS fk_question_bank_correct_choice_choice_id;
 ALTER TABLE question_bank_correct_choice DROP CONSTRAINT IF EXISTS fk_question_bank_correct_choice_question_id;

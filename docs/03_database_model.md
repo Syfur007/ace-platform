@@ -33,7 +33,7 @@ This document summarizes the PostgreSQL schema (as implemented by `services/api-
   - Used by: enrollment update flows and admin/instructor actions for auditability of tier transitions.
 
 ### Practice templates & sessions
-- `practice_test_templates` — instructor-created templates describing practice selection (id, exam_package_id, name, section, topic_id, difficulty_id, is_timed, target_count, sort_order, is_published, created_by_user_id, updated_by_user_id, created_at, updated_at).
+- `practice_templates` — instructor-created templates describing practice selection (id, exam_package_id, name, section, topic_id, difficulty_id, is_timed, target_count, sort_order, is_published, created_by_user_id, updated_by_user_id, created_at, updated_at).
   - Used by: `handlers/practice_templates.go` (CRUD/publish), `handlers/practice.go` (template-driven practice session creation).
 
 - `practice_sessions` — practice sessions (id, user_id, package_id uuid nullable for legacy rows, tier_id uuid, template_id uuid, is_timed, started_at, time_limit_seconds, target_count, current_index, current_question_started_at, paused_at, status, questions_snapshot json, question_timings json, correct_count, created_at, last_activity_at).
@@ -98,16 +98,16 @@ This document summarizes the PostgreSQL schema (as implemented by `services/api-
 - `user_exam_package_enrollment_events.changed_by_user_id` → `users.id`
 
 ### Practice
-- `practice_test_templates.exam_package_id` → `exam_packages.id`
-- `practice_test_templates.topic_id` → `question_topics.id`
-- `practice_test_templates.difficulty_id` → `question_difficulties.id`
-- `practice_test_templates.created_by_user_id` → `users.id`
-- `practice_test_templates.updated_by_user_id` → `users.id`
+- `practice_templates.exam_package_id` → `exam_packages.id`
+- `practice_templates.topic_id` → `question_topics.id`
+- `practice_templates.difficulty_id` → `question_difficulties.id`
+- `practice_templates.created_by_user_id` → `users.id`
+- `practice_templates.updated_by_user_id` → `users.id`
 
 - `practice_sessions.user_id` → `users.id`
 - `practice_sessions.package_id` → `exam_packages.id` (nullable legacy)
 - `practice_sessions.tier_id` → `exam_package_tiers.id`
-- `practice_sessions.template_id` → `practice_test_templates.id`
+- `practice_sessions.template_id` → `practice_templates.id`
 
 - `practice_answers.session_id` → `practice_sessions.id`
 - `practice_answers.user_id` → `users.id`
@@ -159,7 +159,7 @@ This document summarizes the PostgreSQL schema (as implemented by `services/api-
   - Read/Write: `exam_packages`, `exam_package_tiers` (list/resolve defaults), `user_exam_package_enrollments` (create/update/delete), `user_exam_package_enrollment_events` (append tier-change history).
 
 - `handlers/practice_templates.go`:
-  - Read/Write: `practice_test_templates` (including publish state), reads `question_topics` / `question_difficulties` for selection constraints, and uses `users` for created/updated attribution.
+  - Read/Write: `practice_templates` (including publish state), reads `question_topics` / `question_difficulties` for selection constraints, and uses `users` for created/updated attribution.
 
 - `handlers/practice.go`:
   - Read/Write: `practice_sessions`, `practice_answers`.
