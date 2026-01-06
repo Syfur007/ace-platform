@@ -10,7 +10,17 @@ on:
       - main
 
 jobs:
+  lint-boundaries:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Run import boundary checks
+        run: |
+          chmod +x ./scripts/verify-boundaries.sh
+          ./scripts/verify-boundaries.sh
+
   backend:
+    needs: lint-boundaries
     runs-on: ubuntu-latest
     strategy:
       matrix:
@@ -47,6 +57,7 @@ jobs:
           path: packages/sdks
 
   frontend:
+    needs: [lint-boundaries, generate-clients]
     runs-on: ubuntu-latest
     strategy:
       matrix:
