@@ -7,7 +7,7 @@
     "dev": "vite",
     "build": "vite build",
     "typecheck": "tsc -p tsconfig.json --noEmit",
-    "api:generate": "openapi-typescript ../../packages/shared-proto/openapi.yaml -o src/api/__generated__/schema.d.ts",
+    "api:generate": "openapi-typescript ../../packages/api-specs/openapi.yaml -o src/api/__generated__/schema.d.ts",
     "lint": "eslint .",
     "preview": "vite preview"
   },

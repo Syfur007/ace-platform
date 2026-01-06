@@ -1,0 +1,13 @@
+{
+  "name": "ace-platform",
+  "private": true,
+  "workspaces": [
+    "apps/*",
+    "packages/*"
+  ],
+  "scripts": {
+    "install": "pnpm -w install",
+    "build": "pnpm -w build",
+    "test": "pnpm -w test"
+  }
+}
